@@ -80,7 +80,7 @@
                 "ENABLE_SWD": false,
                 "ENABLE_SCANLIST_SHOW_DETAIL":false,
                 "VERSION_STRING_1": "v0.22",
-                "VERSION_STRING_2": "7.0b1" 
+                "VERSION_STRING_2": "1.0" 
             }
         },
        
@@ -94,7 +94,7 @@
                 "ENABLE_CPU_STATS": false,
                 "ENABLE_FEAT_F4HWN_SCREENSHOT": false,
                 "EDITION_STRING": "Dev",
-                "TARGET": "ROBZYL.K1.Dev.7.0b1"
+                "TARGET": "ROBZYL.K1.Dev.1.0"
             }
         },
         {
@@ -104,7 +104,7 @@
                 "ENABLE_USB": true,
                 "ENABLE_UART": false,
                 "EDITION_STRING": "USB",
-                "TARGET": "ROBZYL.K1.USB.7.0b1"
+                "TARGET": "ROBZYL.K1.USB.1.0"
             }
         },
         {
@@ -114,7 +114,7 @@
                 "ENABLE_USB": false,
                 "ENABLE_UART": true,
                 "EDITION_STRING": "RS232",
-                "TARGET": "ROBZYL.K1.RS232.7.0b1"
+                "TARGET": "ROBZYL.K1.RS232.1.0"
             }
         }
     ],

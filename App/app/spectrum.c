@@ -1028,6 +1028,7 @@ static void ShowOSDPopup(const char *str)
 {   osdPopupTimer = osdPopupSetting;
     strncpy(osdPopupText, str, sizeof(osdPopupText)-1);
     osdPopupText[sizeof(osdPopupText)-1] = '\0';
+    spectrumElapsedCount = 0;
 }
 
 static uint32_t stillFreq = 0;
@@ -1088,6 +1089,7 @@ KEY_Code_t GetKey() {
 static void SetState(State state) {
   previousState = currentState;
   currentState = state;
+  spectrumElapsedCount = 0;
 }
 
 // ============================================================
@@ -1444,7 +1446,7 @@ static void FillfreqHistory(bool countHit)
 } 
 
 static void ToggleRX(bool on) {
-    if (SPECTRUM_PAUSED) return;
+    if (SPECTRUM_PAUSED || settings.rssiTriggerLevelUp == 50) return;
     if(!on && SpectrumMonitor == 2) {isListening = 1;return;}
     isListening = on;
     gChannel = BOARD_gMR_fetchChannel(scanInfo.f);
@@ -3455,7 +3457,7 @@ static void Render() {
   #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
     SCREENSHOT_Update(1);
   #endif
-  ST7565_BlitFullScreen();
+    if (spectrumElapsedCount < 500) ST7565_BlitFullScreen();
 }
 
 static void HandleUserInput(void) {

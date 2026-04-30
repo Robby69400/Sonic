@@ -91,10 +91,10 @@ build_preset() {
   docker run --rm -u $(id -u):$(id -g) -v "$PWD":/src -w /src "$IMAGE" \
   bash -c "cmake --preset ${preset} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} && \
            cmake --build --preset ${preset} -j" \
-  2>&1 | sed "s|/src/|C:/Perso/Robzyl_K1_2/|g"
+  2>&1 | sed "s|/src/|C:/Perso/Sonic/|g"
 
   docker run --rm -v "$PWD":/src -w /src "$IMAGE" \
-    arm-none-eabi-size ./build/${preset}/ROBZYL.K1.${preset}.7.0b1.elf
+    arm-none-eabi-size ./build/${preset}/ROBZYL.K1.${preset}.1.0.elf
 
   echo "✅ Done: ${preset}"
 }
@@ -125,10 +125,10 @@ fi
 # Définition du nom du binaire selon le preset
 case "$PRESET" in
   "USB")
-    BIN_NAME="ROBZYL.K1.USB.7.0b1.bin"
+    BIN_NAME="ROBZYL.K1.USB.1.0.bin"
     ;;
   "Dev")
-    BIN_NAME="ROBZYL.K1.Dev.7.0b1.bin"
+    BIN_NAME="ROBZYL.K1.Dev.1.0.bin"
     ;;
   "All")
     # Pour 'All', on peut flasher un binaire par défaut ou ignorer

@@ -38,9 +38,6 @@ void UI_DisplayFM(void)
             gEeprom.FM_FrequencyPlaying % 10);
     UI_DisplayFrequency(String, 56, 2, true);
 
-    // Пунктирные линии (step=2)
-    const uint8_t step = 2;
-
     // Горизонтальная верхняя (Y=16)
     for (uint8_t x = 3; x < 125; x += 1) {
         uint8_t y = 15;

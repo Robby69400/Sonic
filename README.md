@@ -13,7 +13,7 @@ This software is a fork of Armel F4HWN firmware with code from NTOIVOLA, EGZUMER
 Refer to this manual for global instructions,[🗲 F4HWN Manual](https://github.com/armel/uv-k1-k5v3-firmware-custom/wiki)
 Here we describe the spectrum and specific instructions for Robzyl:
 ## HISTORY CHANGES
-### V6.20 to 7.0b1
+### V6.20 to 1.0
 * registers tuning from Fagci
 * display refresh 100ms
 * auto zoom update
