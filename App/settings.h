@@ -116,15 +116,6 @@ enum ACTION_OPT_t {
     ACTION_OPT_LEN
 };
 
-#ifdef ENABLE_VOICE
-    enum VOICE_Prompt_t
-    {
-        VOICE_PROMPT_OFF = 0,
-        VOICE_PROMPT_CHINESE,
-        VOICE_PROMPT_ENGLISH
-    };
-    typedef enum VOICE_Prompt_t VOICE_Prompt_t;
-#endif
 
 enum ALARM_Mode_t {
     ALARM_MODE_SITE = 0,
@@ -134,8 +125,10 @@ typedef enum ALARM_Mode_t ALARM_Mode_t;
 
 enum ROGER_Mode_t {
     ROGER_MODE_OFF = 0,
-    ROGER_MODE_ROGER,
-    ROGER_MODE_MDC
+    ROGER_MODE_OURO,
+    ROGER_MODE_KLAC,
+    ROGER_MODE_PIU,
+    ROGER_MODE_ICQ
 };
 typedef enum ROGER_Mode_t ROGER_Mode_t;
 
@@ -151,9 +144,6 @@ typedef struct {
     uint16_t               ScreenChannel[2]; // current channels set in the radio (memory or frequency channels)
     uint16_t               FreqChannel[2]; // last frequency channels used
     uint16_t               MrChannel[2]; // last memory channels used
-#ifdef ENABLE_NOAA
-    uint16_t           NoaaChannel[2];
-#endif
 
     // The actual VFO index (0-upper/1-lower) that is now used for RX, 
     // It is being alternated by dual watch, and flipped by crossband
@@ -189,9 +179,6 @@ typedef struct {
 #endif
     bool                  VOX_SWITCH;
     uint8_t               VOX_LEVEL;
-#ifdef ENABLE_VOICE
-    VOICE_Prompt_t    VOICE_PROMPT;
-#endif
     bool                  BEEP_CONTROL;
     uint8_t               CHANNEL_DISPLAY_MODE;
     bool                  TAIL_TONE_ELIMINATION;
@@ -216,9 +203,6 @@ typedef struct {
     uint8_t               field38_0x33;
 
     uint8_t               AUTO_KEYPAD_LOCK;
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-    ALARM_Mode_t      ALARM_MODE;
-#endif
     POWER_OnDisplayMode_t POWER_ON_DISPLAY_MODE;
     ROGER_Mode_t          ROGER;
     uint8_t               REPEATER_TAIL_TONE_ELIMINATION;
@@ -229,11 +213,6 @@ typedef struct {
     uint8_t               MIC_SENSITIVITY;
     uint8_t               MIC_SENSITIVITY_TUNING;
     uint16_t              CHAN_1_CALL;
-#ifdef ENABLE_DTMF_CALLING
-    char                  ANI_DTMF_ID[8];
-    char                  KILL_CODE[8];
-    char                  REVIVE_CODE[8];
-#endif
     char                  DTMF_UP_CODE[16];
 
     uint8_t               field57_0x6c;
@@ -244,25 +223,13 @@ typedef struct {
     uint8_t               field60_0x7e;
     uint8_t               field61_0x7f;
 
-#ifdef ENABLE_DTMF_CALLING
-    char                  DTMF_SEPARATE_CODE;
-    char                  DTMF_GROUP_CALL_CODE;
-    uint8_t               DTMF_DECODE_RESPONSE;
-    uint8_t               DTMF_auto_reset_time;
-#endif  
     uint16_t              DTMF_PRELOAD_TIME;
     uint16_t              DTMF_FIRST_CODE_PERSIST_TIME;
     uint16_t              DTMF_HASH_CODE_PERSIST_TIME;
     uint16_t              DTMF_CODE_PERSIST_TIME;
     uint16_t              DTMF_CODE_INTERVAL_TIME;
     bool                  DTMF_SIDE_TONE;
-#ifdef ENABLE_DTMF_CALLING
-    bool                  PERMIT_REMOTE_KILL;
-#endif
     int16_t               BK4819_XTAL_FREQ_LOW;
-#ifdef ENABLE_NOAA
-    bool              NOAA_AUTO_SCAN;
-#endif
     uint8_t               VOLUME_GAIN;
     #ifdef ENABLE_FEAT_F4HWN
         uint8_t           VOLUME_GAIN_BACKUP;
@@ -280,9 +247,6 @@ typedef struct {
 
     uint8_t               KEY_M_LONG_PRESS_ACTION;
     uint8_t               BACKLIGHT_MIN;
-#ifdef ENABLE_BLMIN_TMP_OFF
-    BLMIN_STAT_t          BACKLIGHT_MIN_STAT;
-#endif
     uint8_t               BACKLIGHT_MAX;
     BATTERY_Type_t        BATTERY_TYPE;
 #ifdef ENABLE_RSSI_BAR
@@ -312,9 +276,6 @@ void SETTINGS_UpdateChannel(uint16_t channel, const VFO_Info_t *pVFO, bool keep,
 void SETTINGS_WriteBuildOptions(void);
 #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
     void SETTINGS_WriteCurrentState(void);
-#endif
-#ifdef ENABLE_FEAT_F4HWN_VOL
-    void SETTINGS_WriteCurrentVol(void);
 #endif
 
 #endif

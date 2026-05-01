@@ -44,9 +44,6 @@
 #include "py32f0xx.h"
 #include "audio.h"
 #include "board.h"
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-    // #include "bsp/dp32g030/pwmplus.h"
-#endif
 #include "driver/backlight.h"
 #ifdef ENABLE_FMRADIO
     #include "driver/bk1080.h"
@@ -77,16 +74,11 @@
 #include "app/spectrum.h"
 #include "driver/py25q16.h"
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    #include "screenshot.h"
-#endif
-
 static bool flagSaveVfo;
 static bool flagSaveSettings;
 static bool flagSaveChannel;
 
 static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld);
-
 
 void (*ProcessKeysFunctions[])(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld) = {
     [DISPLAY_MAIN] = &MAIN_ProcessKeys,
@@ -125,14 +117,6 @@ static void CheckForIncoming(void)
     {   // not RF scanning
         if (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF)
         {   // dual watch is disabled
-
-            #ifdef ENABLE_NOAA
-                if (gIsNoaaMode)
-                {
-                    gNOAA_Countdown_10ms = NOAA_countdown_3_10ms;
-                    gScheduleNOAA        = false;
-                }
-            #endif
 
             if (gCurrentFunction != FUNCTION_INCOMING)
             {
@@ -190,10 +174,6 @@ static void CheckForIncoming(void)
 static void HandleIncoming(void)
 {
     if (!g_SquelchLost) {   // squelch is closed
-#ifdef ENABLE_DTMF_CALLING
-        if (gDTMF_RX_index > 0)
-            DTMF_clear_RX();
-#endif
         if (gCurrentFunction != FUNCTION_FOREGROUND) {
             FUNCTION_Select(FUNCTION_FOREGROUND);
             gUpdateDisplay = true;
@@ -202,13 +182,6 @@ static void HandleIncoming(void)
     }
 
     bool bFlag = (gScanStateDir == SCAN_OFF && gCurrentCodeType == CODE_TYPE_OFF);
-
-#ifdef ENABLE_NOAA
-    if (IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE) && gNOAACountdown_10ms > 0) {
-        gNOAACountdown_10ms = 0;
-        bFlag               = true;
-    }
-#endif
 
     if (g_CTCSS_Lost && gCurrentCodeType == CODE_TYPE_CONTINUOUS_TONE) {
         bFlag       = true;
@@ -222,30 +195,6 @@ static void HandleIncoming(void)
     }
     else if (!bFlag)
         return;
-
-#ifdef ENABLE_DTMF_CALLING
-    if (gScanStateDir == SCAN_OFF && (gRxVfo->DTMF_DECODING_ENABLE || gSetting_KILLED)) {
-
-        // DTMF DCD is enabled
-        DTMF_HandleRequest();
-        if (gDTMF_CallState == DTMF_CALL_STATE_NONE) {
-            if (gRxReceptionMode != RX_MODE_DETECTED) {
-                return;
-            }
-            gDualWatchCountdown_10ms = dual_watch_count_after_1_10ms;
-            gScheduleDualWatch       = false;
-
-            gRxReceptionMode = RX_MODE_LISTENING;
-
-            // let the user see DW is not active
-            gDualWatchActive = false;
-            gUpdateStatus    = true;
-
-            gUpdateDisplay = true;
-            return;
-        }
-    }
-#endif
 
     APP_StartListening(gMonitor ? FUNCTION_MONITOR : FUNCTION_RECEIVE);
 }
@@ -294,11 +243,7 @@ static void HandleReceive(void)
 
     if (g_SquelchLost)
     {
-        #ifdef ENABLE_NOAA
-            if (!gEndOfRxDetectedMaybe && !IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE))
-        #else
             if (!gEndOfRxDetectedMaybe)
-        #endif
         {
             switch (gCurrentCodeType)
             {
@@ -378,11 +323,6 @@ Skip:
 
         case END_OF_RX_MODE_END:
             RADIO_SetupRegisters(true);
-
-            #ifdef ENABLE_NOAA
-                if (IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE))
-                    gNOAACountdown_10ms = 300;         // 3 sec
-            #endif
 
             gUpdateDisplay = true;
 
@@ -503,14 +443,12 @@ void APP_StartListening(FUNCTION_Type_t function)
     gRxTimerCountdown_500ms = 7200;
 #endif
 
-#ifdef ENABLE_DTMF_CALLING
-    if (gSetting_KILLED)
-        return;
-#endif
-
 #ifdef ENABLE_FMRADIO
-    if (gFmRadioMode && !gFM_Mute)
-        BK1080_Init0();
+    if (gFmRadioMode && !gFM_Mute) {
+        // Глушим BK1080 только если не идёт FM_Start (избегаем двойного I2C при 250ms init)
+        if (gFM_RestoreCountdown_10ms == 0)
+            BK1080_Init0();
+    }
 #endif
 
     // clear the other vfo's rssi level (to hide the antenna symbol)
@@ -538,18 +476,6 @@ void APP_StartListening(FUNCTION_Type_t function)
 
     if (gScanStateDir != SCAN_OFF)
         CHFRSCANNER_Found();
-
-#ifdef ENABLE_NOAA
-    if (IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE) && gIsNoaaMode) {
-        gRxVfo->CHANNEL_SAVE        = gNoaaChannel + NOAA_CHANNEL_FIRST;
-        gRxVfo->pRX->Frequency      = NoaaFrequencyTable[gNoaaChannel];
-        gRxVfo->pTX->Frequency      = NoaaFrequencyTable[gNoaaChannel];
-        gEeprom.ScreenChannel[vfo] = gRxVfo->CHANNEL_SAVE;
-
-        gNOAA_Countdown_10ms        = 500;   // 5 sec
-        gScheduleNOAA               = false;
-    }
-#endif
 
     if (gScanStateDir == SCAN_OFF &&
         gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
@@ -583,9 +509,6 @@ void APP_StartListening(FUNCTION_Type_t function)
         (gEeprom.VOLUME_GAIN << 4) |     // AF Rx Gain-2
         (gEeprom.DAC_GAIN    << 0));     // AF DAC Gain (after Gain-1 and Gain-2)
 
-#ifdef ENABLE_VOICE
-    if (gVoiceWriteIndex == 0)       // AM/FM RX mode will be set when the voice has finished
-#endif
         RADIO_SetModulation(gRxVfo->Modulation);  // no need, set it now
 
     FUNCTION_Select(function);
@@ -623,31 +546,8 @@ uint32_t APP_SetFrequencyByStep(VFO_Info_t *pInfo, int8_t direction)
     return APP_SetFreqByStepAndLimits(pInfo, direction, frequencyBandTable[pInfo->Band].lower, frequencyBandTable[pInfo->Band].upper);
 }
 
-#ifdef ENABLE_NOAA
-    static void NOAA_IncreaseChannel(void)
-    {
-        if (++gNoaaChannel > 9)
-            gNoaaChannel = 0;
-    }
-#endif
-
 static void DualwatchAlternate(void)
 {
-    #ifdef ENABLE_NOAA
-        if (gIsNoaaMode)
-        {
-            if (!IS_NOAA_CHANNEL(gEeprom.ScreenChannel[0]) || !IS_NOAA_CHANNEL(gEeprom.ScreenChannel[1]))
-                gEeprom.RX_VFO = (gEeprom.RX_VFO + 1) & 1;
-            else
-                gEeprom.RX_VFO = 0;
-
-            gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
-
-            if (IS_NOAA_CHANNEL(gEeprom.VfoInfo[0].CHANNEL_SAVE))
-                NOAA_IncreaseChannel();
-        }
-        else
-    #endif
     {   // toggle between VFO's
         gEeprom.RX_VFO = !gEeprom.RX_VFO;
         gRxVfo         = &gEeprom.VfoInfo[gEeprom.RX_VFO];
@@ -661,11 +561,7 @@ static void DualwatchAlternate(void)
 
     RADIO_SetupRegisters(false);
 
-    #ifdef ENABLE_NOAA
-        gDualWatchCountdown_10ms = gIsNoaaMode ? dual_watch_count_noaa_10ms : dual_watch_count_toggle_10ms;
-    #else
         gDualWatchCountdown_10ms = dual_watch_count_toggle_10ms;
-    #endif
 }
 
 static void CheckRadioInterrupts(void)
@@ -726,21 +622,6 @@ static void CheckRadioInterrupts(void)
                         gUpdateDisplay        = true;
                     }
 
-#ifdef ENABLE_DTMF_CALLING
-                    if (gRxVfo->DTMF_DECODING_ENABLE || gSetting_KILLED) {
-                        if (gDTMF_RX_index >= sizeof(gDTMF_RX) - 1) { // make room
-                            memmove(&gDTMF_RX[0], &gDTMF_RX[1], sizeof(gDTMF_RX) - 1);
-                            gDTMF_RX_index--;
-                        }
-                        gDTMF_RX[gDTMF_RX_index++] = c;
-                        gDTMF_RX[gDTMF_RX_index]   = 0;
-                        gDTMF_RX_timeout           = DTMF_RX_timeout_500ms;  // time till we delete it
-                        gDTMF_RX_pending           = true;
-                        
-                        SYSTEM_DelayMs(3);//fix DTMF not reply@Yurisu
-                        DTMF_HandleRequest();
-                    }
-#endif
                 }
             }
         }
@@ -761,34 +642,6 @@ static void CheckRadioInterrupts(void)
 
         if (interrupts.ctcssFound)
             g_CTCSS_Lost = false;
-
-#ifdef ENABLE_VOX
-        if (interrupts.voxLost) {
-            g_VOX_Lost         = true;
-            gVoxPauseCountdown = 10;
-
-            if (gEeprom.VOX_SWITCH) {
-                if (gCurrentFunction == FUNCTION_POWER_SAVE && !gRxIdleMode) {
-                    gPowerSave_10ms            = power_save2_10ms;
-                    gPowerSaveCountdownExpired = 0;
-                }
-
-                if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF && (gScheduleDualWatch || gDualWatchCountdown_10ms < dual_watch_count_after_vox_10ms)) {
-                    gDualWatchCountdown_10ms = dual_watch_count_after_vox_10ms;
-                    gScheduleDualWatch = false;
-
-                    // let the user see DW is not active
-                    gDualWatchActive = false;
-                    gUpdateStatus    = true;
-                }
-            }
-        }
-
-        if (interrupts.voxFound) {
-            g_VOX_Lost         = false;
-            gVoxPauseCountdown = 0;
-        }
-#endif
 
         if (interrupts.sqlLost) {
             g_SquelchLost = true;
@@ -832,94 +685,8 @@ void APP_EndTransmission(void)
     }
 }
 
-#ifdef ENABLE_VOX
-static void HandleVox(void)
-{
-#ifdef ENABLE_DTMF_CALLING
-    if (gSetting_KILLED)
-        return;
-#endif
-
-    if (gVoxResumeCountdown == 0) {
-        if (gVoxPauseCountdown)
-            return;
-    }
-    else {
-        g_VOX_Lost         = false;
-        gVoxPauseCountdown = 0;
-    }
-
-#ifdef ENABLE_FMRADIO
-    if (gFmRadioMode)
-        return;
-#endif
-
-    if (gCurrentFunction == FUNCTION_RECEIVE || gCurrentFunction == FUNCTION_MONITOR)
-        return;
-
-    if (gScanStateDir != SCAN_OFF)
-        return;
-
-    if (gVOX_NoiseDetected) {
-        if (g_VOX_Lost)
-            gVoxStopCountdown_10ms = vox_stop_count_down_10ms;
-        else if (gVoxStopCountdown_10ms == 0)
-            gVOX_NoiseDetected = false;
-
-        if (gCurrentFunction == FUNCTION_TRANSMIT && !gPttIsPressed && !gVOX_NoiseDetected) {
-            if (gFlagEndTransmission) {
-                //if (gCurrentFunction != FUNCTION_FOREGROUND)
-                    FUNCTION_Select(FUNCTION_FOREGROUND);
-            }
-            else {
-                APP_EndTransmission();
-
-                if (gEeprom.REPEATER_TAIL_TONE_ELIMINATION == 0) {
-                    //if (gCurrentFunction != FUNCTION_FOREGROUND)
-                        FUNCTION_Select(FUNCTION_FOREGROUND);
-                }
-                else
-                    gRTTECountdown_10ms = gEeprom.REPEATER_TAIL_TONE_ELIMINATION * 10;
-            }
-
-            gUpdateStatus        = true;
-            gUpdateDisplay       = true;
-            gFlagEndTransmission = false;
-        }
-        return;
-    }
-
-    if (g_VOX_Lost) {
-        gVOX_NoiseDetected = true;
-
-        if (gCurrentFunction == FUNCTION_POWER_SAVE)
-            FUNCTION_Select(FUNCTION_FOREGROUND);
-
-        if (gCurrentFunction != FUNCTION_TRANSMIT && !SerialConfigInProgress()) {
-#ifdef ENABLE_DTMF_CALLING
-            gDTMF_ReplyState = DTMF_REPLY_NONE;
-#endif
-            RADIO_PrepareTX();
-            gUpdateDisplay = true;
-        }
-    }
-}
-#endif
-
 void APP_Update(void)
 {
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    // Parse incoming packets on every tick so serial keys are never missed,
-    // regardless of whether the screen needs redrawing.
-    SCREENSHOT_ParseInput();
-#endif
-
-#ifdef ENABLE_VOICE
-    if (gFlagPlayQueuedVoice) {
-            AUDIO_PlayQueuedVoice();
-            gFlagPlayQueuedVoice = false;
-    }
-#endif
 
 #ifdef ENABLE_USB
     if (UART_IsCommandAvailable(UART_PORT_VCP)) {
@@ -1031,29 +798,10 @@ void APP_Update(void)
         return;
 #endif
 
-#ifdef ENABLE_VOICE
-    if (!SCANNER_IsScanning() && gScanStateDir != SCAN_OFF && gScheduleScanListen && !gPttIsPressed && gVoiceWriteIndex == 0)
-#else
     if (!SCANNER_IsScanning() && gScanStateDir != SCAN_OFF && gScheduleScanListen && !gPttIsPressed)
-#endif
     {   // scanning
         CHFRSCANNER_ContinueScanning();
     }
-
-#ifdef ENABLE_NOAA
-#ifdef ENABLE_VOICE
-        if (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF && gIsNoaaMode && gScheduleNOAA && gVoiceWriteIndex == 0)
-#else
-        if (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF && gIsNoaaMode && gScheduleNOAA)
-#endif
-        {
-            NOAA_IncreaseChannel();
-            RADIO_SetupRegisters(false);
-
-            gNOAA_Countdown_10ms = 7;      // 70ms
-            gScheduleNOAA        = false;
-        }
-#endif
 
     // toggle between the VFO's if dual watch is enabled
     if (!SCANNER_IsScanning()
@@ -1062,14 +810,8 @@ void APP_Update(void)
         && gScanStateDir == SCAN_OFF
         && !gPttIsPressed
         && gCurrentFunction != FUNCTION_POWER_SAVE
-#ifdef ENABLE_VOICE
-        && gVoiceWriteIndex == 0
-#endif
 #ifdef ENABLE_FMRADIO
         && !gFmRadioMode
-#endif
-#ifdef ENABLE_DTMF_CALLING
-        && gDTMF_CallState == DTMF_CALL_STATE_NONE
 #endif
     ) {
         DualwatchAlternate();    // toggle between the two VFO's
@@ -1092,11 +834,6 @@ void APP_Update(void)
     }
 #endif
 
-#ifdef ENABLE_VOX
-    if (gEeprom.VOX_SWITCH)
-        HandleVox();
-#endif
-
     if (gSchedulePowerSave) {
         if (gPttIsPressed
             || gKeyBeingHeld
@@ -1106,12 +843,6 @@ void APP_Update(void)
             || gScreenToDisplay != DISPLAY_MAIN
 #ifdef ENABLE_FMRADIO
             || gFmRadioMode
-#endif
-#ifdef ENABLE_DTMF_CALLING
-            || gDTMF_CallState != DTMF_CALL_STATE_NONE
-#endif
-#ifdef ENABLE_NOAA
-            || (gIsNoaaMode && (IS_NOAA_CHANNEL(gEeprom.ScreenChannel[0]) || IS_NOAA_CHANNEL(gEeprom.ScreenChannel[1])))
 #endif
         ) {
             gBatterySaveCountdown_10ms = battery_save_count_10ms;
@@ -1123,20 +854,12 @@ void APP_Update(void)
     }
 
     if (gPowerSaveCountdownExpired && gCurrentFunction == FUNCTION_POWER_SAVE
-#ifdef ENABLE_VOICE
-        && gVoiceWriteIndex == 0
-#endif
     ) {
         static bool goToSleep;
         // wake up, enable RX then go back to sleep
         if (gRxIdleMode)
         {
             BK4819_Conditional_RX_TurnOn_and_GPIO6_Enable();
-
-#ifdef ENABLE_VOX
-            if (gEeprom.VOX_SWITCH)
-                BK4819_EnableVox(gEeprom.VOX1_THRESHOLD, gEeprom.VOX0_THRESHOLD);
-#endif
 
             if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF &&
                 gScanStateDir == SCAN_OFF &&
@@ -1155,11 +878,7 @@ void APP_Update(void)
         {   // dual watch mode off or scanning or rssi update request
             // go back to sleep
 
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-            gPowerSave_10ms = gEeprom.BATTERY_SAVE * (gWakeUp ? 200 : 10); // deep sleep now indexed on BatSav
-#else
             gPowerSave_10ms = gEeprom.BATTERY_SAVE * 10;
-#endif
             gRxIdleMode     = true;
             goToSleep = false;
 
@@ -1197,11 +916,6 @@ void StopTransmitting(void) {
 // called every 10ms
 void CheckKeys(void)
 {
-#ifdef ENABLE_DTMF_CALLING
-    if(gSetting_KILLED){
-        return;
-    }
-#endif
 
 #ifdef ENABLE_AIRCOPY
     if (gScreenToDisplay == DISPLAY_AIRCOPY && gAircopyState != AIRCOPY_READY){
@@ -1407,12 +1121,6 @@ void APP_TimeSlice10ms(void)
         UI_DisplayStatus();
     }
 
-    #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    if (gUpdateDisplayCurrent || gUpdateStatusCurrent) {
-        SCREENSHOT_Update(false);
-    }
-    #endif
-
     // Skipping authentic device checks
 
 #ifdef ENABLE_FMRADIO
@@ -1426,62 +1134,7 @@ void APP_TimeSlice10ms(void)
     #endif
 #endif
 
-#ifdef ENABLE_VOX
-    if (gVoxResumeCountdown > 0)
-        gVoxResumeCountdown--;
-
-    if (gVoxPauseCountdown > 0)
-        gVoxPauseCountdown--;
-#endif
-
     if (gCurrentFunction == FUNCTION_TRANSMIT) {
-#ifdef ENABLE_ALARM
-        if (gAlarmState == ALARM_STATE_TXALARM || gAlarmState == ALARM_STATE_SITE_ALARM) {
-            uint16_t Tone;
-
-            gAlarmRunningCounter++;
-            gAlarmToneCounter++;
-
-            Tone = 500 + (gAlarmToneCounter * 25);
-            if (Tone > 1500) {
-                Tone              = 500;
-                gAlarmToneCounter = 0;
-            }
-
-            BK4819_SetScrambleFrequencyControlWord(Tone);
-
-            if (gEeprom.ALARM_MODE == ALARM_MODE_TONE && gAlarmRunningCounter == 512) {
-                gAlarmRunningCounter = 0;
-
-                if (gAlarmState == ALARM_STATE_TXALARM) {
-                    gAlarmState = ALARM_STATE_SITE_ALARM;
-
-                    if(gEeprom.TAIL_TONE_ELIMINATION)
-                        RADIO_SendCssTail();
-                    BK4819_SetupPowerAmplifier(0, 0);
-                    BK4819_ToggleGpioOut(BK4819_GPIO1_PIN29_PA_ENABLE, false);
-                    BK4819_Enable_AfDac_DiscMode_TxDsp();
-                    BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, false);
-
-                    GUI_DisplayScreen();
-                }
-                else {
-                    gAlarmState = ALARM_STATE_TXALARM;
-
-                    GUI_DisplayScreen();
-
-                    BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, true);
-                    RADIO_SetTxParameters();
-                    BK4819_TransmitTone(true, 500);
-                    SYSTEM_DelayMs(2);
-                    AUDIO_AudioPathOn();
-
-                    gEnableSpeaker    = true;
-                    gAlarmToneCounter = 0;
-                }
-            }
-        }
-#endif
         // repeater tail tone elimination
         if (gRTTECountdown_10ms > 0) {
             if (--gRTTECountdown_10ms == 0) {
@@ -1502,7 +1155,6 @@ void APP_TimeSlice10ms(void)
         }
     }
 #endif
-
 
     SCANNER_TimeSlice10ms();
 
@@ -1583,12 +1235,6 @@ void APP_TimeSlice500ms(void)
         if (--gMenuCountdown == 0)
             exit_menu = (gScreenToDisplay == DISPLAY_MENU); // exit menu mode
 
-#ifdef ENABLE_DTMF_CALLING
-    if (gDTMF_RX_timeout > 0)
-        if (--gDTMF_RX_timeout == 0)
-            DTMF_clear_RX();
-#endif
-
     // Skipped authentic device check
 
 #ifdef ENABLE_FMRADIO
@@ -1610,56 +1256,6 @@ void APP_TimeSlice500ms(void)
     ) {
         BACKLIGHT_TurnOff();
     }
-
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-    if (gSleepModeCountdown_500ms == gSetting_set_off * 120 && gWakeUp) {
-        //ST7565_Init();
-        ST7565_FixInterfGlitch();
-        BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, false);
-        gPowerSave_10ms = gEeprom.BATTERY_SAVE * 10;
-        gWakeUp = false;
-    }
-
-    #ifdef ENABLE_AIRCOPY
-    if(gCurrentFunction != FUNCTION_TRANSMIT && !FUNCTION_IsRx() && gScreenToDisplay != DISPLAY_AIRCOPY)
-    #else
-    if(gCurrentFunction != FUNCTION_TRANSMIT && !FUNCTION_IsRx())
-    #endif
-    {
-        if (gSleepModeCountdown_500ms > 0 && --gSleepModeCountdown_500ms == 0) {
-            gBacklightCountdown_500ms = 0;
-            gPowerSave_10ms = 1;
-            gWakeUp = true;
-            // TODO:
-            // PWM_PLUS0_CH0_COMP = 0;
-            BACKLIGHT_SetBrightness(0);
-            ST7565_ShutDown();
-        }
-        else if(gSleepModeCountdown_500ms != 0 && gSleepModeCountdown_500ms < 21 && gSetting_set_off != 0)
-        {
-            if(gSleepModeCountdown_500ms % 4 == 0)
-            {
-                // PWM_PLUS0_CH0_COMP = value[gEeprom.BACKLIGHT_MAX] * 4; // Max brightness
-                BACKLIGHT_SetBrightness(gEeprom.BACKLIGHT_MAX);
-            }
-            else
-            {
-                // PWM_PLUS0_CH0_COMP = 0;
-                BACKLIGHT_SetBrightness(0);
-            }
-        }
-    }
-    else
-    {
-        gSleepModeCountdown_500ms = gSetting_set_off * 120;
-    }
-
-    if (gWakeUp) {
-        static uint8_t counter = 0;
-        counter = (counter + 1) % 4;
-        BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, (counter == 0));
-    }
-#endif
 
     if (gReducedService)
     {
@@ -1698,10 +1294,6 @@ void APP_TimeSlice500ms(void)
     {
         if (gChargingWithTypeC || gSetting_battery_text > 0)
             gUpdateStatus = true;
-        #ifdef ENABLE_SHOW_CHARGE_LEVEL
-            if (gChargingWithTypeC)
-                gUpdateDisplay = true;
-        #endif
     }
 
     if (!gCssBackgroundScan && gScanStateDir == SCAN_OFF && !SCANNER_IsScanning()
@@ -1776,8 +1368,8 @@ void APP_TimeSlice500ms(void)
     if (!gPttIsPressed && gVFOStateResumeCountdown_500ms > 0 && --gVFOStateResumeCountdown_500ms == 0) {
             RADIO_SetVfoState(VFO_STATE_NORMAL);
 #ifdef ENABLE_FMRADIO
-        if (gFmRadioMode && !FUNCTION_IsRx()) {
-            // switch back to FM radio mode
+        // Только если RestoreCountdown уже не ждёт — иначе двойной BK1080_Init вешает I2C
+        if (gFmRadioMode && !FUNCTION_IsRx() && gFM_RestoreCountdown_10ms == 0) {
             FM_Start();
             GUI_SelectNextDisplay(DISPLAY_FM);
         }
@@ -1788,81 +1380,10 @@ void APP_TimeSlice500ms(void)
     SCANNER_TimeSlice500ms();
     UI_MAIN_TimeSlice500ms();
 
-#ifdef ENABLE_DTMF_CALLING
-    if (gCurrentFunction != FUNCTION_TRANSMIT) {
-        if (gDTMF_DecodeRingCountdown_500ms > 0) {
-            // make "ring-ring" sound
-            gDTMF_DecodeRingCountdown_500ms--;
-            AUDIO_PlayBeep(BEEP_880HZ_200MS);
-        }
-    } else {
-        gDTMF_DecodeRingCountdown_500ms = 0;
-    }
-
-    if (gDTMF_CallState  != DTMF_CALL_STATE_NONE && gCurrentFunction != FUNCTION_TRANSMIT
-        && gCurrentFunction != FUNCTION_RECEIVE && gDTMF_auto_reset_time_500ms > 0
-        && --gDTMF_auto_reset_time_500ms == 0)
-    {
-        gUpdateDisplay  = true;
-        if (gDTMF_CallState == DTMF_CALL_STATE_RECEIVED && gEeprom.DTMF_auto_reset_time >= DTMF_HOLD_MAX) {
-            gDTMF_CallState = DTMF_CALL_STATE_RECEIVED_STAY;     // keep message on-screen till a key is pressed
-        } else {
-            gDTMF_CallState = DTMF_CALL_STATE_NONE;
-        }
-    }
-
-    if (gDTMF_IsTx && gDTMF_TxStopCountdown_500ms > 0 && --gDTMF_TxStopCountdown_500ms == 0) {
-        gDTMF_IsTx     = false;
-        gUpdateDisplay = true;
-    }
-#endif
 }
-
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-static void ALARM_Off(void)
-{
-    AUDIO_AudioPathOff();
-    gEnableSpeaker = false;
-
-    if (gAlarmState == ALARM_STATE_TXALARM || gAlarmState == ALARM_STATE_TX1750) {
-        RADIO_SendEndOfTransmission();
-    }
-
-    gAlarmState = ALARM_STATE_OFF;
-
-#ifdef ENABLE_VOX
-    gVoxResumeCountdown = 80;
-#endif
-
-    SYSTEM_DelayMs(5);
-
-    RADIO_SetupRegisters(true);
-
-    if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
-        gRequestDisplayScreen = DISPLAY_MAIN;
-}
-#endif
 
 static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 {
-    #ifdef ENABLE_FEAT_F4HWN_SLEEP
-    if(gWakeUp)
-    {
-        if(!bKeyPressed || Key == KEY_PTT)
-        {
-            BACKLIGHT_TurnOn();
-
-            if(Key != KEY_PTT)
-            {
-                Key = KEY_INVALID;
-            }
-        }
-        else
-        {
-            return;
-        }
-    }
-    #endif
 
     if (Key == KEY_EXIT && !BACKLIGHT_IsOn() && gEeprom.BACKLIGHT_TIME > 0)
     {   // just turn the light on for now so the user can see what's what
@@ -1939,18 +1460,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         if (gScreenToDisplay == DISPLAY_MENU)       // 1of11
             gMenuCountdown = menu_timeout_500ms;
 
-#ifdef ENABLE_DTMF_CALLING
-        if (gDTMF_DecodeRingCountdown_500ms > 0) { // cancel the ringing
-            gDTMF_DecodeRingCountdown_500ms = 0;
-
-            AUDIO_PlayBeep(BEEP_1KHZ_60MS_OPTIONAL);
-
-            if (Key != KEY_PTT) {
-                gPttWasReleased = true;
-                return;
-            }
-        }
-#endif
     }
 
     bool lowBatPopup = gLowBattery && !gLowBatteryConfirmed &&  gScreenToDisplay == DISPLAY_MAIN;
@@ -2048,74 +1557,13 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     }
 
     if (gCurrentFunction == FUNCTION_TRANSMIT) {
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-        if (gAlarmState == ALARM_STATE_OFF)
-#endif
         {
-            char Code;
-
+            // PTT key always handled; other keys during TX do nothing (DTMF disabled)
             if (Key == KEY_PTT) {
                 GENERIC_Key_PTT(bKeyPressed);
-                goto Skip;
             }
-
-            if (Key == KEY_SIDE2) { // transmit 1750Hz tone
-                Code = 0xFE;
-            }
-            else {
-                Code = DTMF_GetCharacter(Key - KEY_0);
-                if (Code == 0xFF)
-                    goto Skip;
-                // transmit DTMF keys
-            }
-
-            if (!bKeyPressed || bKeyHeld) {
-                if (!bKeyPressed) {
-                    AUDIO_AudioPathOff();
-
-                    gEnableSpeaker = false;
-
-                    BK4819_ExitDTMF_TX(false);
-
-#ifndef ENABLE_FEAT_F4HWN
-                    if (gCurrentVfo->SCRAMBLING_TYPE == 0 || !gSetting_ScrambleEnable)
-                        BK4819_DisableScramble();
-                    else
-                        BK4819_EnableScramble(gCurrentVfo->SCRAMBLING_TYPE - 1);
-#else
-                        BK4819_DisableScramble();
-#endif
-                }
-            }
-            else {
-                if (gEeprom.DTMF_SIDE_TONE) { // user will here the DTMF tones in speaker
-                    AUDIO_AudioPathOn();
-                    gEnableSpeaker = true;
-                }
-
-                BK4819_DisableScramble();
-
-                if (Code == 0xFE)
-                    BK4819_TransmitTone(gEeprom.DTMF_SIDE_TONE, 1750);
-                else
-                    BK4819_PlayDTMFEx(gEeprom.DTMF_SIDE_TONE, Code);
-            }
+            goto Skip;
         }
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-        else if ((!bKeyHeld && bKeyPressed) || (gAlarmState == ALARM_STATE_TX1750 && bKeyHeld && !bKeyPressed)) {
-            ALARM_Off();
-
-            if (gEeprom.REPEATER_TAIL_TONE_ELIMINATION == 0)
-                FUNCTION_Select(FUNCTION_FOREGROUND);
-            else
-                gRTTECountdown_10ms = gEeprom.REPEATER_TAIL_TONE_ELIMINATION * 10;
-
-            if (Key == KEY_PTT)
-                gPttWasPressed  = true;
-            else if (!bKeyHeld)
-                gPttWasReleased = true;
-        }
-#endif
     }
     else if (gScreenToDisplay != DISPLAY_INVALID && (
             (Key != KEY_SIDE1 && Key != KEY_SIDE2)
@@ -2222,18 +1670,7 @@ Skip:
     if (gFlagReconfigureVfos) {
         RADIO_SelectVfos();
 
-#ifdef ENABLE_NOAA
-        RADIO_ConfigureNOAA();
-#endif
-
         RADIO_SetupRegisters(true);
-
-#ifdef ENABLE_DTMF_CALLING
-        gDTMF_auto_reset_time_500ms = 0;
-        gDTMF_CallState             = DTMF_CALL_STATE_NONE;
-        gDTMF_TxStopCountdown_500ms = 0;
-        gDTMF_IsTx                  = false;
-#endif
 
         gVFO_RSSI_bar_level[0]      = 0;
         gVFO_RSSI_bar_level[1]      = 0;
@@ -2255,15 +1692,6 @@ Skip:
         RADIO_PrepareTX();
         gFlagPrepareTX = false;
     }
-
-#ifdef ENABLE_VOICE
-    if (gAnotherVoiceID != VOICE_ID_INVALID) {
-        if (gAnotherVoiceID < 76)
-            AUDIO_SetVoiceID(0, gAnotherVoiceID);
-        AUDIO_PlaySingleVoice(false);
-        gAnotherVoiceID = VOICE_ID_INVALID;
-    }
-#endif
 
     GUI_SelectNextDisplay(gRequestDisplayScreen);
     gRequestDisplayScreen = DISPLAY_INVALID;

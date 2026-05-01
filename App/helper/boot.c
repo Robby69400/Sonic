@@ -228,9 +228,6 @@ void BOOT_ProcessMode(BOOT_Mode_t Mode)
     {
         gEeprom.DUAL_WATCH               = DUAL_WATCH_OFF;
         gEeprom.BATTERY_SAVE             = 0;
-        #ifdef ENABLE_VOX
-            gEeprom.VOX_SWITCH           = false;
-        #endif
         gEeprom.CROSS_BAND_RX_TX         = CROSS_BAND_OFF;
         gEeprom.AUTO_KEYPAD_LOCK         = false;
         gEeprom.KEY_1_SHORT_PRESS_ACTION = ACTION_OPT_NONE;

@@ -41,6 +41,10 @@ extern bool              gFM_FoundFrequency;
 extern uint16_t          gFM_RestoreCountdown_10ms;
 extern bool              gFM_ManualMode;   // false = AUTO seek, true = MANUAL step
 extern bool              gFM_Mute;         // true = RX не прерывает радио
+extern uint16_t          gFM_Memory[6];    // 6 слотов памяти частот (0 = пусто)
+
+void    FM_Memory_Load(void);
+void    FM_Memory_Save(uint8_t slot);
 
 bool    FM_CheckValidChannel(uint8_t Channel);
 // returns first valid channel starting at Channel

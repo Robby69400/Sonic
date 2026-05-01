@@ -61,12 +61,6 @@ extern KEY_Code_t gKeyReading1;
 extern uint16_t   gDebounceCounter;
 extern bool       gWasFKeyPressed;
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-// Serial-injected key (written by UART/VCP parser, consumed by KEYBOARD_Poll).
-extern volatile KEY_Code_t gKeyFromSerial;
-
-bool KEYBOARD_ProcessProtocolByte(ParseState_t *state, uint8_t b);
-#endif
 
 KEY_Code_t KEYBOARD_Poll(void);
 KEY_Code_t KEYBOARD_GetKey(void);

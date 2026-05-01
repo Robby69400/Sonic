@@ -29,9 +29,6 @@ extern volatile uint32_t VCP_RxBufPointer;
 
 void VCP_Init();
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-bool VCP_ScreenshotPing(void);
-#endif
 
 static inline void VCP_Send(const uint8_t *Buf, uint32_t Size)
 {

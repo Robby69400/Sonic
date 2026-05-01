@@ -31,11 +31,6 @@ const uint8_t     menu_timeout_500ms               =  20000 / 500;  // 20 second
 const uint16_t    menu_timeout_long_500ms          = 120000 / 500;  // 2 minutes
 
 const uint8_t     DTMF_RX_live_timeout_500ms       =  6000 / 500;  // 6 seconds live decoder on screen
-#ifdef ENABLE_DTMF_CALLING
-const uint8_t     DTMF_RX_timeout_500ms            = 10000 / 500;  // 10 seconds till we wipe the DTMF receiver
-const uint8_t     DTMF_decode_ring_countdown_500ms = 15000 / 500;  // 15 seconds .. time we sound the ringing for
-const uint8_t     DTMF_txstop_countdown_500ms      =  3000 / 500;  // 6 seconds
-#endif
 
 const uint8_t     key_input_timeout_500ms          =  8000 / 500;  // 8 seconds
 
@@ -59,9 +54,6 @@ const uint8_t     scan_delay_10ms                  =   210 / 10;   // 210ms
     const uint16_t    dual_watch_count_noaa_10ms       =    70 / 10;   // 70ms
 #endif
 
-#ifdef ENABLE_VOX
-    const uint16_t dual_watch_count_after_vox_10ms  =   200 / 10;   // 200ms
-#endif
 const uint16_t    dual_watch_count_toggle_10ms     =   100 / 10;   // 100ms between VFO toggles
 
 const uint16_t    scan_pause_delay_in_1_10ms       =  5000 / 10;   // 5 seconds
@@ -77,9 +69,6 @@ const uint16_t    battery_save_count_10ms          = 10000 / 10;   // 10 seconds
 const uint16_t    power_save1_10ms                 =   100 / 10;   // 100ms
 const uint16_t    power_save2_10ms                 =   200 / 10;   // 200ms
 
-#ifdef ENABLE_VOX
-    const uint16_t    vox_stop_count_down_10ms         =  1000 / 10;   // 1 second
-#endif
 
 const uint16_t    NOAA_countdown_10ms              =  5000 / 10;   // 5 seconds
 const uint16_t    NOAA_countdown_2_10ms            =   500 / 10;   // 500ms
@@ -89,9 +78,6 @@ const uint32_t    gDefaultAesKey[4]                = {0x4AA5CC60, 0x0312CC5F, 0x
 
 const uint8_t     gMicGain_dB2[9]                  = {3, 8, 16, 24, 32, 40, 48, 56, 63}; // BK4819 {3, 8, 16, 24, 31};
 
-#ifdef ENABLE_DTMF_CALLING
-bool              gSetting_KILLED;
-#endif
 
 uint8_t           gSetting_F_LOCK;
 bool              gSetting_ScrambleEnable;
@@ -105,10 +91,6 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     bool          gSetting_AM_fix = true;
 #endif
 
-#ifdef ENABLE_FEAT_F4HWN_SLEEP 
-    uint8_t       gSetting_set_off = 1;
-    bool          gWakeUp = false;
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
     uint8_t       gSetting_set_pwr = 1;
@@ -204,19 +186,12 @@ volatile bool     gTxTimeoutReached;
     #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER
         volatile uint16_t gRxTimerCountdown_500ms;
     #endif
-    #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-        volatile uint8_t  gUART_LockScreenshot = 0; // lock screenshot if Chirp is used
-        bool gUSB_ScreenshotEnabled = false;
-    #endif
 #endif
 
 volatile uint16_t gTailNoteEliminationCountdown_10ms;
 
 volatile uint8_t    gVFOStateResumeCountdown_500ms;
 
-#ifdef ENABLE_NOAA
-    volatile uint16_t gNOAA_Countdown_10ms;
-#endif
 
 bool              gEnableSpeaker;
 uint8_t           gKeyInputCountdown = 0;
@@ -238,9 +213,6 @@ bool              gCssBackgroundScan;
 volatile bool     gScheduleScanListen = true;
 volatile uint16_t gScanPauseDelayIn_10ms;
 
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-    AlarmState_t  gAlarmState;
-#endif
 uint16_t          gMenuCountdown;
 bool              gPttWasReleased;
 bool              gPttWasPressed;
@@ -267,12 +239,6 @@ bool              g_CDCSS_Lost;
 uint8_t           gCDCSSCodeType;
 bool              g_CTCSS_Lost;
 bool              g_CxCSS_TAIL_Found;
-#ifdef ENABLE_VOX
-    bool          g_VOX_Lost;
-    bool          gVOX_NoiseDetected;
-    uint16_t      gVoxResumeCountdown;
-    uint16_t      gVoxPauseCountdown;
-#endif
 bool              g_SquelchLost;
 
 volatile uint16_t gFlashLightBlinkCounter;
@@ -282,10 +248,6 @@ uint16_t          gNextMrChannel;
 ReceptionMode_t   gRxReceptionMode;
 
 bool              gRxVfoIsActive;
-#ifdef ENABLE_ALARM
-    uint8_t       gAlarmToneCounter;
-    uint16_t      gAlarmRunningCounter;
-#endif
 bool              gKeyBeingHeld;
 bool              gPttIsPressed;
 uint8_t           gPttDebounceCounter;
@@ -294,10 +256,6 @@ uint8_t           gBackup_CROSS_BAND_RX_TX;
 uint8_t           gScanDelay_10ms;
 uint8_t           gFSKWriteIndex;
 
-#ifdef ENABLE_NOAA
-    bool          gIsNoaaMode;
-    uint8_t      gNoaaChannel;
-#endif
 
 bool              gUpdateDisplay;
 
@@ -308,14 +266,7 @@ uint8_t           gShowChPrefix;
 volatile bool     gNextTimeslice;
 volatile uint8_t  gFoundCDCSSCountdown_10ms;
 volatile uint8_t  gFoundCTCSSCountdown_10ms;
-#ifdef ENABLE_VOX
-    volatile uint16_t gVoxStopCountdown_10ms;
-#endif
 volatile bool     gNextTimeslice40ms;
-#ifdef ENABLE_NOAA
-    volatile uint16_t gNOAACountdown_10ms = 0;
-    volatile bool     gScheduleNOAA       = true;
-#endif
 volatile bool     gFlagTailNoteEliminationComplete;
 #ifdef ENABLE_FMRADIO
     volatile bool gScheduleFM;
@@ -640,14 +591,3 @@ void MR_PrintCacheStats(void)
 
 #endif
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    bool SCREENSHOT_IsLocked(void) 
-    {
-        if (gUART_LockScreenshot > 0) {
-            gUART_LockScreenshot--;
-            return true;
-        }
-        
-        return false;
-    }
-#endif

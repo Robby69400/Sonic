@@ -120,29 +120,6 @@ typedef struct {
     } Data;
 } REPLY_051D_t;
 
-#ifdef ENABLE_EXTRA_UART_CMD
-typedef struct {
-    Header_t Header;
-    struct {
-        uint16_t RSSI;
-        uint8_t  ExNoiseIndicator;
-        uint8_t  GlitchIndicator;
-    } Data;
-} REPLY_0527_t;
-
-typedef struct {
-    Header_t Header;
-    struct {
-        uint16_t Voltage;
-        uint16_t Current;
-    } Data;
-} REPLY_0529_t;
-
-typedef struct {
-    Header_t Header;
-    uint32_t Response[4];
-} CMD_052D_t;
-#endif
 
 typedef struct {
     Header_t Header;
@@ -153,12 +130,6 @@ typedef struct {
 } REPLY_052D_t;
 
 
-#ifdef ENABLE_EXTRA_UART_CMD
-typedef struct {
-    Header_t Header;
-    uint32_t Timestamp;
-} CMD_052F_t;
-#endif
 
 static const uint8_t Obfuscation[16] =
 {
@@ -469,129 +440,6 @@ static void CMD_051D(uint32_t Port, const uint8_t *pBuffer)
     SendReply(Port, &Reply, sizeof(Reply));
 }
 
-#ifdef ENABLE_EXTRA_UART_CMD
-// read RSSI
-static void CMD_0527(uint32_t Port)
-{
-    REPLY_0527_t Reply;
-
-    Reply.Header.ID             = 0x0528;
-    Reply.Header.Size           = sizeof(Reply.Data);
-    Reply.Data.RSSI             = BK4819_ReadRegister(BK4819_REG_67) & 0x01FF;
-    Reply.Data.ExNoiseIndicator = BK4819_ReadRegister(BK4819_REG_65) & 0x007F;
-    Reply.Data.GlitchIndicator  = BK4819_ReadRegister(BK4819_REG_63);
-
-    SendReply(Port, &Reply, sizeof(Reply));
-}
-
-// read ADC
-static void CMD_0529(uint32_t Port)
-{
-    REPLY_0529_t Reply;
-
-    Reply.Header.ID   = 0x52A;
-    Reply.Header.Size = sizeof(Reply.Data);
-
-    // Original doesn't actually send current!
-    BOARD_ADC_GetBatteryInfo(&Reply.Data.Voltage, &Reply.Data.Current);
-
-    SendReply(Port, &Reply, sizeof(Reply));
-}
-
-#ifndef ENABLE_FEAT_F4HWN
-static void CMD_052D(uint32_t Port, const uint8_t *pBuffer)
-{
-    const CMD_052D_t *pCmd = (const CMD_052D_t *)pBuffer;
-    REPLY_052D_t      Reply;
-    bool              bIsLocked;
-
-    #ifdef ENABLE_FMRADIO
-        gFmRadioCountdown_500ms = fm_radio_countdown_500ms;
-    #endif
-    Reply.Header.ID   = 0x052E;
-    Reply.Header.Size = sizeof(Reply.Data);
-
-    bIsLocked = bHasCustomAesKey;
-
-    if (!bIsLocked)
-        bIsLocked = IsBadChallenge(gCustomAesKey, gChallenge, pCmd->Response);
-
-    if (!bIsLocked)
-    {
-        bIsLocked = IsBadChallenge(gDefaultAesKey, gChallenge, pCmd->Response);
-        if (bIsLocked)
-            gTryCount++;
-    }
-
-    if (gTryCount < 3)
-    {
-        if (!bIsLocked)
-            gTryCount = 0;
-    }
-    else
-    {
-        gTryCount = 3;
-        bIsLocked = true;
-    }
-    
-    gIsLocked            = bIsLocked;
-    Reply.Data.bIsLocked = bIsLocked;
-
-    SendReply(Port, &Reply, sizeof(Reply));
-}
-#endif
-
-// session init, sends back version info and state
-// timestamp is a session id really
-// this command also disables dual watch, crossband, 
-// DTMF side tones, freq reverse, PTT ID, DTMF decoding, frequency offset
-// exits power save, sets main VFO to upper,
-static void CMD_052F(uint32_t Port, const uint8_t *pBuffer)
-{
-    const CMD_052F_t *pCmd = (const CMD_052F_t *)pBuffer;
-
-    gEeprom.DUAL_WATCH                               = DUAL_WATCH_OFF;
-    gEeprom.CROSS_BAND_RX_TX                         = CROSS_BAND_OFF;
-    gEeprom.RX_VFO                                   = 0;
-    gEeprom.DTMF_SIDE_TONE                           = false;
-    gEeprom.VfoInfo[0].FrequencyReverse              = false;
-    gEeprom.VfoInfo[0].pRX                           = &gEeprom.VfoInfo[0].freq_config_RX;
-    gEeprom.VfoInfo[0].pTX                           = &gEeprom.VfoInfo[0].freq_config_TX;
-    gEeprom.VfoInfo[0].TX_OFFSET_FREQUENCY_DIRECTION = TX_OFFSET_FREQUENCY_DIRECTION_OFF;
-    gEeprom.VfoInfo[0].DTMF_PTT_ID_TX_MODE           = PTT_ID_OFF;
-#ifdef ENABLE_DTMF_CALLING
-    gEeprom.VfoInfo[0].DTMF_DECODING_ENABLE          = false;
-#endif
-
-    #ifdef ENABLE_NOAA
-        gIsNoaaMode = false;
-    #endif
-
-    if (gCurrentFunction == FUNCTION_POWER_SAVE)
-        FUNCTION_Select(FUNCTION_FOREGROUND);
-
-    gSerialConfigCountDown_500ms = 12; // 6 sec
-
-    if(0) {}
-#if defined(ENABLE_UART)
-    else if (Port == UART_PORT_UART)
-    {
-        UART_Timestamp = pCmd->Timestamp;
-    }
-#endif
-#if defined(ENABLE_USB)
-    else if (Port == UART_PORT_VCP)
-    {
-        VCP_Timestamp = pCmd->Timestamp;
-    }
-#endif
-
-    // turn the LCD backlight off
-    BACKLIGHT_TurnOff();
-
-    SendVersion(Port);
-}
-#endif
 
 #ifdef ENABLE_UART_RW_BK_REGS
 static void CMD_0601_ReadBK4819Reg(uint32_t Port, const uint8_t *pBuffer)
@@ -817,25 +665,6 @@ void UART_HandleCommand(uint32_t Port)
         case 0x0521:    // Not implementing non-authentic command
             break;
 
-#ifdef ENABLE_EXTRA_UART_CMD
-        case 0x0527:
-            CMD_0527(Port);
-            break;
-
-        case 0x0529:
-            CMD_0529(Port);
-            break;
-
-        #ifndef ENABLE_FEAT_F4HWN
-            case 0x052D:
-                CMD_052D(Port, pUART_Command->Buffer);
-                break;
-        #endif
-
-        case 0x052F:
-            CMD_052F(Port, pUART_Command->Buffer);
-            break;
-#endif
 
         case 0x05DD: // reset
             #if defined(ENABLE_OVERLAY)
@@ -856,7 +685,4 @@ void UART_HandleCommand(uint32_t Port)
 #endif
     } // switch
 
-    #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-        gUART_LockScreenshot = 20; // lock screenshot
-    #endif
 }

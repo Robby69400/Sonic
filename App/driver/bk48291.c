@@ -32,9 +32,6 @@
 #define PIN_SCL GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_8)
 #define PIN_SDA GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_9)
 
-#ifdef ENABLE_DTMF_CALLING
-    static const uint16_t FSK_RogerTable[7] = {0xF1A2, 0x7446, 0x61A4, 0x6544, 0x4E8A, 0xE044, 0xEA84};
-#endif
 
 //static const uint8_t DTMF_TONE1_GAIN = 65;
 //static const uint8_t DTMF_TONE2_GAIN = 93;
@@ -106,7 +103,7 @@ void BK4819_Init(void)
     BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
     BK4819_WriteRegister(BK4819_REG_14, 0x0210);
     BK4819_WriteRegister(BK4819_REG_49, 0x2AB2);
-    BK4819_WriteRegister(BK4819_REG_7B, 0x73DC);
+    BK4819_WriteRegister(BK4819_REG_7B, 0x8420);
 
     // BK4819_WriteRegister(BK4819_REG_19, 0b0001000001000001);   // <15> MIC AGC  1 = disable  0 = enable
 
@@ -342,8 +339,8 @@ void BK4819_InitAGC(ModulationMode_t modulation)
     BK4819_WriteRegister(BK4819_REG_12, 0x03DB);
     BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
     BK4819_WriteRegister(BK4819_REG_14, 0x0210);
-    BK4819_WriteRegister(BK4819_REG_49, 0x2AB2);
-    BK4819_WriteRegister(BK4819_REG_7B, 0x73DC);
+    BK4819_WriteRegister(BK4819_REG_49, (0u << 14) | (84u << 7) | (66u << 0));
+    BK4819_WriteRegister(BK4819_REG_7B, 0x8420);
 }
 
 int8_t BK4819_GetRxGain_dB(void)
@@ -1100,58 +1097,11 @@ void BK4819_Idle(void)
     BK4819_WriteRegister(BK4819_REG_30, 0x0000);
 }
 
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-void BK4819_EnterBypass(void)
-{
-    // Keep AF output on normal path (REG_47 mode 0x1 is documented on BK4829).
-    BK4819_SetAF(BK4819_AF_FM);
-
-    // Bypass all AF filters (Rx + Tx) as recommended for digital bypass mode.
-    // REG_2B:
-    //  bit10: Disable AF Rx HPF300
-    //  bit 9: Disable AF Rx LPF3K
-    //  bit 8: Disable AF Rx de-emphasis
-    //  bit 2: Disable AF Tx HPF300
-    //  bit 1: Disable AF Tx LPF1
-    //  bit 0: Disable AF Tx pre-emphasis
-    uint16_t reg2b = BK4819_ReadRegister(BK4819_REG_2B);
-    reg2b |= (1u << 10) | (1u << 9) | (1u << 8) | (1u << 2) | (1u << 1) | (1u << 0);
-    BK4819_WriteRegister(BK4819_REG_2B, reg2b);
-
-    // Keep AGC/AFC behavior aligned with FM-like bypass experiments.
-    BK4819_SetRegValue(afcDisableRegSpec, false);
-}
-
-void BK4819_EnterRaw(void)
-{
-    // Keep AF output on a documented mode.
-    BK4819_SetAF(BK4819_AF_FM);
-
-    // RAW profile: bypass RX AF filters only, keep TX filter path unchanged.
-    // REG_2B:
-    //  bit10: Disable AF Rx HPF300
-    //  bit 9: Disable AF Rx LPF3K
-    //  bit 8: Disable AF Rx de-emphasis
-    uint16_t reg2b = BK4819_ReadRegister(BK4819_REG_2B);
-    reg2b |= (1u << 10) | (1u << 9) | (1u << 8);
-    reg2b &= ~((1u << 2) | (1u << 1) | (1u << 0));
-    BK4819_WriteRegister(BK4819_REG_2B, reg2b);
-
-    // RAW profile keeps AFC disabled to preserve discriminator-like behavior.
-    BK4819_SetRegValue(afcDisableRegSpec, true);
-}
-#endif
 
 void BK4819_ExitBypass(void)
 {
     BK4819_SetAF(BK4819_AF_MUTE);
 
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-    // Restore normal AF filters.
-    uint16_t reg2b = BK4819_ReadRegister(BK4819_REG_2B);
-    reg2b &= ~((1u << 10) | (1u << 9) | (1u << 8) | (1u << 2) | (1u << 1) | (1u << 0));
-    BK4819_WriteRegister(BK4819_REG_2B, reg2b);
-#endif
 
     // Keep existing REG_7E logic from your current implementation.
     uint16_t regVal = BK4819_ReadRegister(BK4819_REG_7E);
@@ -1438,11 +1388,7 @@ void BK4819_PlayCDCSSTail(void)
 
 void BK4819_PlayCTCSSTail(void)
 {
-    #ifdef ENABLE_CTCSS_TAIL_PHASE_SHIFT
-        BK4819_GenTail(2);       // 180° phase shift
-    #else
         BK4819_GenTail(4);       // 55Hz tone freq
-    #endif
 
     // REG_51
     //
@@ -1759,55 +1705,6 @@ static void BK4819_PlayRogerNormal(void)
     BK4819_WriteRegister(BK4819_REG_30, 0xC1FE);   // 1 1 0000 0 1 1111 1 1 1 0
 }
 
-#ifdef ENABLE_DTMF_CALLING
-void BK4819_PlayRogerMDC(void)
-{
-    struct reg_value {
-        BK4819_REGISTER_t reg;
-        uint16_t value;
-    };
-
-    struct reg_value RogerMDC_Configuration [] = {
-        { BK4819_REG_58, 0x37C3 },  // FSK Enable,
-                                        // RX Bandwidth FFSK 1200/1800
-                                        // 0xAA or 0x55 Preamble
-                                        // 11 RX Gain,
-                                        // 101 RX Mode
-                                        // TX FFSK 1200/1800
-        { BK4819_REG_72, 0x3065 },  // Set Tone-2 to 1200Hz
-        { BK4819_REG_70, 0x00C3 },  // Enable Tone-2 and Set Tone2 Gain
-        { BK4819_REG_5D, 0x0D00 },  // Set FSK data length to 13 bytes
-        { BK4819_REG_59, 0x8068 },  // 4 byte sync length, 6 byte preamble, clear TX FIFO
-        { BK4819_REG_59, 0x0068 },  // Same, but clear TX FIFO is now unset (clearing done)
-        { BK4819_REG_5A, 0x5555 },  // First two sync bytes
-        { BK4819_REG_5B, 0x5555 },  // End of sync bytes. Total 4 bytes: 555555aa
-        { BK4819_REG_5C, 0xAA30 },  // Disable CRC
-    };
-
-    BK4819_SetAF(BK4819_AF_MUTE);
-
-    for (unsigned int i = 0; i < ARRAY_SIZE(RogerMDC_Configuration); i++) {
-        BK4819_WriteRegister(RogerMDC_Configuration[i].reg, RogerMDC_Configuration[i].value);
-    }
-
-    // Send the data from the roger table
-    for (unsigned int i = 0; i < ARRAY_SIZE(FSK_RogerTable); i++) {
-        BK4819_WriteRegister(BK4819_REG_5F, FSK_RogerTable[i]);
-    }
-
-    SYSTEM_DelayMs(20);
-
-    // 4 sync bytes, 6 byte preamble, Enable FSK TX
-    BK4819_WriteRegister(BK4819_REG_59, 0x0868);
-
-    SYSTEM_DelayMs(180);
-
-    // Stop FSK TX, reset Tone-2, disable FSK
-    BK4819_WriteRegister(BK4819_REG_59, 0x0068);
-    BK4819_WriteRegister(BK4819_REG_70, 0x0000);
-    BK4819_WriteRegister(BK4819_REG_58, 0x0000);
-}
-#endif
 
 //###########################################################################################
 
@@ -1924,11 +1821,6 @@ switch (song)
         play_ambulance();
 	break;
 
-#ifdef ENABLE_DTMF_CALLING	
-	case 6:
-        BK4819_PlayRogerMDC();
-	break;
-#endif
 
 default:
 	break;

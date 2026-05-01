@@ -21,6 +21,7 @@
 #include "audio.h"
 #include "driver/bk1080.h"
 #include "driver/bk4819.h"
+#include "driver/eeprom.h"
 #include "driver/py25q16.h"
 #include "driver/system.h"
 #include "functions.h"
@@ -47,6 +48,51 @@ bool              gFM_FoundFrequency;
 uint16_t          gFM_RestoreCountdown_10ms;
 bool              gFM_ManualMode = false;
 bool              gFM_Mute       = false;
+
+// ── FM 6-слотовая память ────────────────────────────────────────────────
+// 0 = пусто, иначе — частота (875..1080)
+// EEPROM: 0xA070 (слоты 0-3) и 0xA078 (слоты 4-5)
+// Лежат в неиспользованной части FM-каналов 0xA028..0xA0A7 (eeprom_compat)
+#define FM_MEMORY_EEPROM_ADDR0  0xA070
+#define FM_MEMORY_EEPROM_ADDR1  0xA078
+
+uint16_t gFM_Memory[6] = {0, 0, 0, 0, 0, 0};
+
+void FM_Memory_Load(void)
+{
+    const uint16_t lo = BK1080_GetFreqLoLimit(FM_BAND);
+    const uint16_t hi = BK1080_GetFreqHiLimit(FM_BAND);
+    uint8_t buf[8];
+
+    EEPROM_ReadBuffer(FM_MEMORY_EEPROM_ADDR0, buf, 8);
+    for (uint8_t i = 0; i < 4; i++) {
+        uint16_t f = buf[i * 2] | ((uint16_t)buf[i * 2 + 1] << 8);
+        gFM_Memory[i] = (f >= lo && f <= hi) ? f : 0;
+    }
+
+    EEPROM_ReadBuffer(FM_MEMORY_EEPROM_ADDR1, buf, 8);
+    for (uint8_t i = 0; i < 2; i++) {
+        uint16_t f = buf[i * 2] | ((uint16_t)buf[i * 2 + 1] << 8);
+        gFM_Memory[4 + i] = (f >= lo && f <= hi) ? f : 0;
+    }
+}
+
+void FM_Memory_Save(uint8_t slot)
+{
+    uint8_t buf[8];
+    if (slot < 4) {
+        EEPROM_ReadBuffer(FM_MEMORY_EEPROM_ADDR0, buf, 8);
+        buf[slot * 2]     = (uint8_t)(gFM_Memory[slot] & 0xFF);
+        buf[slot * 2 + 1] = (uint8_t)(gFM_Memory[slot] >> 8);
+        EEPROM_WriteBuffer(FM_MEMORY_EEPROM_ADDR0, buf);
+    } else {
+        uint8_t idx = slot - 4;
+        EEPROM_ReadBuffer(FM_MEMORY_EEPROM_ADDR1, buf, 8);
+        buf[idx * 2]     = (uint8_t)(gFM_Memory[slot] & 0xFF);
+        buf[idx * 2 + 1] = (uint8_t)(gFM_Memory[slot] >> 8);
+        EEPROM_WriteBuffer(FM_MEMORY_EEPROM_ADDR1, buf);
+    }
+}
 
 const uint8_t BUTTON_STATE_PRESSED = 1 << 0;
 const uint8_t BUTTON_STATE_HELD    = 1 << 1;
@@ -208,6 +254,50 @@ void FM_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 {
     uint8_t state = bKeyPressed + 2 * bKeyHeld;
 
+    // ── Длинное нажатие 1-6: сохранить частоту в слот ─────────────────
+    if (bKeyHeld && bKeyPressed) {
+        uint8_t slot = 0xFF;
+        switch (Key) {
+            case KEY_1: slot = 0; break;
+            case KEY_2: slot = 1; break;
+            case KEY_3: slot = 2; break;
+            case KEY_4: slot = 3; break;
+            case KEY_5: slot = 4; break;
+            case KEY_6: slot = 5; break;
+            default:    break;
+        }
+        if (slot != 0xFF) {
+            gFM_Memory[slot] = gEeprom.FM_FrequencyPlaying;
+            FM_Memory_Save(slot);
+            gRequestDisplayScreen = DISPLAY_FM;
+            return;
+        }
+    }
+
+    // ── Короткое нажатие 1-6: вызвать частоту из слота ────────────────
+    if (state == BUTTON_EVENT_SHORT) {
+        uint8_t slot = 0xFF;
+        switch (Key) {
+            case KEY_1: slot = 0; break;
+            case KEY_2: slot = 1; break;
+            case KEY_3: slot = 2; break;
+            case KEY_4: slot = 3; break;
+            case KEY_5: slot = 4; break;
+            case KEY_6: slot = 5; break;
+            default:    break;
+        }
+        if (slot != 0xFF) {
+            if (gFM_Memory[slot] != 0) {
+                gEeprom.FM_FrequencyPlaying  = gFM_Memory[slot];
+                gEeprom.FM_SelectedFrequency = gFM_Memory[slot];
+                BK1080_SetFrequency(gEeprom.FM_FrequencyPlaying, FM_BAND);
+                gRequestSaveFM        = true;
+                gRequestDisplayScreen = DISPLAY_FM;
+            }
+            return;
+        }
+    }
+
     switch (Key) {
         case KEY_UP:
             if (state == BUTTON_EVENT_SHORT) {
@@ -308,6 +398,8 @@ void FM_Start(void)
     }
     BK1080_Init(gEeprom.FM_FrequencyPlaying, FM_BAND);
     BK4819_PickRXFilterPathBasedOnFrequency(10320000);
+
+    FM_Memory_Load();   // загрузить ячейки памяти из EEPROM
 
     AUDIO_AudioPathOn();
     gEnableSpeaker = true;

@@ -68,9 +68,6 @@ static int16_t fadeStep = 0;
     };
 #endif
 
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-    uint16_t gSleepModeCountdown_500ms = 0;
-#endif
 
 void BACKLIGHT_InitHardware()
 {
@@ -120,9 +117,6 @@ void BACKLIGHT_UpdateTickless(void) {
 
 void BACKLIGHT_TurnOn(void)
 {
-    #ifdef ENABLE_FEAT_F4HWN_SLEEP
-        gSleepModeCountdown_500ms = gSetting_set_off * 120;
-    #endif
 
     #ifdef ENABLE_FEAT_F4HWN
         gBacklightBrightnessOld = BACKLIGHT_GetBrightness();
@@ -172,18 +166,7 @@ void BACKLIGHT_TurnOn(void)
 
 void BACKLIGHT_TurnOff()
 {
-#ifdef ENABLE_BLMIN_TMP_OFF
-    register uint8_t tmp;
-
-    if (gEeprom.BACKLIGHT_MIN_STAT == BLMIN_STAT_ON)
-        tmp = gEeprom.BACKLIGHT_MIN;
-    else
-        tmp = 0;
-
-    BACKLIGHT_SetBrightness(tmp);
-#else
     BACKLIGHT_SetBrightness(gEeprom.BACKLIGHT_MIN);
-#endif
     gBacklightCountdown_500ms = 0;
     backlightOn = false;
 }

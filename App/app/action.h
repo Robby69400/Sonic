@@ -23,18 +23,12 @@ void ACTION_Power(void);
 void ACTION_1Call(void);
 void ACTION_Monitor(void);
 void ACTION_Scan(bool bRestart);
-#ifdef ENABLE_VOX
-    void ACTION_Vox(void);
-#endif
 
 #ifdef ENABLE_FMRADIO
     void ACTION_FM(void);
 #endif
 void ACTION_SwitchDemodul(void);
 
-#ifdef ENABLE_BLMIN_TMP_OFF
-    void ACTION_BlminTmpOff(void);
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
     void ACTION_RxMode(void);

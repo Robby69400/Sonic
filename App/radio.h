@@ -60,10 +60,6 @@ typedef enum {
     MODULATION_AM,
     MODULATION_USB,
 
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-    MODULATION_BYP,
-    MODULATION_RAW,
-#endif
 
     MODULATION_UKNOWN
 } ModulationMode_t;
@@ -117,9 +113,6 @@ typedef struct VFO_Info_t
     uint8_t        SCANLIST_PARTICIPATION;
 
     uint16_t        Band;
-#ifdef ENABLE_DTMF_CALLING
-    uint8_t        DTMF_DECODING_ENABLE;
-#endif
     PTT_ID_t       DTMF_PTT_ID_TX_MODE;
 
     uint8_t        BUSY_CHANNEL_LOCK;
@@ -157,9 +150,6 @@ void     RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo);
 void     RADIO_ApplyOffset(VFO_Info_t *pInfo);
 void     RADIO_SelectVfos(void);
 void     RADIO_SetupRegisters(bool switchToForeground);
-#ifdef ENABLE_NOAA
-    void RADIO_ConfigureNOAA(void);
-#endif
 void     RADIO_SetTxParameters(void);
 void     RADIO_SetupAGC(bool listeningAM, bool disable);
 void     RADIO_SetModulation(ModulationMode_t modulation);

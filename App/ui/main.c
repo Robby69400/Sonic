@@ -56,7 +56,6 @@ int8_t gSmeterLevel = 0;
     static int8_t RxLine = -1;
     static uint32_t RxOnVfofrequency;
 
-
     static bool isMainOnly()
     {
         return (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF) && (gEeprom.CROSS_BAND_RX_TX == CROSS_BAND_OFF);
@@ -228,15 +227,8 @@ void UI_DisplayAudioBar(void)
     if (gLowBattery && !gLowBatteryConfirmed)
         return;
     if (gCurrentFunction != FUNCTION_TRANSMIT || gScreenToDisplay != DISPLAY_MAIN
-#ifdef ENABLE_DTMF_CALLING
-        || gDTMF_CallState != DTMF_CALL_STATE_NONE
-#endif
         )
         return;
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-    if (gAlarmState != ALARM_STATE_OFF)
-        return;
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
     RxBlinkLed = 0;
@@ -256,7 +248,6 @@ void UI_DisplayAudioBar(void)
 #endif
 }
 #endif
-
 
 // ============================================================================
 // AUDIO SCOPE (living equalizer during TX)
@@ -282,9 +273,6 @@ void UI_DisplayAudioScope(void)
     }
 
     if (!GPIO_IsPttPressed()
-#ifdef ENABLE_VOX
-    && !gEeprom.VOX_SWITCH
-#endif
 #ifdef ENABLE_FEAT_F4HWN
     && !gSetting_set_ptt_session
 #endif
@@ -312,15 +300,8 @@ void UI_DisplayAudioScope(void)
     if (gLowBattery && !gLowBatteryConfirmed)
         return;
     if (gScreenToDisplay != DISPLAY_MAIN
-#ifdef ENABLE_DTMF_CALLING
-        || gDTMF_CallState != DTMF_CALL_STATE_NONE
-#endif
         )
         return;
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-    if (gAlarmState != ALARM_STATE_OFF)
-        return;
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
     RxBlinkLed = 0;
@@ -452,13 +433,32 @@ void DisplayRSSIBar(const bool now)
 #endif
 
     if ((gEeprom.KEY_LOCK && gKeypadLocked > 0) || center_line != CENTER_LINE_RSSI)
+    {
+#ifdef ENABLE_FEAT_F4HWN
+        // Даже при раннем выходе обновляем gSmeterLevel для статус-бара
+        if (isMainOnly() && FUNCTION_IsRx() && gScreenToDisplay == DISPLAY_MAIN
+            && gCurrentFunction != FUNCTION_TRANSMIT)
+        {
+            int16_t rssi_tmp = BK4819_GetRSSI_dBm() + dBmCorrTable[gRxVfo->Band];
+            rssi_tmp = -rssi_tmp;
+            if (rssi_tmp > 141) rssi_tmp = 141;
+            if (rssi_tmp < 53)  rssi_tmp = 53;
+            uint8_t sl = 0, ob = 0;
+            if (rssi_tmp >= 93) {
+                sl = map(rssi_tmp, 141, 93, 1, 9);
+            } else {
+                sl = 9;
+                uint8_t od = map(rssi_tmp, 93, 53, 0, 40);
+                ob = map(od, 0, 40, 0, 4);
+            }
+            gSmeterLevel = (int8_t)(sl + ob);
+        }
+#endif
         return;     // display is in use
+    }
 
     if (gCurrentFunction == FUNCTION_TRANSMIT ||
         gScreenToDisplay != DISPLAY_MAIN
-#ifdef ENABLE_DTMF_CALLING
-        || gDTMF_CallState != DTMF_CALL_STATE_NONE
-#endif
         )
         return;     // display is in use
 
@@ -502,14 +502,11 @@ void DisplayRSSIBar(const bool now)
 #endif
 
 #ifdef ENABLE_FEAT_F4HWN
-    if (isMainOnly()) {
-        // ── Обновляем S-уровень для статус-бара ───────────────────────────
-        uint8_t smeter_level = s_level + overS9Bars;  // 0..13
-        gSmeterLevel = (int8_t)smeter_level;
+    // Всегда обновляем gSmeterLevel для статус-бара, независимо от режима
+    gSmeterLevel = (int8_t)(s_level + overS9Bars);
 
-        // ── dBm: тёмный шрифт справа ──────────────────────────────────────
-        sprintf(str, "dBm%d", -rssi_dBm);
-        GUI_DisplaySmallestDark(str, 84, 2, false, true);
+    if (isMainOnly()) {
+        // В main-only линия 5 занята аудископом — ничего не рисуем на ней
     } else if (gSetting_set_gui) {
         sprintf(str, "%3d", -rssi_dBm);
         UI_PrintStringSmallNormal(str, LCD_WIDTH + 8, 0, line - 1);
@@ -528,8 +525,7 @@ void DisplayRSSIBar(const bool now)
         sprintf(str, "% 4d S%d", -rssi_dBm, s_level);
     }
     else {
-        sprintf(str, "% 4d  %2d", -rssi_dBm, overS9dBm);
-        memcpy(p_line + 2 + 7*5, &plus, ARRAY_SIZE(plus));
+        sprintf(str, "%4d S9+%d", -rssi_dBm, overS9dBm);
     }
 
     UI_PrintStringSmallNormal(str, 2, 0, line);
@@ -637,7 +633,7 @@ void UI_MAIN_TimeSlice500ms(void)
         return;
 #endif
 
-        // Update RSSI bar during reception
+        // Update RSSI bar during reception (в main-only обновляет только gSmeterLevel, не рисует на линии 5)
         if(FUNCTION_IsRx()) {
             DisplayRSSIBar(true);
         }
@@ -824,7 +820,7 @@ void UI_DisplayMain(void)
             { 50, 0, 127, 2 },   // нижняя: опущена на 5px (было 47)
         };
         const hline_t *hl     = isMR ? mr_hlines  : vfo_hlines;
-        uint8_t        hl_cnt = isMR ? 4 : 4;
+        uint8_t        hl_cnt = isMR ? 3 : 3;
         for (uint8_t i = 0; i < hl_cnt; i++) {
             for (uint8_t x = hl[i].x0; x <= hl[i].x1; x += hl[i].step) {
                 uint8_t y = hl[i].y;
@@ -851,7 +847,6 @@ void UI_DisplayMain(void)
                 else       gFrameBuffer[(y - 8) >> 3][x] |= (1u << ((y - 8) & 7));
             }
         }
-
 
         if (isMR)
         {
@@ -1081,12 +1076,6 @@ void UI_DisplayMain(void)
         else if (FUNCTION_IsRx())
             GUI_DisplaySmallestDark("RX", 2, 25, false, false);
 
-        // ── RSSI ─────────────────────────────────────────────────────
-        if (center_line == CENTER_LINE_NONE && FUNCTION_IsRx()) {
-            center_line = CENTER_LINE_RSSI;
-            DisplayRSSIBar(false);
-        }
-
         // ── Перерисовка MR-линии y=30 поверх имени канала ────────────
         // UI_PrintString с 8px шрифтом занимает y=16..31, затирая линию y=30
         if (isMR) {
@@ -1181,7 +1170,6 @@ void UI_DisplayMain(void)
             }
 #endif
 
-
             // highlight the selected/used VFO with a marker
             if (isMainVFO)
                 memcpy(p_line0 + 0, BITMAP_VFO_Default, sizeof(BITMAP_VFO_Default));
@@ -1207,11 +1195,6 @@ void UI_DisplayMain(void)
         if (gCurrentFunction == FUNCTION_TRANSMIT)
         {   // transmitting
 
-#ifdef ENABLE_ALARM
-            if (gAlarmState == ALARM_STATE_SITE_ALARM)
-                mode = VFO_MODE_RX;
-            else
-#endif
             {
                 if (activeTxVFO == vfo_num)
 {   // show the TX symbol
@@ -1272,31 +1255,11 @@ void UI_DisplayMain(void)
             sprintf(String, "F%u%s", 1 + gEeprom.ScreenChannel[vfo_num] - FREQ_CHANNEL_FIRST, buf);
             UI_PrintStringSmallNormal(String, x, 0, line + 1);
         }
-#ifdef ENABLE_NOAA
-        else
-        {
-            if (gInputBoxIndex == 0 || gEeprom.TX_VFO != vfo_num)
-            {   // channel number
-                sprintf(String, "N%u", 1 + gEeprom.ScreenChannel[vfo_num] - NOAA_CHANNEL_FIRST);
-            }
-            else
-            {   // user entering channel number
-                sprintf(String, "N%u%u", '0' + gInputBox[0], '0' + gInputBox[1]);
-            }
-            UI_PrintStringSmallNormal(String, 7, 0, line + 1);
-        }
-#endif
 
         // ************
 
         enum VfoState_t state = VfoState[vfo_num];
 
-#ifdef ENABLE_ALARM
-        if (gCurrentFunction == FUNCTION_TRANSMIT && gAlarmState == ALARM_STATE_SITE_ALARM) {
-            if (activeTxVFO == vfo_num)
-                state = VFO_STATE_ALARM;
-        }
-#endif
         if (state != VFO_STATE_NORMAL)
         {
             if (state < ARRAY_SIZE(VfoStateStr))
@@ -1673,7 +1636,6 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
             int i = vfoInfo->TX_OFFSET_FREQUENCY_DIRECTION % 3;
             const char dir_list[][2] = {"", "+", "-"};
            
-
 #if ENABLE_FEAT_F4HWN
         if (gSetting_set_gui)
         {
@@ -1796,23 +1758,6 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
         else
 #endif
 
-#if defined(ENABLE_AM_FIX__) && defined(ENABLE_AM_FIX___SHOW_DATA)
-        if (rx && gEeprom.VfoInfo[gEeprom.RX_VFO].Modulation == MODULATION_AM && gSetting_AM_fix)
-        {
-            if (gScreenToDisplay != DISPLAY_MAIN
-#ifdef ENABLE_DTMF_CALLING
-                || gDTMF_CallState != DTMF_CALL_STATE_NONE
-#endif
-                )
-                return;
-
-            center_line = CENTER_LINE_AM_FIX_DATA;
-            AM_fix_print_data(gEeprom.RX_VFO, String);
-            UI_PrintStringSmallNormal(String, 2, 0, 3);
-        }
-        else
-#endif
-
 #ifdef ENABLE_RSSI_BAR
         if (rx) {
             center_line = CENTER_LINE_RSSI;
@@ -1823,24 +1768,6 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
         if (rx || gCurrentFunction == FUNCTION_FOREGROUND || gCurrentFunction == FUNCTION_POWER_SAVE)
         {
 
-#ifdef ENABLE_SHOW_CHARGE_LEVEL
-            else if (gChargingWithTypeC)
-            {   // charging .. show the battery state
-                if (gScreenToDisplay != DISPLAY_MAIN
-#ifdef ENABLE_DTMF_CALLING
-                    || gDTMF_CallState != DTMF_CALL_STATE_NONE
-#endif
-                    )
-                    return;
-
-                center_line = CENTER_LINE_CHARGE_DATA;
-
-                sprintf(String, "Charge %u.%02uV %u%%",
-                    gBatteryVoltageAverage / 100, gBatteryVoltageAverage % 100,
-                    BATTERY_VoltsToPercent(gBatteryVoltageAverage));
-                UI_PrintStringSmallNormal(String, 2, 0, 3);
-            }
-#endif
         }
     }
 

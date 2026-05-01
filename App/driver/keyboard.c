@@ -27,83 +27,6 @@ KEY_Code_t gKeyReading1     = KEY_INVALID;
 uint16_t   gDebounceCounter = 0;
 bool       gWasFKeyPressed  = false;
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-// Short press: hold key for SERIAL_KEY_SHORT_POLLS calls.
-// Must exceed key_debounce_10ms (2) to trigger ProcessKey(key, true, false).
-#define SERIAL_KEY_SHORT_POLLS  5
-
-// Long press: hold key for SERIAL_KEY_LONG_POLLS calls.
-// Must exceed key_repeat_delay_10ms (40) to trigger ProcessKey(key, true, true).
-#define SERIAL_KEY_LONG_POLLS   45
-
-// Packet types for serial key injection (K5Viewer → radio)
-#define SERIAL_KEY_TYPE         0x03
-#define SERIAL_KEY_TYPE_LONG    0x04
-
-volatile KEY_Code_t gKeyFromSerial      = KEY_INVALID;
-static   uint8_t    gSerialKeyHoldCount = 0;
-static   uint8_t    gSerialKeyLong      = 0;  // 0 = short press, 1 = long press
-
-// Inject a short or long press from serial (UART or VCP).
-// KEY_PTT is explicitly blocked — PTT release cannot be guaranteed over serial.
-static inline void KEYBOARD_InjectKey(uint8_t keyCode, bool keyLong)
-{
-    if (keyCode < KEY_INVALID && keyCode != KEY_PTT) {
-        gKeyFromSerial      = (KEY_Code_t)keyCode;
-        gSerialKeyHoldCount = 0;
-        gSerialKeyLong      = keyLong;
-    }
-}
-
-bool KEYBOARD_ProcessProtocolByte(ParseState_t *state, uint8_t b)
-{
-    bool connected = false;
-
-    switch (*state)
-    {
-        case STATE_IDLE:
-            if      (b == 0x55) *state = STATE_KA_1;
-            else if (b == 0xAA) *state = STATE_KEY_1;
-            break;
-            
-        case STATE_KA_1:
-            *state = (b == 0xAA) ? STATE_KA_2 : STATE_IDLE;
-            break;
-            
-        case STATE_KA_2:
-            *state = (b == 0x00) ? STATE_KA_3 : STATE_IDLE;
-            break;
-            
-        case STATE_KA_3:
-            if (b == 0x00) connected = true;
-            *state = STATE_IDLE;
-            break;
-            
-        case STATE_KEY_1:
-            *state = (b == 0x55) ? STATE_KEY_2 : STATE_IDLE;
-            break;
-            
-        case STATE_KEY_2:
-            if      (b == SERIAL_KEY_TYPE)      *state = STATE_KEY_3;
-            else if (b == SERIAL_KEY_TYPE_LONG) *state = STATE_KEY_3L;
-            else                                *state = STATE_IDLE;
-            break;
-            
-        case STATE_KEY_3:
-        case STATE_KEY_3L:
-            KEYBOARD_InjectKey(b, *state == STATE_KEY_3L);
-            connected = true;
-            *state = STATE_IDLE;
-            break;
-
-        default:
-            *state = STATE_IDLE;
-            break;
-    }
-
-    return connected;
-}
-#endif
 
 #define GPIOx               GPIOB
 #define PIN_MASK_COLS       (LL_GPIO_PIN_6 | LL_GPIO_PIN_5 | LL_GPIO_PIN_4 | LL_GPIO_PIN_3)
@@ -156,24 +79,6 @@ static const KEY_Code_t keyboard[5][4] = {
 
 KEY_Code_t KEYBOARD_Poll(void)
 {
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    // Serial-injected key: hold it for SHORT or LONG polls depending on press type,
-    // so the debounce counter in app.c reaches the right threshold:
-    //   - Short: key_debounce_10ms (2)  → ProcessKey(key, true, false)
-    //   - Long:  key_repeat_delay_10ms (40) → ProcessKey(key, true, true)
-    // Once the hold count is exhausted we clear it — next call returns KEY_INVALID,
-    // which triggers the release path in app.c naturally.
-    if (gKeyFromSerial != KEY_INVALID) {
-        KEY_Code_t injected  = gKeyFromSerial;
-        uint8_t    threshold = gSerialKeyLong ? SERIAL_KEY_LONG_POLLS : SERIAL_KEY_SHORT_POLLS;
-        if (++gSerialKeyHoldCount >= threshold) {
-            gKeyFromSerial      = KEY_INVALID;
-            gSerialKeyHoldCount = 0;
-            gSerialKeyLong      = 0;
-        }
-        return injected;
-    }
-#endif
 
     KEY_Code_t Key = KEY_INVALID;
 

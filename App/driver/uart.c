@@ -23,9 +23,6 @@
 #include "py32f071_ll_gpio.h"
 #include "py32f071_ll_usart.h"
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-#include "driver/keyboard.h"
-#endif
 
 #define USARTx USART1
 #define DMA_CHANNEL LL_DMA_CHANNEL_2
@@ -150,28 +147,3 @@ void UART_LogSend(const void *pBuffer, uint32_t Size)
     }
 }
 
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    bool UART_IsCableConnected(void) {
-        static uint8_t     read_ptr = 0;
-        static ParseState_t state   = STATE_IDLE;
-
-        bool connected = false;
-
-        // DMA write position: NbData counts DOWN from 256
-        uint8_t write_ptr = (uint8_t)(sizeof(UART_DMA_Buffer) - 
-                                       LL_DMA_GetDataLength(DMA1, DMA_CHANNEL));
-
-        uint8_t processed = 0;
-        while (read_ptr != write_ptr && processed < sizeof(UART_DMA_Buffer))
-        {
-            uint8_t b = UART_DMA_Buffer[read_ptr++];
-            // read_ptr wraps naturally at 256 since it's uint8_t
-            processed++;
-
-            if(KEYBOARD_ProcessProtocolByte(&state, b))
-                connected = true;
-        }
-
-        return connected;
-    }
-#endif

@@ -197,18 +197,6 @@ void UI_DisplayStatus()
 #endif
 
     // 4. VOX - В СТОЛБИК
-#ifdef ENABLE_VOX
-    if (gEeprom.VOX_SWITCH) {
-        POS_MOD += 3;
-        gStatusLine[POS_MOD++] = 0x7F;
-        gStatusLine[POS_MOD++] = 0x41;
-        gStatusLine[POS_MOD++] = 0x1C;
-        gStatusLine[POS_MOD++] = 0x7C;
-        gStatusLine[POS_MOD++] = 0x1C;
-        gStatusLine[POS_MOD++] = 0x41;
-        gStatusLine[POS_MOD++] = 0x7F;
-    }
-#endif
 
     // 6. ФОНАРИК (FlashlightOnRX) - мигание при RX включено
     if (gEeprom.FlashlightOnRX) {

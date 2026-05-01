@@ -242,21 +242,12 @@ void BATTERY_TimeSlice500ms(void)
     // not on charge
     if (!gLowBatteryConfirmed) {
         AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP);
-#ifdef ENABLE_VOICE
-        AUDIO_SetVoiceID(0, VOICE_ID_LOW_VOLTAGE);
-#endif
     }
 
     if (gBatteryDisplayLevel != 0) {
-#ifdef ENABLE_VOICE
-        AUDIO_PlaySingleVoice(false);
-#endif
         return;
     }
 
-#ifdef ENABLE_VOICE
-    AUDIO_PlaySingleVoice(true);
-#endif
 
     gReducedService = true;
 

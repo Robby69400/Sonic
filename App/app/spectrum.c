@@ -27,9 +27,6 @@
 #include "debugging.h"
 #endif
 #include <stdlib.h>
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    #include "screenshot.h"
-#endif
 // ============================================================
 // SECTION: Compile-time configuration
 // ============================================================
@@ -116,7 +113,7 @@ static struct {
 /////////////////////////////Parameters://///////////////////////////
 //SEE parametersSelectedIndex
 // see GetParametersText
-static uint8_t DelayRssi = 3;                // case 0       
+static uint8_t DelayRssi = 2;                // case 0       
 static uint16_t SpectrumDelay = 0;           // case 1      
 static uint16_t MaxListenTime = 0;           // case 2
 static uint32_t gScanRangeStart = 1400000;   // case 3      
@@ -131,7 +128,7 @@ static uint8_t Noislvl_ON = NoisLvl - NoiseHysteresis;
 static uint16_t osdPopupSetting = 500;       // case 11
 static uint16_t UOO_trigger = 15;            // case 12
 static uint8_t AUTO_KEYLOCK = AUTOLOCK_OFF;  // case 13
-static uint8_t GlitchMax = 20;               // case 14 
+static uint8_t GlitchMax = 20;               // case 14
 static bool    SoundBoost = 0;               // case 15
 static uint8_t PttEmission = 0;              // case 16
 static bool gMonitorScan = true;             // case 17
@@ -274,16 +271,6 @@ static bool navBandPinned  = false;
 static bool navScanPinned  = false;
 static void LookupChannelModulation();
 
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-  static uint16_t scanListChannels[MR_CHANNEL_LAST+1]; // Array to store Channel indices for selected scanlist
-  static uint16_t scanListChannelsCount = 0; // Number of Channels in selected scanlist
-  static uint16_t scanListChannelsSelectedIndex = 0;
-  static uint16_t scanListChannelsScrollOffset = 0;
-  static uint16_t selectedScanListIndex = 0; // Which scanlist we're viewing Channels for
-  static void BuildScanListChannels(uint8_t scanListIndex);
-  static void RenderScanListChannels();
- // static void RenderScanListChannelsDoubleLines(const char* title, uint8_t numItems, uint8_t selectedIndex, uint8_t scrollOffset);
-#endif
 static uint8_t validScanListIndices[MR_CHANNELS_LIST];
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1310,6 +1297,9 @@ void WriteHistory(void) {
         History.HBlacklisted = HBlacklisted[position];
         PY25Q16_WriteBuffer(ADRESS_HISTORY + position * sizeof(HistoryStruct),
                            (uint8_t *)&History, sizeof(HistoryStruct), 0);
+        // Feed watchdog — сектор на flash 4KB, стирание до 100ms
+        // 200 записей × 100ms = 20s без кормёжки → сброс
+        IWDG_Feed();
     }
 
     // Marque de fin (HBlacklisted = 0xFF)
@@ -1615,7 +1605,7 @@ static void UpdateScanInfo() {
 static void UpdateGlitch() {
     uint8_t glitch = BK4819_GetGlitchIndicator();
     if (glitch > GlitchMax) {gIsPeak = false;} 
-    else {gIsPeak = true;}// if glitch is too high, receiving stopped
+    else {gIsPeak = true;}
 }
 
 static void Measure() {
@@ -1839,8 +1829,13 @@ static void Blacklist() {
     HBlacklisted[indexFs] = true;
     historyListIndex = indexFs;
     if (++indexFs >= HISTORY_SIZE) {
-      historyScrollOffset = 0;
-      indexFs=0;
+        for (uint16_t i = 0; i + 1 < HISTORY_SIZE; i++) {
+            HFreqs[i]       = HFreqs[i + 1];
+            HBlacklisted[i] = HBlacklisted[i + 1];
+        }
+        indexFs = HISTORY_SIZE - 1;
+        historyListIndex = indexFs - 1;
+        historyScrollOffset = 0;
     }
 }
 
@@ -1864,24 +1859,46 @@ static int16_t Rssi2Y(uint16_t rssi) {
 }
 
 static void DrawSpectrum(void) {
-    for (uint8_t i = 0; i < 128; i++) {
-        if (rssiHistory[i] == 0) continue;
-        int16_t y = Rssi2Y(rssiHistory[i]);
-        if (y < 0 || y > DrawingEndY) continue;
+    // Строим topY[] с преобразованием rssi → Y-координата
+    uint8_t topY[128];
+    for (uint8_t x = 0; x < 128; x++) {
+        if (!rssiHistory[x]) { topY[x] = 0xFF; continue; }
+        int16_t y = Rssi2Y(rssiHistory[x]);
+        topY[x] = (y >= 0 && y <= DrawingEndY) ? (uint8_t)y : 0xFF;
+    }
 
-        uint8_t mid = (y + DrawingEndY) >> 1;
+    // Сглаживание пиков: каждый пиксель = среднее с соседями
+    uint8_t prev = topY[0];
+    for (uint8_t x = 1; x < 127; x++) {
+        uint8_t cur = topY[x], nxt = topY[x + 1];
+        if (cur == 0xFF) { prev = cur; continue; }
+        uint16_t s = cur; uint8_t n = 1;
+        if (prev != 0xFF) { s += prev; n++; }
+        if (nxt  != 0xFF) { s += nxt;  n++; }
+        prev = cur;
+        topY[x] = (uint8_t)((s + n / 2) / n);
+    }
 
-        // сплошная граница сверху
-        gFrameBuffer[y >> 3][i] |= 1 << (y & 7);
+    // Рисуем заливку
+    for (uint8_t x = 0; x < 128; x++) {
+        uint8_t y0 = topY[x];
+        if (y0 == 0xFF || y0 > DrawingEndY) continue;
 
-        // верхняя зона — сплошная заливка
-        for (uint8_t fy = y + 1; fy < mid; fy++)
-            gFrameBuffer[fy >> 3][i] |= 1 << (fy & 7);
+        // Мост к соседям — сплошной гребень
+        uint8_t ct = y0, cb = y0;
+        if (x > 0   && topY[x-1] != 0xFF) { uint8_t m = (y0 + topY[x-1] + 1) >> 1; if (m < ct) ct = m; if (m > cb) cb = m; }
+        if (x < 127 && topY[x+1] != 0xFF) { uint8_t m = (y0 + topY[x+1] + 1) >> 1; if (m < ct) ct = m; if (m > cb) cb = m; }
+        for (uint8_t y = ct; y <= cb; y++)
+            gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
 
-        // нижняя зона — шахматка (светлее)
-        for (uint8_t fy = mid; fy <= DrawingEndY; fy++)
-            if (!((i + fy) & 1))
-                gFrameBuffer[fy >> 3][i] |= 1 << (fy & 7);
+        uint8_t mid = (cb + DrawingEndY) >> 1;
+        // Сплошная зона верх
+        for (uint8_t y = cb + 1; y < mid; y++)
+            gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
+        // Шахматка низ
+        for (uint8_t y = mid; y <= DrawingEndY; y++)
+            if (!((x + y) & 1))
+                gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
     }
 }
 
@@ -2409,15 +2426,6 @@ static void HandleKeyScanList(uint8_t key) {
                 scanListSelectedIndex = 0;
                 }    
                 break;
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-            case KEY_STAR: /* drill-down into channel list for selected scanlist */
-                selectedScanListIndex = scanListSelectedIndex;
-                BuildScanListChannels(validScanListIndices[selectedScanListIndex]);
-                scanListChannelsSelectedIndex = 0;
-                scanListChannelsScrollOffset  = 0;
-                SetState(SCANLIST_CHANNELS);
-                break;	
-#endif
         case KEY_4: /* toggle selected list, advance cursor */
             ToggleScanList(validScanListIndices[scanListSelectedIndex], 0);
             if (scanListSelectedIndex < validScanListCount - 1)
@@ -2445,32 +2453,6 @@ static void HandleKeyScanList(uint8_t key) {
     }
 }
       	  
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-/* --- SCANLIST_CHANNELS: scroll through channel detail list --- */
-static void HandleKeyScanListChannels(uint8_t key) {
-    switch (key) {
-        case KEY_UP:
-        if (scanListChannelsSelectedIndex > 0) {
-            scanListChannelsSelectedIndex--;
-                if (scanListChannelsSelectedIndex < scanListChannelsScrollOffset)
-                scanListChannelsScrollOffset = scanListChannelsSelectedIndex;
-        }
-        break;
-    case KEY_DOWN:
-        if (scanListChannelsSelectedIndex < scanListChannelsCount - 1) {
-            scanListChannelsSelectedIndex++;
-                if (scanListChannelsSelectedIndex >= scanListChannelsScrollOffset + 3)
-                scanListChannelsScrollOffset = scanListChannelsSelectedIndex - 3 + 1;
-        }
-        break;
-        case KEY_EXIT:
-        SetState(SCANLIST_SELECT);
-        break;
-    default:
-        break;
-    }
-}
-#endif /* ENABLE_SCANLIST_SHOW_DETAIL */
 
 /* --- PARAMETERS_SELECT: navigate settings, edit values --- */
 static void HandleKeyParameters(uint8_t key) {
@@ -3005,9 +2987,6 @@ static void OnKeyDown(uint8_t key) {
     switch (currentState) {
         case BAND_LIST_SELECT:  HandleKeyBandList(key);         break;
         case SCANLIST_SELECT:   HandleKeyScanList(key);         break;
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-        case SCANLIST_CHANNELS: HandleKeyScanListChannels(key); break;
-#endif
         case PARAMETERS_SELECT: HandleKeyParameters(key);       break;
         default:                HandleKeySpectrum(key);         break;
     }
@@ -3447,16 +3426,8 @@ static void Render() {
     break;
 #endif
 
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-    case SCANLIST_CHANNELS: // NOWY CASE
-      RenderScanListChannels();
-      break;
-#endif // ENABLE_SCANLIST_SHOW_DETAIL
     
   }
-  #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    SCREENSHOT_Update(1);
-  #endif
     if (spectrumElapsedCount < 500) ST7565_BlitFullScreen();
 }
 
@@ -3509,11 +3480,6 @@ if (kbd.counter == 1 || (kbd.counter > 17 && (kbd.counter % 15 == 0))) {
                 OnKeyDownCPUView(kbd.current);
                 break;
 #endif
-        #ifdef ENABLE_SCANLIST_SHOW_DETAIL
-            case SCANLIST_CHANNELS:
-                OnKeyDown(kbd.current);
-                break;
-        #endif
         }
     }
 }
@@ -3613,6 +3579,19 @@ static void UpdateListening(void) { // called every 10ms
         UpdateNoiseOn();
         UpdateGlitch();
     }
+
+    // ── Контроль RSSI во время прослушивания ─────────────────────────────
+    // Measure() не вызывается пока isListening=true, поэтому проверяем сами.
+    // Если сигнал исчез (rssi вернулся к уровню шума) → закрыть шумодав.
+    if (isListening && gIsPeak) {
+        uint16_t cur_rssi = GetRssi();
+        // Если текущий rssi ≤ пиковому rssi на момент открытия минус threshold
+        // используем scanInfo.rssiMin как приближение к уровню шума
+        if (cur_rssi < scanInfo.rssiMin + settings.rssiTriggerLevelUp) {
+            gIsPeak = false;
+            // WaitSpectrum начнёт считать → таймер → ToggleRX(false)
+        }
+    }
         
     spectrumElapsedCount += 10; //in ms
     uint32_t maxCount = (uint32_t)MaxListenTime * 1000;
@@ -3624,7 +3603,9 @@ static void UpdateListening(void) { // called every 10ms
 
     // --- Gestion du pic ---
     if (gIsPeak) {
-        WaitSpectrum = SpectrumDelay;   // reset timer
+        // Держим открытым пока есть сигнал
+        uint16_t hold = SpectrumDelay > 0 ? SpectrumDelay : 100; // минимум 100ms
+        WaitSpectrum = hold;
         return;
     }
 
@@ -3635,8 +3616,12 @@ static void UpdateListening(void) { // called every 10ms
         WaitSpectrum -= 10;
         return;
     }
-    // timer écoulé
+    // timer écoulé — сигнал исчез, закрыть шумодав и продолжить сканирование
     WaitSpectrum = 0;
+    if (isListening) {
+        ToggleRX(false);   // закрыть аудио, иначе isListening остаётся true
+        gIsPeak = false;   //  и UpdateScan() никогда не вызывается
+    }
     ResetScanStats();
 
 }
@@ -3710,9 +3695,6 @@ static void Tick() {
   if (!isListening) {UpdateScan();}
   
   if (gNextTimeslice_display) {
-#ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-    SCREENSHOT_Update(true);
-#endif
     //if (isListening || SpectrumMonitor || WaitSpectrum) UpdateListening(); // Kolyan test
     gNextTimeslice_display = 0;
     RenderStatus();
@@ -4439,22 +4421,6 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
     }
 }
 
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-/* ScanList channel detail (two-line mode):
- *   row.left  = "NNN: channel_name"  (line 1)
- *   row.right = "    freq"           (line 2) */
-static void GetScanListChannelRow(uint16_t index, ListRow *row) {
-    uint16_t channelIndex = scanListChannels[index];
-    char channel_name[12];
-    SETTINGS_FetchChannelName(channel_name, channelIndex);
-    uint32_t freq = gMR_ChannelFrequencyAttributes[channelIndex].Frequency;
-    char freqStr[16];
-    sprintf(freqStr, " %u.%05u", freq / 100000, freq % 100000);
-    //RemoveTrailZeros(freqStr);
-    snprintf(row->left,  sizeof(row->left),  "%3d: %s", channelIndex + 1, channel_name);
-    snprintf(row->right, sizeof(row->right), "    %s", freqStr);
-}
-#endif
 
 // ============================================================
 // SECTION: List screen render functions
@@ -4503,27 +4469,3 @@ static void RenderHistoryList() {
     ST7565_BlitFullScreen();
 }
 
-#ifdef ENABLE_SCANLIST_SHOW_DETAIL
-static void BuildScanListChannels(uint8_t scanListIndex) {
-    scanListChannelsCount = 0;
-    ChannelAttributes_t att;
-    for (uint16_t i = 0; i < MR_CHANNEL_LAST + 1; i++) {
-        att = gMR_ChannelAttributes[i];
-        if (att.scanlist == scanListIndex + 1) {
-            if (scanListChannelsCount < MR_CHANNEL_LAST + 1)
-                scanListChannels[scanListChannelsCount++] = i;
-        }
-    }
-}
-
-/* Two-line detail view: 3 items visible, each occupying 2 display lines.
- * Header shows the scanlist number; items rendered via RenderUnifiedList. */
-static void RenderScanListChannels() {
-    char headerString[24];
-    uint8_t realScanListIndex = validScanListIndices[selectedScanListIndex];
-    sprintf(headerString, "SL %d CHANNELS:", realScanListIndex + 1);
-    RenderUnifiedList(headerString, NULL, false, scanListChannelsCount,
-                      scanListChannelsSelectedIndex, scanListChannelsScrollOffset,
-                      true, false, true, GetScanListChannelRow);
-}
-#endif /* ENABLE_SCANLIST_SHOW_DETAIL */

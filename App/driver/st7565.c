@@ -124,7 +124,6 @@ void ST7565_DrawLine(const unsigned int Column, const unsigned int Line, const u
     CS_Release();
 }
 
-
 #ifdef ENABLE_FEAT_F4HWN
     // Optimization
     //
@@ -164,9 +163,6 @@ void ST7565_DrawLine(const unsigned int Column, const unsigned int Line, const u
     void ST7565_BlitLine(unsigned line)
     {
         ST7565_BlitScreen(line + 1);
-        #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
-            SCREENSHOT_Update(true);  // Force immediate capture
-        #endif
     }
 
     void ST7565_BlitStatusLine(void)
@@ -363,17 +359,6 @@ void ST7565_Init(void)
 
     ST7565_FillScreen(0x00);
 }
-
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-    void ST7565_ShutDown(void)
-    {
-        CS_Assert();
-        ST7565_WriteByte(ST7565_CMD_POWER_CIRCUIT | 0b000);   // VB=0 VR=1 VF=1
-        ST7565_WriteByte(ST7565_CMD_SET_START_LINE | 0);   // line 0
-        ST7565_WriteByte(ST7565_CMD_DISPLAY_ON_OFF | 0);   // D=1
-        CS_Release();
-    }
-#endif
 
 void ST7565_FixInterfGlitch(void)
 {

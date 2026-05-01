@@ -1,17 +1,5 @@
-/* Copyright 2023 Dual Tachyon
- * https://github.com/DualTachyon
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- *     Unless required by applicable law or agreed to in writing, software
- *     distributed under the License is distributed on an "AS IS" BASIS,
- *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *     See the License for the specific language governing permissions and
- *     limitations under the License.
+/* Copyright 2025 OURO.SU
+ * https://github.com/igimalek
  */
 
 #include "driver/bk4819-regs.h"
@@ -47,27 +35,9 @@ const char gModulationStr[MODULATION_UKNOWN][4] = {
     [MODULATION_AM]="AM",
     [MODULATION_USB]="USB",
 
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-    [MODULATION_BYP]="BYP",
-    [MODULATION_RAW]="RAW"
-#endif
 };
 
 #ifdef ENABLE_FEAT_F4HWN_AUDIO
-
-    // About BK4819_WriteRegister(0x2b, val) experimentation...
-    //
-    // 0x000: 300 Hz high-pass filter enabled, 3 kHz low-pass filter enabled, de-emphasis enabled.
-    // Audio impression: the most "classic radio" tuning, more filtered and smoother.
-    //
-    // 0x300: 300 Hz high-pass filter enabled, 3 kHz low-pass filter disabled, de-emphasis disabled.
-    // Audio impression: clearer, brighter, and more open, while still cutting low frequencies.
-    //
-    // 0x400: 300 Hz high-pass filter disabled, 3 kHz low-pass filter enabled, de-emphasis enabled.
-    // Audio impression: fuller low end, but still softened by de-emphasis and upper-frequency limiting.
-    //
-    // 0x500: 300 Hz high-pass filter disabled, 3 kHz low-pass filter enabled, de-emphasis disabled.
-    // Audio impression: fuller bass, more direct sound, while still keeping the 3 kHz top-end limit.
 
     static void AUDIO_ApplyFMProfile(uint8_t profile)
     {
@@ -255,7 +225,6 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 {
     VFO_Info_t *pVfo = &gEeprom.VfoInfo[VFO];
 
-
         // Пропускаем 350MHz диапазон только если он заблокирован настройкой
 #if defined(ENABLE_350EN)
         if (!gSetting_350EN) {
@@ -274,20 +243,6 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
     uint16_t channel = gEeprom.ScreenChannel[VFO];
 
     if (IS_VALID_CHANNEL(channel)) {
-#ifdef ENABLE_NOAA
-        if (IS_NOAA_CHANNEL(channel))
-        {
-            RADIO_InitInfo(pVfo, gEeprom.ScreenChannel[VFO], NoaaFrequencyTable[channel - NOAA_CHANNEL_FIRST]);
-
-            if (gEeprom.CROSS_BAND_RX_TX == CROSS_BAND_OFF)
-                return;
-
-            gEeprom.CROSS_BAND_RX_TX = CROSS_BAND_OFF;
-
-            gUpdateStatus = true;
-            return;
-        }
-#endif
 
         if (IS_MR_CHANNEL(channel)) {
             channel = RADIO_FindNextChannel(channel, RADIO_CHANNEL_UP, false, VFO);
@@ -366,13 +321,9 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         pVfo->StepFrequency = gStepFrequencyTable[tmp];
 
         tmp = data[7];
-#ifndef ENABLE_FEAT_F4HWN
         if (tmp > (ARRAY_SIZE(gSubMenu_SCRAMBLER) - 1))
             tmp = 0;
         pVfo->SCRAMBLING_TYPE = tmp;
-#else
-        pVfo->SCRAMBLING_TYPE = 0;
-#endif
 
         pVfo->freq_config_RX.CodeType = (data[2] >> 0) & 0x0F;
         pVfo->freq_config_TX.CodeType = (data[2] >> 4) & 0x0F;
@@ -448,16 +399,10 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 
         if (data[5] == 0xFF)
         {
-#ifdef ENABLE_DTMF_CALLING
-            pVfo->DTMF_DECODING_ENABLE = false;
-#endif
             pVfo->DTMF_PTT_ID_TX_MODE  = PTT_ID_OFF;
         }
         else
         {
-#ifdef ENABLE_DTMF_CALLING
-            pVfo->DTMF_DECODING_ENABLE = ((data[5] >> 0) & 1u) ? true : false;
-#endif
             uint8_t pttId = ((data[5] >> 1) & 7u);
             pVfo->DTMF_PTT_ID_TX_MODE  = pttId < ARRAY_SIZE(gSubMenu_PTT_ID) ? pttId : PTT_ID_OFF;
         }
@@ -543,7 +488,6 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
 {
 
-
     // *******************************
     // squelch
 
@@ -573,7 +517,6 @@ void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
 
         PY25Q16_ReadBuffer(Base + 0x40, &pInfo->SquelchCloseGlitchThresh, 1);  //  90    90
         PY25Q16_ReadBuffer(Base + 0x50, &pInfo->SquelchOpenGlitchThresh,  1);  // 100   100
-
 
         uint16_t noise_open   = pInfo->SquelchOpenNoiseThresh;
         uint16_t noise_close  = pInfo->SquelchCloseNoiseThresh;
@@ -612,25 +555,6 @@ void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
 
     Band = FREQUENCY_GetBand(pInfo->pTX->Frequency);
 
-    // my eeprom calibration data on UV-K5 (V1)
-    //
-    // 1ED0 32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff  50 MHz
-    // 1EE0 32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff 108 MHz
-    // 1EF0 5f 5f 5f 69 69 69 87 87 87 ff ff ff ff ff ff ff 137 MHz
-    // 1F00 32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff 174 MHz
-    // 1F10 5f 5f 5f 69 69 69 87 87 87 ff ff ff ff ff ff ff 350 MHz
-    // 1F20 5f 5f 5f 69 69 69 87 87 87 ff ff ff ff ff ff ff 400 MHz
-    // 1F30 32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff 470 MHz
-
-    // my eeprom calibration data on UV-K1
-    //      32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff  50 MHz
-    //      32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff 108 MHz
-    //      4b 4b 4b 78 78 78 96 96 96 ff ff ff ff ff ff ff 137 MHz
-    //      32 32 32 64 64 64 8c 8c 8c ff ff ff ff ff ff ff 174 MHz
-    //      5a 5a 5a 64 64 64 a0 a0 a0 ff ff ff ff ff ff ff 350 MHz
-    //      4b 4b 4b 78 78 78 96 96 96 ff ff ff ff ff ff ff 400 MHz
-    //      32 32 32 64 64 64 94 8c 8c ff ff ff ff ff ff ff 470 MHz
-
     uint8_t Txp[3];
     uint8_t Op = 0; // calibration set: 0=Low, 1=Mid, 2=High
 
@@ -640,15 +564,34 @@ void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
         return;
     }
 
-    // ── Поправки мощности — МЕНЯЙ ЗДЕСЬ ─────────────────────────────────
-    //   + поднимает мощность,  - опускает.
-    //   Cal-байты твоей рации (из K1_calibration.dat):
-    //     Band2 (145МГц): L=75  M=120  H=150/144/150
-    //     Band5 (430МГц): L=75  M=120  H=150/160/150
-    //
-    const int8_t pL_add =  -50;  //433.800/145.300 L - 0,4 / 0.3
-    const int8_t pM_add =  -50;  // M - 2,5 / 1.8
-    const int8_t pH_add = -60;  // H - 5,2 / 2.3
+    // ── Поправки мощности — МЕНЯЙ ЗДЕСЬ, раздельно для каждого диапазона ──
+    //   + громче,  - тише.   Результаты замеров твоей рации:
+    //   430МГц: L=1.16W  M=3.35W  H=5.74W  U=5.85W  (при pL/M/H/U_add ниже)
+    //   145МГц: L=1.65W  M=3.25W  H=5.41W  U=5.40W
+    //   290МГц: L=0.52W  M=2.32W  H=3.20W  U=3.20W
+    //   U — независим от H, своя прибавка pU_add + шкала 0..5500mW в меню
+
+    int8_t pL_add, pM_add, pH_add, pU_add;
+
+    if (Band == BAND6_400MHz || Band == BAND7_470MHz) {
+        // ── 430 МГц ──────────────────── L      M      H      U
+        pL_add =  1;   //               1.16W  (+3≈1.5W   -1≈0.8W)
+        pM_add =  1;   //               3.35W  (+3≈3.8W   -3≈2.8W)
+        pH_add = 10;   //               5.74W  (+12≈6.2W  +8≈5.3W)
+        pU_add =  5;   //  U база       независимо (+5≈как H, 0≈ниже H)
+    } else if (Band == BAND3_137MHz || Band == BAND4_174MHz) {
+        // ── 145 МГц ──────────────────── L      M      H      U
+        pL_add =  1;   //               1.65W  (+3≈2.0W   0≈1.5W)
+        pM_add =  1;   //               3.25W  (+3≈3.8W   -1≈3.0W)
+        pH_add = 13;   //  ← +3 чтобы сравнять с 430: ~5.74W
+        pU_add =  5;   //  U база       независимо
+    } else {
+        // ── прочие (290МГц и др.) ─────── L      M      H      U
+        pL_add =  1;   //               0.52W
+        pM_add =  1;   //               2.32W
+        pH_add = 10;   //               3.20W
+        pU_add =  5;   //  U база
+    }
     // ─────────────────────────────────────────────────────────────────────
 
     if (pInfo->OUTPUT_POWER == OUTPUT_POWER_LOW) {
@@ -672,8 +615,8 @@ void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
             Txp[p] = (uint8_t)MAX(0, MIN(255, (int16_t)Txp[p] + pH_add)); // H: cal + pH_add
     } else if (pInfo->OUTPUT_POWER == OUTPUT_POWER_USER) {
         for (uint8_t p = 0; p < 3; p++) {
-            uint32_t full   = (uint32_t)MAX(0, MIN(255, (int16_t)Txp[p] + pH_add)); // U: та же база что H
-            uint32_t scaled = (full * (uint32_t)gSetting_set_pwr_mw) / 5500u;       // U: МЕНЯЙ 5500u — это 100% шкалы U (= H при 5500 mW)
+            uint32_t full   = (uint32_t)MAX(0, MIN(255, (int16_t)Txp[p] + pU_add)); // U: своя база pU_add (не pH_add)
+            uint32_t scaled = (full * (uint32_t)gSetting_set_pwr_mw) / 5500u;       // U: МЕНЯЙ 5500u — 100% шкалы (= cal+pU_add при 5500mW)
             Txp[p] = (scaled > 255u) ? 255u : (uint8_t)scaled;
         }
     }
@@ -789,14 +732,7 @@ void RADIO_SetupRegisters(bool switchToForeground)
     BK4819_WriteRegister(BK4819_REG_7D, 0xE940 | (gEeprom.MIC_SENSITIVITY_TUNING & 0x3f));
 
     uint32_t Frequency;
-    #ifdef ENABLE_NOAA
-        if (!IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE) || !gIsNoaaMode)
-            Frequency = gRxVfo->pRX->Frequency;
-        else
-            Frequency = NoaaFrequencyTable[gNoaaChannel];
-    #else
         Frequency = gRxVfo->pRX->Frequency;
-    #endif
     BK4819_SetFrequency(Frequency);
 
     BK4819_SetupSquelch(
@@ -817,12 +753,8 @@ void RADIO_SetupRegisters(bool switchToForeground)
         (gEeprom.VOLUME_GAIN << 4) |     // AF Rx Gain-2
         (gEeprom.DAC_GAIN    << 0));     // AF DAC Gain (after Gain-1 and Gain-2)
 
-
     uint16_t InterruptMask = BK4819_REG_3F_SQUELCH_FOUND | BK4819_REG_3F_SQUELCH_LOST;
 
-    #ifdef ENABLE_NOAA
-        if (!IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE))
-    #endif
     {
         if (gRxVfo->Modulation == MODULATION_FM)
         {   // FM
@@ -842,7 +774,6 @@ void RADIO_SetupRegisters(bool switchToForeground)
                 case CODE_TYPE_CONTINUOUS_TONE:
                     BK4819_SetCTCSSFrequency(CTCSS_Options[Code]);
 
-                    //#ifndef ENABLE_CTCSS_TAIL_PHASE_SHIFT
                     //    BK4819_SetTailDetection(550);       // QS's 55Hz tone method
                     //#else
                     //  BK4819_SetTailDetection(CTCSS_Options[Code]);
@@ -876,32 +807,7 @@ void RADIO_SetupRegisters(bool switchToForeground)
                 BK4819_DisableScramble();
         }
     }
-    #ifdef ENABLE_NOAA
-        else
-        {
-            BK4819_SetCTCSSFrequency(2625);
-            InterruptMask = 0
-                | BK4819_REG_3F_CTCSS_FOUND
-                | BK4819_REG_3F_CTCSS_LOST
-                | BK4819_REG_3F_SQUELCH_FOUND
-                | BK4819_REG_3F_SQUELCH_LOST;
-        }
-    #endif
 
-#ifdef ENABLE_VOX
-    if (gEeprom.VOX_SWITCH  && gCurrentVfo->Modulation == MODULATION_FM
-#ifdef ENABLE_NOAA
-        && !IS_NOAA_CHANNEL(gCurrentVfo->CHANNEL_SAVE)
-#endif
-#ifdef ENABLE_FMRADIO
-        && !gFmRadioMode
-#endif
-    ){
-        BK4819_EnableVox(gEeprom.VOX1_THRESHOLD, gEeprom.VOX0_THRESHOLD);
-        InterruptMask |= BK4819_REG_3F_VOX_FOUND | BK4819_REG_3F_VOX_LOST;
-    }
-    else
-#endif
     {
         BK4819_DisableVox();
     }
@@ -923,51 +829,6 @@ void RADIO_SetupRegisters(bool switchToForeground)
     if (switchToForeground)
         FUNCTION_Select(FUNCTION_FOREGROUND);
 }
-
-#ifdef ENABLE_NOAA
-    void RADIO_ConfigureNOAA(void)
-    {
-        uint8_t ChanAB;
-
-        gUpdateStatus = true;
-
-        if (gEeprom.NOAA_AUTO_SCAN)
-        {
-            if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
-            {
-                if (!IS_NOAA_CHANNEL(gEeprom.ScreenChannel[0]))
-                {
-                    if (!IS_NOAA_CHANNEL(gEeprom.ScreenChannel[1]))
-                    {
-                        gIsNoaaMode = false;
-                        return;
-                    }
-                    ChanAB = 1;
-                }
-                else
-                    ChanAB = 0;
-
-                if (!gIsNoaaMode)
-                    gNoaaChannel = gEeprom.VfoInfo[ChanAB].CHANNEL_SAVE - NOAA_CHANNEL_FIRST;
-
-                gIsNoaaMode = true;
-                return;
-            }
-
-            if (IS_NOAA_CHANNEL(gRxVfo->CHANNEL_SAVE))
-            {
-                gIsNoaaMode          = true;
-                gNoaaChannel         = gRxVfo->CHANNEL_SAVE - NOAA_CHANNEL_FIRST;
-                gNOAA_Countdown_10ms = NOAA_countdown_2_10ms;
-                gScheduleNOAA        = false;
-            }
-            else
-                gIsNoaaMode = false;
-        }
-        else
-            gIsNoaaMode = false;
-    }
-#endif
 
 void RADIO_SetTxParameters(void)
 {
@@ -1042,30 +903,6 @@ void RADIO_SetTxParameters(void)
 
 void RADIO_SetModulation(ModulationMode_t modulation)
 {
-    #ifdef ENABLE_BYP_RAW_DEMODULATORS
-    // BYP on BK4829 uses full audio bypass profile.
-    if (modulation == MODULATION_BYP) {
-        BK4819_EnterBypass();
-        BK4819_SetRegValue(afDacGainRegSpec, 0xF);
-        BK4819_WriteRegister(BK4819_REG_3D, 0x2AAB);
-        RADIO_SetupAGC(false, false);
-        return;
-    }
-
-    // RAW on BK4829 uses RX-only filter bypass profile.
-    if (modulation == MODULATION_RAW) {
-        BK4819_EnterRaw();
-        BK4819_SetRegValue(afDacGainRegSpec, 0xF);
-        BK4819_WriteRegister(BK4819_REG_3D, 0x0000);
-        RADIO_SetupAGC(false, false);
-        return;
-    }
-    #endif
-
-    #ifdef ENABLE_BYP_RAW_DEMODULATORS
-    // Ensure we always leave bypass / raw mode before applying normal modulation settings.
-    BK4819_ExitBypass();
-    #endif
 
     BK4819_AF_Type_t mod;
     switch(modulation) {
@@ -1204,7 +1041,6 @@ void RADIO_SetVfoState(VfoState_t State)
     gUpdateDisplay = true;
 }
 
-
 void RADIO_PrepareTX(void)
 {
     VfoState_t State = VFO_STATE_NORMAL;  // default to OK to TX
@@ -1236,14 +1072,8 @@ void RADIO_PrepareTX(void)
         } else
 #ifdef ENABLE_FEAT_F4HWN
         if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0
-    #if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-            && gAlarmState != ALARM_STATE_SITE_ALARM
-    #endif
 #else
         if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0
-    #if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-            && gAlarmState != ALARM_STATE_SITE_ALARM
-    #endif
 #endif
     ){
         // TX frequency not allowed
@@ -1262,57 +1092,25 @@ void RADIO_PrepareTX(void)
         // over voltage .. this is being a pain
         State = VFO_STATE_VOLTAGE_HIGH;
     }
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-    else if (gCurrentVfo->Modulation == MODULATION_BYP || gCurrentVfo->Modulation == MODULATION_RAW) {
-        // BYP/RAW are receive-only modes.
-        State = VFO_STATE_TX_DISABLE;
-    }
-#endif
-#ifndef ENABLE_TX_WHEN_AM
     else if (gCurrentVfo->Modulation != MODULATION_FM) {
         // not allowed to TX if in AM mode
         State = VFO_STATE_TX_DISABLE;
     }
-#endif
 
     if (State != VFO_STATE_NORMAL) {
         // TX not allowed
         RADIO_SetVfoState(State);
 
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-        gAlarmState = ALARM_STATE_OFF;
-#endif
-
-#ifdef ENABLE_DTMF_CALLING
-        gDTMF_ReplyState = DTMF_REPLY_NONE;
-#endif
         AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
         return;
     }
 
     // TX is allowed
 
-#ifdef ENABLE_DTMF_CALLING
-    if (gDTMF_ReplyState == DTMF_REPLY_ANI)
-    {
-        gDTMF_IsTx = gDTMF_CallMode == DTMF_CALL_MODE_DTMF;
-
-        if (gDTMF_IsTx) {
-            gDTMF_CallState = DTMF_CALL_STATE_NONE;
-            gDTMF_TxStopCountdown_500ms = DTMF_txstop_countdown_500ms;
-        } else {
-            gDTMF_CallState = DTMF_CALL_STATE_CALL_OUT;
-        }
-    }
-#endif
-
     FUNCTION_Select(FUNCTION_TRANSMIT);
 
     gTxTimerCountdown_500ms = 0;            // no timeout
 
-    #if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-    if (gAlarmState == ALARM_STATE_OFF)
-    #endif
     {
 
         gTxTimerCountdown_500ms = ((gEeprom.TX_TIMEOUT_TIMER + 1) * 5) * 2;
@@ -1340,9 +1138,6 @@ void RADIO_PrepareTX(void)
     gFlagEndTransmission = false;
     gRTTECountdown_10ms  = 0;
 
-#ifdef ENABLE_DTMF_CALLING
-    gDTMF_ReplyState     = DTMF_REPLY_NONE;
-#endif
 }
 
 void RADIO_SendCssTail(void)

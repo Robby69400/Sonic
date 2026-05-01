@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "driver/py25q16.h"
+#include "driver/iwdg.h"
 #include "driver/gpio.h"
 #include "py32f071_ll_bus.h"
 #include "py32f071_ll_system.h"
@@ -409,6 +410,10 @@ static void WaitWIP()
         if (1 & Status) // WIP
         {
             SYSTICK_DelayUs(10);
+            // Feed watchdog каждые 100 итераций (~1ms) чтобы не сбросилась при
+            // длинных операциях стирания сектора или массовой записи истории
+            if ((i & 0xFF) == 0)
+                IWDG_Feed();
             continue;
         }
         break;

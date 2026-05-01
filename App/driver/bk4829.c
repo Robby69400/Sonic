@@ -32,9 +32,6 @@
 #define PIN_SCL GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_8)
 #define PIN_SDA GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_9)
 
-#ifdef ENABLE_DTMF_CALLING
-    static const uint16_t FSK_RogerTable[7] = {0xF1A2, 0x7446, 0x61A4, 0x6544, 0x4E8A, 0xE044, 0xEA84};
-#endif
 
 //static const uint8_t DTMF_TONE1_GAIN = 65;
 //static const uint8_t DTMF_TONE2_GAIN = 93;
@@ -106,7 +103,7 @@ void BK4819_Init(void)
     BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
     BK4819_WriteRegister(BK4819_REG_14, 0x0210);
     BK4819_WriteRegister(BK4819_REG_49, 0x2AB2);
-    BK4819_WriteRegister(BK4819_REG_7B, 0x73DC);
+    BK4819_WriteRegister(BK4819_REG_7B, 0x8420);
 
     // BK4819_WriteRegister(BK4819_REG_19, 0b0001000001000001);   // <15> MIC AGC  1 = disable  0 = enable
 
@@ -319,7 +316,20 @@ void BK4819_SetAGC(bool enable)
         | (3u << 12)       // 3  AGC fix index
     );
 
+    // if(enable) {
+    //  BK4819_WriteRegister(BK4819_REG_7B, 0x8420);
+    // }
+    // else {
+    //  BK4819_WriteRegister(BK4819_REG_7B, 0x318C);
 
+    //  BK4819_WriteRegister(BK4819_REG_7C, 0x595E);
+    //  BK4819_WriteRegister(BK4819_REG_20, 0x8DEF);
+
+    //  for (uint8_t i = 0; i < 8; i++) {
+    //      //BK4819_WriteRegister(BK4819_REG_06, ((i << 13) | 0x2500u) + 0x036u);
+    //      BK4819_WriteRegister(BK4819_REG_06, (i & 7) << 13 | 0x4A << 7 | 0x36);
+    //  }
+    // }
 }
 
 void BK4819_InitAGC(ModulationMode_t modulation)
@@ -336,9 +346,9 @@ void BK4819_InitAGC(ModulationMode_t modulation)
         BK4819_WriteRegister(BK4819_REG_49, (0u << 14) | (50u << 7) | (20u << 0));
         BK4819_WriteRegister(BK4819_REG_7B, 0x8420); // стабильный AGC для AM
     } else {
-        // FM/USB: широкое окно, стандартные настройки
-        BK4819_WriteRegister(BK4819_REG_49, 0x2AB2);
-        BK4819_WriteRegister(BK4819_REG_7B, 0x73DC);
+        // FM/USB: узкое окно как SU75 (high=84,low=66 = 18dB) — AGC дольше держит максимальное усиление
+        BK4819_WriteRegister(BK4819_REG_49, (0u << 14) | (84u << 7) | (66u << 0));
+        BK4819_WriteRegister(BK4819_REG_7B, 0x8420); // единое значение как в SU75
     }
 }
 
@@ -855,7 +865,6 @@ void BK4819_DisableScramble(void)
 {
     const uint16_t Value = BK4819_ReadRegister(BK4819_REG_31);
     BK4819_WriteRegister(BK4819_REG_31, Value & ~(1u << 1));
-    BK4819_WriteRegister(BK4819_REG_2B, 0);
 }
 
 void BK4819_EnableScramble(uint8_t Type)
@@ -864,9 +873,6 @@ void BK4819_EnableScramble(uint8_t Type)
     BK4819_WriteRegister(BK4819_REG_31, Value | (1u << 1));
 
     BK4819_WriteRegister(BK4819_REG_71, 0x68DC + (Type * 1032));   // 0110 1000 1101 1100
-
-    Value = BK4819_ReadRegister(BK4819_REG_2B);
-    BK4819_WriteRegister(BK4819_REG_2B, Value | 1);
 }
 
 bool BK4819_CompanderEnabled(void)
@@ -1096,58 +1102,11 @@ void BK4819_Idle(void)
     BK4819_WriteRegister(BK4819_REG_30, 0x0000);
 }
 
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-void BK4819_EnterBypass(void)
-{
-    // Keep AF output on normal path (REG_47 mode 0x1 is documented on BK4829).
-    BK4819_SetAF(BK4819_AF_FM);
-
-    // Bypass all AF filters (Rx + Tx) as recommended for digital bypass mode.
-    // REG_2B:
-    //  bit10: Disable AF Rx HPF300
-    //  bit 9: Disable AF Rx LPF3K
-    //  bit 8: Disable AF Rx de-emphasis
-    //  bit 2: Disable AF Tx HPF300
-    //  bit 1: Disable AF Tx LPF1
-    //  bit 0: Disable AF Tx pre-emphasis
-    uint16_t reg2b = BK4819_ReadRegister(BK4819_REG_2B);
-    reg2b |= (1u << 10) | (1u << 9) | (1u << 8) | (1u << 2) | (1u << 1) | (1u << 0);
-    BK4819_WriteRegister(BK4819_REG_2B, reg2b);
-
-    // Keep AGC/AFC behavior aligned with FM-like bypass experiments.
-    BK4819_SetRegValue(afcDisableRegSpec, false);
-}
-
-void BK4819_EnterRaw(void)
-{
-    // Keep AF output on a documented mode.
-    BK4819_SetAF(BK4819_AF_FM);
-
-    // RAW profile: bypass RX AF filters only, keep TX filter path unchanged.
-    // REG_2B:
-    //  bit10: Disable AF Rx HPF300
-    //  bit 9: Disable AF Rx LPF3K
-    //  bit 8: Disable AF Rx de-emphasis
-    uint16_t reg2b = BK4819_ReadRegister(BK4819_REG_2B);
-    reg2b |= (1u << 10) | (1u << 9) | (1u << 8);
-    reg2b &= ~((1u << 2) | (1u << 1) | (1u << 0));
-    BK4819_WriteRegister(BK4819_REG_2B, reg2b);
-
-    // RAW profile keeps AFC disabled to preserve discriminator-like behavior.
-    BK4819_SetRegValue(afcDisableRegSpec, true);
-}
-#endif
 
 void BK4819_ExitBypass(void)
 {
     BK4819_SetAF(BK4819_AF_MUTE);
 
-#ifdef ENABLE_BYP_RAW_DEMODULATORS
-    // Restore normal AF filters.
-    uint16_t reg2b = BK4819_ReadRegister(BK4819_REG_2B);
-    reg2b &= ~((1u << 10) | (1u << 9) | (1u << 8) | (1u << 2) | (1u << 1) | (1u << 0));
-    BK4819_WriteRegister(BK4819_REG_2B, reg2b);
-#endif
 
     // Keep existing REG_7E logic from your current implementation.
     uint16_t regVal = BK4819_ReadRegister(BK4819_REG_7E);
@@ -1434,11 +1393,7 @@ void BK4819_PlayCDCSSTail(void)
 
 void BK4819_PlayCTCSSTail(void)
 {
-    #ifdef ENABLE_CTCSS_TAIL_PHASE_SHIFT
-        BK4819_GenTail(2);       // 180° phase shift
-    #else
         BK4819_GenTail(4);       // 55Hz tone freq
-    #endif
 
     // REG_51
     //
@@ -1718,125 +1673,6 @@ void BK4819_PrepareFSKReceive(void)
     BK4819_WriteRegister(BK4819_REG_59, 0x3068);
 }
 
-static void BK4819_PlayRogerNormal(void)
-{
-    #if 0
-        const uint32_t tone1_Hz = 500;
-        const uint32_t tone2_Hz = 700;
-    #else
-        // motorola type
-        const uint32_t tone1_Hz = 1540;
-        const uint32_t tone2_Hz = 1310;
-    #endif
-
-
-    BK4819_EnterTxMute();
-    BK4819_SetAF(BK4819_AF_MUTE);
-
-    BK4819_WriteRegister(BK4819_REG_70, // BK4819_REG_70_ENABLE_TONE1 | (66u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
-                                        0xC300
-    );
-
-    BK4819_EnableTXLink();
-    SYSTEM_DelayMs(50);
-
-    BK4819_WriteRegister(BK4819_REG_71, scale_freq(tone1_Hz));
-
-    BK4819_ExitTxMute();
-    SYSTEM_DelayMs(80);
-    BK4819_EnterTxMute();
-
-    BK4819_WriteRegister(BK4819_REG_71, scale_freq(tone2_Hz));
-
-    BK4819_ExitTxMute();
-    SYSTEM_DelayMs(80);
-    BK4819_EnterTxMute();
-
-    BK4819_WriteRegister(BK4819_REG_70, 0x0000);
-    BK4819_WriteRegister(BK4819_REG_30, 0xC1FE);   // 1 1 0000 0 1 1111 1 1 1 0
-}
-
-#ifdef ENABLE_DTMF_CALLING
-void BK4819_PlayRogerMDC(void)
-{
-    struct reg_value {
-        BK4819_REGISTER_t reg;
-        uint16_t value;
-    };
-
-    struct reg_value RogerMDC_Configuration [] = {
-        { BK4819_REG_58, 0x37C3 },  // FSK Enable,
-                                        // RX Bandwidth FFSK 1200/1800
-                                        // 0xAA or 0x55 Preamble
-                                        // 11 RX Gain,
-                                        // 101 RX Mode
-                                        // TX FFSK 1200/1800
-        { BK4819_REG_72, 0x3065 },  // Set Tone-2 to 1200Hz
-        { BK4819_REG_70, 0x00C3 },  // Enable Tone-2 and Set Tone2 Gain
-        { BK4819_REG_5D, 0x0D00 },  // Set FSK data length to 13 bytes
-        { BK4819_REG_59, 0x8068 },  // 4 byte sync length, 6 byte preamble, clear TX FIFO
-        { BK4819_REG_59, 0x0068 },  // Same, but clear TX FIFO is now unset (clearing done)
-        { BK4819_REG_5A, 0x5555 },  // First two sync bytes
-        { BK4819_REG_5B, 0x5555 },  // End of sync bytes. Total 4 bytes: 555555aa
-        { BK4819_REG_5C, 0xAA30 },  // Disable CRC
-    };
-
-    BK4819_SetAF(BK4819_AF_MUTE);
-
-    for (unsigned int i = 0; i < ARRAY_SIZE(RogerMDC_Configuration); i++) {
-        BK4819_WriteRegister(RogerMDC_Configuration[i].reg, RogerMDC_Configuration[i].value);
-    }
-
-    // Send the data from the roger table
-    for (unsigned int i = 0; i < ARRAY_SIZE(FSK_RogerTable); i++) {
-        BK4819_WriteRegister(BK4819_REG_5F, FSK_RogerTable[i]);
-    }
-
-    SYSTEM_DelayMs(20);
-
-    // 4 sync bytes, 6 byte preamble, Enable FSK TX
-    BK4819_WriteRegister(BK4819_REG_59, 0x0868);
-
-    SYSTEM_DelayMs(180);
-
-    // Stop FSK TX, reset Tone-2, disable FSK
-    BK4819_WriteRegister(BK4819_REG_59, 0x0068);
-    BK4819_WriteRegister(BK4819_REG_70, 0x0000);
-    BK4819_WriteRegister(BK4819_REG_58, 0x0000);
-}
-#endif
-
-//###########################################################################################
-
-void play_morse_element(uint32_t freq, uint32_t duration_ms) {
-    BK4819_WriteRegister(BK4819_REG_71, scale_freq(freq));
-    BK4819_ExitTxMute();
-    SYSTEM_DelayMs(duration_ms);
-    BK4819_EnterTxMute();
-    SYSTEM_DelayMs(50); // Small gap after each element
-}
-
-void play_morse_letter(const char *pattern) {
-    while (*pattern) {
-        if (*pattern == '.') {
-            play_morse_element(400, 50);
-        } else if (*pattern == '-') {
-            play_morse_element(400, 150);
-        }
-        pattern++;
-    }
-    SYSTEM_DelayMs(100); // Adjust for letter gap
-}
-
-void send_robzyl_morse() {
-    play_morse_letter(".-."); 	//R
-    play_morse_letter("---"); 	//O
-    play_morse_letter("-...");  //B
-    play_morse_letter("--..");	//Z
-    play_morse_letter("-.--");	//Y
-    play_morse_letter(".-..");	//L
-} 
-
 //###########################################################################################
 
 
@@ -1848,43 +1684,50 @@ void play_note(uint32_t freq, uint32_t duration) {
     //SYSTEM_DelayMs(10);
 }
 
-void play_mario_intro() {
-    play_note(660, 100);
-    play_note(660, 100);
-    play_note(0, 100);
-    play_note(660, 100);
-    play_note(0, 100);
-    play_note(523, 100);
-    play_note(660, 100);
-    play_note(0, 100);
-    play_note(784, 100);
-    play_note(0, 300);
-    play_note(392, 100);
+
+// OURO — глубокий протяжный гудок ~340 Гц (из OURO.mp3)
+void roger_beep_OURO(void) {
+    play_note(340, 660);
+    play_note(0,    40);
+    play_note(340,  40);
 }
 
-void play_ambulance() {
-        play_note(960, 150); // Note haute (La)
-        play_note(635, 150); // Note basse (Ré)
-        play_note(960, 150); // Note haute (La)
-
+// KLAC — механический клик-бёрст (из KLAC.mp3)
+void roger_beep_KLAC(void) {
+    play_note(1800, 10);
+    play_note(700,  10);
+    play_note(1100, 10);
+    play_note(400,  10);
+    play_note(1300, 10);
+    play_note(1200, 10);
+    play_note(1600, 10);
+    play_note(700,  10);
+    play_note(0,    10);
+    play_note(700,  10);
+    play_note(1200, 10);
+    play_note(400,  20);
+    play_note(500,  10);
+    play_note(0,   100);
+    play_note(2000, 10);
+    play_note(1100, 10);
+    play_note(2900, 10);
 }
 
-//###########################################################################################
- void roger_beep_r2d2_rnd(void){
-// R2-D2 Style Acknowledgment Beep
-play_note(1046, 50);  // C6
-play_note(1318, 50);  // E6
-play_note(1568, 70);  // G6
-play_note(0, 30);     // Micro-pause for chirp effect
-play_note(1760, 40);  // A6
-play_note(1568, 40);  // G6
-play_note(1318, 100); // E6 (ending the phrase)
-} 
-//###########################################################################################
-void roger_beep_3(void) {
-    for (uint16_t i=2000;i>500;i-=50) play_note(i, 5); 
-	for (uint16_t i=2000;i>500;i-=50) play_note(i, 5); 
-	for (uint16_t i=500;i<2550;i+=50) play_note(i, 7);
+// PIU — лазер: восходящий свип 400→800→1600 Гц (из PIU.mp3)
+void roger_beep_PIU(void) {
+    play_note(400,  160);
+    play_note(800,  100);
+    play_note(1600,  90);
+}
+
+// ICQ — классический аська "uh-oh" (из ICQ.mp3)
+void roger_beep_ICQ(void) {
+    play_note(1400,  40);
+    play_note(0,     70);
+    play_note(1300,  10);
+    play_note(1100,  20);
+    play_note(1200, 110);
+    play_note(1100, 130);
 }
 //###########################################################################################
 
@@ -1897,36 +1740,10 @@ void BK4819_PlayRoger(uint8_t song)
 	SYSTEM_DelayMs(50);
 switch (song)
 {
-	case 1:
-		play_mario_intro();
-	break;
-
-	case 2:
-		roger_beep_3();	
-	break;
-	
-	case 3:
-	    roger_beep_r2d2_rnd();	
-	break;
-	
-	case 4:
-		BK4819_PlayRogerNormal();
-	break;
-
-    case 5:
-        send_robzyl_morse();
-	break;
-
-    case 6:
-        play_ambulance();
-	break;
-
-#ifdef ENABLE_DTMF_CALLING	
-	case 6:
-        BK4819_PlayRogerMDC();
-	break;
-#endif
-
+	case 1: roger_beep_OURO(); break;  // OURO
+	case 2: roger_beep_KLAC(); break;  // KLAC
+	case 3: roger_beep_PIU();  break;  // PIU
+	case 4: roger_beep_ICQ();  break;  // ICQ
 default:
 	break;
 }

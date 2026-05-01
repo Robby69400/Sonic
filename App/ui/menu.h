@@ -59,9 +59,6 @@ enum
     MENU_ABR_MAX,
     MENU_TDR,
     MENU_BEEP,
-#ifdef ENABLE_VOICE
-    MENU_VOICE,
-#endif
     MENU_AUTOLK,
     MENU_S_ADD1,
     MENU_S_ADD2,
@@ -75,32 +72,8 @@ enum
     MENU_SLIST1,
     MENU_SLIST2,
     MENU_SLIST3,
-#ifdef ENABLE_ALARM
-    MENU_AL_MOD,
-#endif
-#ifdef ENABLE_DTMF_CALLING
-    MENU_ANI_ID,
-#endif
-#ifdef ENABLE_DTMF_CODES
-    MENU_UPCODE,
-    MENU_DWCODE,
-#endif
     MENU_PTT_ID,
     MENU_D_ST,
-#ifdef ENABLE_DTMF_CALLING
-    MENU_D_RSP,
-    MENU_D_HOLD,
-#endif
-#ifdef ENABLE_DTMF_PRE
-    MENU_D_PRE,
-#endif
-#ifdef ENABLE_DTMF_CALLING  
-    MENU_D_DCD,
-    MENU_D_LIST,
-#endif
-#ifdef ENABLE_DTMF_LIVE
-    MENU_D_LIVE_DEC,
-#endif
     MENU_PONMSG,
     MENU_ROGER,
     MENU_VOL,
@@ -108,9 +81,6 @@ enum
     MENU_AM,
 
 #ifndef ENABLE_FEAT_F4HWN
-    #ifdef ENABLE_NOAA
-        MENU_NOAA_S,
-    #endif
 #endif
     MENU_RESET,
     MENU_F_LOCK,
@@ -128,15 +98,8 @@ enum
 #ifdef ENABLE_F_CAL_MENU
     MENU_F_CALI,  
 #endif
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-    MENU_SET_OFF,
-#endif
 #ifdef ENABLE_FEAT_F4HWN
     MENU_SET_PWR,
-#ifdef ENABLE_SET_TOT_EOT
-    MENU_SET_TOT,
-    MENU_SET_EOT,
-#endif
     MENU_SET_CTR,
     MENU_SET_INV,
     MENU_BTN_INV,
@@ -147,12 +110,6 @@ enum
     #endif
     #ifdef ENABLE_FEAT_F4HWN_NARROWER
         MENU_SET_NFM,
-    #endif
-    #ifdef ENABLE_FEAT_F4HWN_VOL
-        MENU_SET_VOL,
-    #endif
-    #ifdef ENABLE_NOAA
-        MENU_NOAA_S,
     #endif
 #endif
     MENU_BATCAL,  // battery voltage calibration
@@ -175,16 +132,7 @@ extern const char        gSubMenu_NA[4];
 extern const char        gSubMenu_TOT[11][7];
 extern const char* const gSubMenu_RXMode[3];
 
-#ifdef ENABLE_VOICE
-    extern const char    gSubMenu_VOICE[3][4];
-#endif
 extern const char* const gSubMenu_MDF[4];
-#ifdef ENABLE_ALARM
-    extern const char    gSubMenu_AL_MOD[2][5];
-#endif
-#ifdef ENABLE_DTMF_CALLING
-extern const char        gSubMenu_D_RSP[4][11];
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
     extern const char    gSubMenu_SET_PWR[1][6];
@@ -199,7 +147,7 @@ extern const char        gSubMenu_D_RSP[4][11];
 
 extern const char* const gSubMenu_PTT_ID[5];
 extern const char        gSubMenu_PONMSG[2][8];
-extern const char        gSubMenu_ROGER[3][6];
+extern const char        gSubMenu_ROGER[5][5];
 extern const char        gSubMenu_RESET[2][5];
 extern const char* const gSubMenu_F_LOCK[F_LOCK_LEN];
 extern const char        gSubMenu_RX_TX[4][6];

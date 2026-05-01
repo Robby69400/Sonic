@@ -179,9 +179,6 @@ void BOARD_Init(void)
     BOARD_GPIO_Init();
     BACKLIGHT_InitHardware();
     BOARD_ADC_Init();
-#ifdef ENABLE_VOICE
-    VOICE_Init();
-#endif
     PY25Q16_Init();
     ST7565_Init();
 #ifdef ENABLE_FMRADIO

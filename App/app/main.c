@@ -695,17 +695,10 @@ static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
                 return;
             gInputBox[--gInputBoxIndex] = 10;
             gKeyInputCountdown = key_input_timeout_500ms;
-#ifdef ENABLE_VOICE
-            if (gInputBoxIndex == 0)
-                gAnotherVoiceID = VOICE_ID_CANCEL;
-#endif
         } else {
             gScanKeepResult = false;
             gInputBoxIndex  = 0;
             CHFRSCANNER_Stop();
-#ifdef ENABLE_VOICE
-            gAnotherVoiceID = VOICE_ID_SCANNING_STOP;
-#endif
         }
         gRequestDisplayScreen = DISPLAY_MAIN;
         return;
@@ -765,9 +758,6 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
             }
             gFlagRefreshSetting   = true;
             gRequestDisplayScreen = DISPLAY_MENU;
-#ifdef ENABLE_VOICE
-            gAnotherVoiceID = VOICE_ID_MENU;
-#endif
         } else {
             gRequestDisplayScreen = DISPLAY_MAIN;
         }
@@ -821,12 +811,6 @@ static void MAIN_Key_STAR(bool bKeyPressed, bool bKeyHeld)
     } else {
         // F+* = сканер тонов
         gWasFKeyPressed = false;
-#ifdef ENABLE_NOAA
-        if (IS_NOAA_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-            return;
-        }
-#endif
         gBackup_CROSS_BAND_RX_TX  = gEeprom.CROSS_BAND_RX_TX;
         gEeprom.CROSS_BAND_RX_TX = CROSS_BAND_OFF;
         SCANNER_Start(true);
@@ -858,10 +842,6 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         if (!bKeyPressed) {
             if (!bKeyHeld || IS_FREQ_CHANNEL(Channel))
                 return;
-#ifdef ENABLE_VOICE
-            AUDIO_SetDigitVoice(0, gTxVfo->CHANNEL_SAVE + 1);
-            gAnotherVoiceID = (VOICE_ID_t)0xFE;
-#endif
             return;
         }
     } else {
@@ -873,9 +853,6 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
     }
 
     if (gScanStateDir == SCAN_OFF) {
-#ifdef ENABLE_NOAA
-        if (!IS_NOAA_CHANNEL(Channel))
-#endif
         {
             if (IS_FREQ_CHANNEL(Channel)) {
                 const uint32_t frequency = APP_SetFrequencyByStep(gTxVfo, Direction);
@@ -898,20 +875,8 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
             gEeprom.MrChannel[gEeprom.TX_VFO]    = Next;
             gEeprom.ScreenChannel[gEeprom.TX_VFO] = Next;
             if (!bKeyHeld) {
-#ifdef ENABLE_VOICE
-                AUDIO_SetDigitVoice(0, Next + 1);
-                gAnotherVoiceID = (VOICE_ID_t)0xFE;
-#endif
             }
         }
-#ifdef ENABLE_NOAA
-        else {
-            Channel = NOAA_CHANNEL_FIRST + NUMBER_AddWithWraparound(
-                gEeprom.ScreenChannel[gEeprom.TX_VFO] - NOAA_CHANNEL_FIRST, Direction, 0, 9);
-            gEeprom.NoaaChannel[gEeprom.TX_VFO]   = Channel;
-            gEeprom.ScreenChannel[gEeprom.TX_VFO] = Channel;
-        }
-#endif
         gRequestSaveVFO   = true;
         gVfoConfigureMode = VFO_CONFIGURE_RELOAD;
         return;
