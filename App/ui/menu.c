@@ -182,9 +182,14 @@ const char gSubMenu_PONMSG[][8] =
     "OFF"
 };
 
-const char gSubMenu_ROGER[][5] =
+const char gSubMenu_ROGER[][6] =
 {
     "OFF",
+    "MARIO",
+	"BLAST",
+	"R2D2",
+    "ROGER",
+    "AMBUL",
     "OURO",
     "KLAC",
     "PIU",
@@ -1030,7 +1035,7 @@ case MENU_F_LOCK: // разрешить всё
         for (uint8_t i = 51; i <= 127; i += 2) {
             UI_DrawLineBuffer(gFrameBuffer, i, 44, i, 44, 1); // Hory X
         }
-  GUI_DisplaySmallestDark(" DEV:OURO.SU", 55, 48, false, true);
+    GUI_DisplaySmallestDark(" SONIC TEAM ", 55, 48, false, true);
 
     ST7565_BlitFullScreen();
 }

@@ -28,7 +28,6 @@
                 "ENABLE_SCAN_RANGES": true,
                 "ENABLE_FLASH_BAND": false,
                 "ENABLE_DEV": false,
-                "ENABLE_BENCH": true,
                 "ENABLE_CPU_STATS": false,
                 "ENABLE_CPU_TEMP": true,
                 "ENABLE_BIG_FREQ": true,
@@ -54,8 +53,6 @@
                 "ENABLE_REGA": false,
                 "ENABLE_EXTRA_UART_CMD": false,
                 "ENABLE_FEAT_F4HWN": true,
-                "ENABLE_FEAT_F4HWN_GAME": false,
-                "ENABLE_FEAT_F4HWN_SCREENSHOT": false,
                 "ENABLE_FEAT_F4HWN_SPECTRUM": true,
                 "ENABLE_SPECTRUM_LINES": true,
                 "ENABLE_FEAT_F4HWN_RX_TX_TIMER": true,
@@ -78,7 +75,6 @@
                 "ENABLE_AGC_SHOW_DATA": false,
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
-                "ENABLE_SCANLIST_SHOW_DETAIL":false,
                 "VERSION_STRING_1": "v0.22",
                 "VERSION_STRING_2": "1.0" 
             }
@@ -92,7 +88,6 @@
                 "ENABLE_USB": true,
                 "ENABLE_UART": true,
                 "ENABLE_CPU_STATS": false,
-                "ENABLE_FEAT_F4HWN_SCREENSHOT": false,
                 "EDITION_STRING": "Dev",
                 "TARGET": "ROBZYL.K1.Dev.1.0"
             }

@@ -319,11 +319,12 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
             tmp = STEP_12_5kHz;
         pVfo->STEP_SETTING  = tmp;
         pVfo->StepFrequency = gStepFrequencyTable[tmp];
-
+#ifdef ENABLE_SCRAMBLER
         tmp = data[7];
         if (tmp > (ARRAY_SIZE(gSubMenu_SCRAMBLER) - 1))
             tmp = 0;
         pVfo->SCRAMBLING_TYPE = tmp;
+#endif
 
         pVfo->freq_config_RX.CodeType = (data[2] >> 0) & 0x0F;
         pVfo->freq_config_TX.CodeType = (data[2] >> 4) & 0x0F;

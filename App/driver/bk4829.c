@@ -1675,25 +1675,81 @@ void BK4819_PrepareFSKReceive(void)
 
 //###########################################################################################
 
-
-void play_note(uint32_t freq, uint32_t duration) {
+static void play_note(uint32_t freq, uint32_t duration) {
     BK4819_WriteRegister(BK4819_REG_71, scale_freq(freq));
     BK4819_ExitTxMute();
     SYSTEM_DelayMs(duration);
     BK4819_EnterTxMute();
-    //SYSTEM_DelayMs(10);
 }
 
+//###########################################################################################
+
+static void play_mario() {
+    play_note(660, 100);
+    play_note(660, 100);
+    play_note(0, 100);
+    play_note(660, 100);
+    play_note(0, 100);
+    play_note(523, 100);
+    play_note(660, 100);
+    play_note(0, 100);
+    play_note(784, 100);
+    play_note(0, 300);
+    play_note(392, 100);
+}
+
+//###########################################################################################
+
+static void play_ambulance() {
+    play_note(960, 150); // Note haute (La)
+    play_note(635, 150); // Note basse (Ré)
+    play_note(960, 150); // Note haute (La)
+
+}
+
+//###########################################################################################
+
+static void roger_r2d2(void){
+    // R2-D2 Style Acknowledgment Beep
+    play_note(1046, 50);  // C6
+    play_note(1318, 50);  // E6
+    play_note(1568, 70);  // G6
+    play_note(0, 30);     // Micro-pause for chirp effect
+    play_note(1760, 40);  // A6
+    play_note(1568, 40);  // G6
+    play_note(1318, 100); // E6 (ending the phrase)
+} 
+
+//###########################################################################################
+
+static void Roger1(void)
+{
+    // motorola type
+    play_note(1540, 50); 
+    play_note(1540, 80); 
+    play_note(1310, 80); 
+
+}
+
+//###########################################################################################
+
+static void Roger2(void) {
+    for (uint16_t i=2000;i>500;i-=50) play_note(i, 5); 
+	for (uint16_t i=2000;i>500;i-=50) play_note(i, 5); 
+	for (uint16_t i=500;i<2550;i+=50) play_note(i, 7);
+}
+
+//###########################################################################################
 
 // OURO — глубокий протяжный гудок ~340 Гц (из OURO.mp3)
-void roger_beep_OURO(void) {
+static void roger_beep_OURO(void) {
     play_note(340, 660);
     play_note(0,    40);
     play_note(340,  40);
 }
 
 // KLAC — механический клик-бёрст (из KLAC.mp3)
-void roger_beep_KLAC(void) {
+static void roger_beep_KLAC(void) {
     play_note(1800, 10);
     play_note(700,  10);
     play_note(1100, 10);
@@ -1713,12 +1769,16 @@ void roger_beep_KLAC(void) {
     play_note(2900, 10);
 }
 
+//###########################################################################################
+
 // PIU — лазер: восходящий свип 400→800→1600 Гц (из PIU.mp3)
 void roger_beep_PIU(void) {
     play_note(400,  160);
     play_note(800,  100);
     play_note(1600,  90);
 }
+
+//###########################################################################################
 
 // ICQ — классический аська "uh-oh" (из ICQ.mp3)
 void roger_beep_ICQ(void) {
@@ -1738,15 +1798,19 @@ void BK4819_PlayRoger(uint8_t song)
     BK4819_WriteRegister(BK4819_REG_70, BK4819_REG_70_ENABLE_TONE1 | (66u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
 	BK4819_EnableTXLink();
 	SYSTEM_DelayMs(50);
-switch (song)
-{
-	case 1: roger_beep_OURO(); break;  // OURO
-	case 2: roger_beep_KLAC(); break;  // KLAC
-	case 3: roger_beep_PIU();  break;  // PIU
-	case 4: roger_beep_ICQ();  break;  // ICQ
-default:
-	break;
-}
+    switch (song)
+    {
+        case 1:	play_mario();	        break;
+    	case 2: Roger2();		        break;
+    	case 3: roger_r2d2();           break;
+    	case 4:	Roger1();               break;
+        case 5: play_ambulance();       break;
+    	case 6: roger_beep_OURO();      break;  // OURO
+    	case 7: roger_beep_KLAC();      break;  // KLAC
+    	case 8: roger_beep_PIU();       break;  // PIU
+    	case 9: roger_beep_ICQ();       break;  // ICQ
+        default:                    	break;
+    }
 	BK4819_WriteRegister(BK4819_REG_70, 0x0000);
 	BK4819_WriteRegister(BK4819_REG_30, 0xC1FE);   // 1 1 0000 0 1 1111 1 1 1 0
 }

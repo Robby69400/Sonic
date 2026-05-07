@@ -75,7 +75,7 @@ void UI_DisplayFM(void)
         GUI_DisplaySmallestDark("ON AIR", 80, 13, false, true);
     }
 
-    GUI_DisplaySmallestDark("KA-52", 86, 45, false, true);
+    GUI_DisplaySmallestDark("SONIC FM", 86, 45, false, true);
 
     // ── 6 ячеек памяти частот ───────────────────────────────────────────
     char mb[8];

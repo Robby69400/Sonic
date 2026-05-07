@@ -174,6 +174,7 @@ volatile bool     gNextTimeslice_10ms;
 volatile bool     gNextTimeslice_listening;
 volatile bool     gNextTimeslice_60s;
 volatile bool     gNextTimeslice_display;
+volatile bool     gNextTimeslice_HTimeS;
 volatile bool     gNextTimeslice_ShowNames;
 
 volatile uint16_t gTxTimerCountdown_500ms;

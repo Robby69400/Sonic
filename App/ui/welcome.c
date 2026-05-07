@@ -45,8 +45,6 @@ void UI_DisplayReleaseKeys(void)
 
 void UI_DisplayWelcome(void)
 {
-    char WelcomeString0[16];
-    char WelcomeString1[16];
 
 #if defined(ENABLE_FEAT_F4HWN_CTR) || defined(ENABLE_FEAT_F4HWN_INV)
     ST7565_ContrastAndInv();
@@ -61,44 +59,22 @@ void UI_DisplayWelcome(void)
         return;
     }
 
-    // ALL — аллигатор + вольтаж
-    memset(WelcomeString0, 0, sizeof(WelcomeString0));
-
-    sprintf(WelcomeString1, "%u.%02uV %u%%",
-            gBatteryVoltageAverage / 100,
-            gBatteryVoltageAverage % 100,
-            BATTERY_VoltsToPercent(gBatteryVoltageAverage));
-
-    PY25Q16_ReadBuffer(0x00A0C8, WelcomeString0, 15);
-    WelcomeString0[15] = '\0';
-    if ((uint8_t)WelcomeString0[0] >= 0x80 || WelcomeString0[0] == (char)0xFF ||
-        WelcomeString0[0] == '\0')
-        strcpy(WelcomeString0, "SONIC");
-
-    UI_PrintString(WelcomeString0, 0, 127, 0, 10);
-    UI_PrintString(WelcomeString1, 0, 127, 2, 10);
+    //UI_PrintStringSmallNormal("K1 DEV TEAM", 0, 127, 0);
+    UI_PrintString("SONIC", 0, 127, 0,12);
+    UI_PrintString("T.ME/K5ROBBY69", 0, 127, 2,9);
 
     ST7565_BlitStatusLine();
-    UI_PrintString(Edition, 0, 127, 4, 10);
+    UI_PrintString(Edition, 0, 64, 5, 10);
+    UI_PrintString(VERSION_STRING_2, 64, 127, 5, 10);
 
-    // Горизонтальные декоративные линии
     for (uint8_t i = 0; i <= 127; i += 2) {
-        UI_DrawLineBuffer(gFrameBuffer, i, 15, i, 15, 1);
+        UI_DrawLineBuffer(gFrameBuffer, i, 37, i, 37, 1);
     }
-    for (uint8_t i = 0; i <= 127; i += 2) {
-        UI_DrawLineBuffer(gFrameBuffer, i, 30, i, 30, 1);
+    for (uint8_t y = 37; y <= 57; y++) {
+        UI_DrawLineBuffer(gFrameBuffer, 64, y, 64, y, 1);
     }
-    // Вертикальные линии по бокам ниже КА-52
-    for (uint8_t y = 47; y <= 57; y += 2) {
-        UI_DrawLineBuffer(gFrameBuffer, 30, y, 30, y, 1);
-    }
-    for (uint8_t y = 47; y <= 57; y += 2) {
-        UI_DrawLineBuffer(gFrameBuffer, 94, y, 94, y, 1);
-    }
-
-    GUI_DisplaySmallest("OURO",            5,  49, false, true);
-    GUI_DisplaySmallest("MODE",          108,  49, false, true);
-    GUI_DisplaySmallestDark(VERSION_STRING_2, 45, 49, false, false);
+    
+   
 
     ST7565_BlitFullScreen();
 }
