@@ -1615,17 +1615,17 @@ static void DrawF(uint32_t f) {
     
     switch(ShowLines) {
             case 1: {       // BIG FREQUENCY
-                UI_DisplayFrequency(line1, 10, 0, 0);  
-                UI_PrintStringSmallbackground(line2,0, LCD_WIDTH - 1, 2, 1);  
+                UI_DisplayFrequency(line1, 3, 0, 0);  
+                UI_PrintStringSmallbackground(line2,3, 127, 2, 1);  
                 GUI_DisplaySmallest(Text, 42, Bottom_print, false, true);
                 ArrowLine = 3;
                 break;
             }
             case 2: {       //SCAN
                  if(isListening) DrawMeter(0);
-                UI_DisplayFrequency(line1, 10, 1, 0);
-                UI_PrintString(line2, 0, LCD_WIDTH - 1, 3, 8);
-                UI_PrintStringSmallbackground(line3, 1, 127, 5, 1);
+                UI_DisplayFrequency(line1, 3, 1, 0);
+                UI_PrintString(line2, 3, 127, 3, 8);
+                UI_PrintStringSmallbackground(line3, 3, 127, 5, 1);
                 //if (StringCode[0]) { UI_PrintStringSmallbackground(StringCode, 1, 127, 6, 1);}
                 break;
             }
@@ -2231,9 +2231,9 @@ static void HandleKeySpectrum(uint8_t key) {
                         ResetModifiers();
                         break;
                     case SCAN_RANGE_MODE:
-                        uint32_t rstep = SpectrumRangeStop - SpectrumRangeStart;
-                        SpectrumRangeStop  -= rstep;
-                        SpectrumRangeStart -= rstep;
+                        uint32_t rstep = RangeStop - RangeStart;
+                        RangeStop  -= rstep;
+                        RangeStart -= rstep;
                         RelaunchScan();
                         break;
                 }
@@ -2273,9 +2273,9 @@ static void HandleKeySpectrum(uint8_t key) {
                         ResetModifiers();
                         break;
                     case SCAN_RANGE_MODE:
-                        uint32_t rstep = SpectrumRangeStop - SpectrumRangeStart;
-                        SpectrumRangeStop  += rstep;
-                        SpectrumRangeStart += rstep;
+                        uint32_t rstep = RangeStop - RangeStart;
+                        RangeStop  += rstep;
+                        RangeStart += rstep;
                         RelaunchScan();
                         break;
                 }
@@ -2627,19 +2627,19 @@ static void MyDrawFrameLines(void)
 
 static void RenderSpectrum()
 {
-    if (ShowLines < 2) {
-        DrawNums();
-        UpdateDBMaxAuto();
-        DrawSpectrum();
-#ifdef ENABLE_SPECTRUM_LINES
-        MyDrawFrameLines();
-#endif
-    }
     if(isListening) { DrawF(peak.f);}
     else {
       if (SpectrumMonitor) DrawF(lastReceivingFreq);
       else DrawF(scanInfo.f);
     }
+    if (ShowLines < 2) {
+        DrawNums();
+        UpdateDBMaxAuto();
+        DrawSpectrum();
+#ifdef ENABLE_SPECTRUM_LINES
+            MyDrawFrameLines();
+#endif
+        }
 }
 
 static void DrawMeter(int line) {
@@ -2748,19 +2748,22 @@ static void Render() {
   
   switch (currentState) {
   case SPECTRUM:
-    if(historyListActive) RenderHistoryList();
-    else RenderSpectrum();
-    break;
+        if(historyListActive) RenderHistoryList();
+        else {
+            RenderSpectrum();
+            //if (spectrumElapsedCount < 500 || ShowLines > 1) ST7565_BlitFullScreen();
+        }
+        break;
   case FREQ_INPUT:
-    RenderFreqInput();
-    break;
+        RenderFreqInput();
+        break;
   case STILL:
-    RenderStill();
-    break;
+        RenderStill();
+        break;
   
     case BAND_LIST_SELECT:
-      RenderBandSelect();
-    break;
+        RenderBandSelect();
+        break;
 
     case SCANLIST_SELECT:
       RenderScanListSelect();
@@ -2770,7 +2773,8 @@ static void Render() {
     break;
    
   }
-  if (spectrumElapsedCount < 500 || ShowLines > 1) ST7565_BlitFullScreen();
+  for (int i =0;i<8;i++) ST7565_BlitLine(i);
+  
 }
 
 static void HandleUserInput(void) {
