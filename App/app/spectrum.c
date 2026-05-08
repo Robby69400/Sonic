@@ -2720,37 +2720,36 @@ static void RenderStill() {
 }
 
 static void Render() {
-  memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
-  
-  switch (currentState) {
-  case SPECTRUM:
-        if(historyListActive) RenderHistoryList();
-        else {
-            RenderSpectrum();
-            //if (spectrumElapsedCount < 500 || ShowLines > 1) ST7565_BlitFullScreen();
-        }
-        break;
-  case FREQ_INPUT:
-        RenderFreqInput();
-        break;
-  case STILL:
-        RenderStill();
-        break;
-  
-    case BAND_LIST_SELECT:
-        RenderBandSelect();
-        break;
-
-    case SCANLIST_SELECT:
-      RenderScanListSelect();
-    break;
-    case PARAMETERS_SELECT:
-      RenderParametersSelect();
-    break;
-   
-  }
-  for (int i =0;i<8;i++) ST7565_BlitLine(i);
-  
+    memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
+    switch (currentState) {
+        case SPECTRUM:
+            if(historyListActive) RenderHistoryList();
+            else {
+                RenderSpectrum();
+                if (spectrumElapsedCount < 500 || ShowLines > 1) {
+                    ST7565_BlitLine(4);
+                    ST7565_BlitLine(5);
+                    ST7565_BlitLine(6);
+                } else return;
+            }
+            break;
+        case FREQ_INPUT:
+            RenderFreqInput();
+            break;
+        case STILL:
+            RenderStill();
+            break;
+        case BAND_LIST_SELECT:
+            RenderBandSelect();
+            break;
+        case SCANLIST_SELECT:
+            RenderScanListSelect();
+            break;
+        case PARAMETERS_SELECT:
+            RenderParametersSelect();
+            break;
+    }
+    ST7565_BlitFullScreen();
 }
 
 static void HandleUserInput(void) {
