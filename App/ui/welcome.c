@@ -15,7 +15,6 @@
  */
 
 #include <string.h>
-
 #include "driver/py25q16.h"
 #include "driver/st7565.h"
 #include "external/printf/printf.h"
@@ -61,7 +60,7 @@ void UI_DisplayWelcome(void)
 
     //UI_PrintStringSmallNormal("K1 DEV TEAM", 0, 127, 0);
     UI_PrintString("SONIC", 0, 127, 0,12);
-    UI_PrintString("T.ME/K5ROBBY69", 0, 127, 2,9);
+    UI_PrintString("t.me/SonicFw", 0, 127, 2,9);
 
     ST7565_BlitStatusLine();
     UI_PrintString(Edition, 0, 64, 5, 10);
@@ -74,7 +73,5 @@ void UI_DisplayWelcome(void)
         UI_DrawLineBuffer(gFrameBuffer, 64, y, 64, y, 1);
     }
     
-   
-
     ST7565_BlitFullScreen();
 }

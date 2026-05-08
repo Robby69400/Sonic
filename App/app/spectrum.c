@@ -214,7 +214,6 @@ typedef void (*GetListRowFn)(uint16_t index, ListRow *row);
 static uint32_t         *ScanFrequencies = NULL;
 static bandparameters   *BParams = NULL;
 static uint32_t         HFreqs[HISTORY_SIZE];
-static uint8_t          HCode[HISTORY_SIZE];
 static bool             HBlacklisted[HISTORY_SIZE];
 static uint16_t         HTimeS[HISTORY_SIZE];  
 static uint32_t         MonitorFreqs[MONITOR_SIZE];
@@ -750,14 +749,12 @@ static void DeleteHistoryItem(void) {
     for (uint16_t i = indexToDelete; i < indexFs - 1; i++) {
         HFreqs[i]       = HFreqs[i + 1];
         HBlacklisted[i] = HBlacklisted[i + 1];
-        HCode[i]        = HCode[i + 1];
         HTimeS[i]       = HTimeS[i + 1];
     }
     indexFs--;
     
     HFreqs[indexFs]         = 0;
     HBlacklisted[indexFs]   = 0xFF;
-    HCode[indexFs]          = 0;
     HTimeS[indexFs]         = 0;
     if (historyListIndex >= indexFs && indexFs > 0) {
         historyListIndex = indexFs - 1;
@@ -821,9 +818,7 @@ void LoadHistory(void) {
     HistoryStruct History = {0};
     memset(HFreqs, 0, sizeof(HFreqs));
     memset(HBlacklisted, 0, sizeof(HBlacklisted));
-    memset(HCode, 0, sizeof(HCode));
     memset(HTimeS, 0, sizeof(HTimeS));
-
     indexFs = 0;
 
     for (uint16_t position = 0; position < HISTORY_SIZE; position++) {
@@ -836,7 +831,6 @@ void LoadHistory(void) {
       if (History.HFreqs){
         HFreqs[position]        = History.HFreqs;
         HBlacklisted[position]  = History.HBlacklisted;
-        HCode[position]         = History.code;
         HTimeS[position]        = History.HTimeS;
         indexFs                 = position + 1;
       }
@@ -849,7 +843,6 @@ void SaveHistory(void) {
     for (uint16_t position = 0; position < indexFs; position++) {
         History.HFreqs          = HFreqs[position];
         History.HBlacklisted    = HBlacklisted[position];
-        History.code            = HCode[position];
         History.HTimeS          = HTimeS[position];
         PY25Q16_WriteBuffer(ADRESS_HISTORY + position * sizeof(HistoryStruct),
                            (uint8_t *)&History, sizeof(HistoryStruct), 0);
@@ -961,9 +954,6 @@ static void FillfreqHistory()
     
     for (uint16_t i = 0; i < indexFs; i++) {
         if (HFreqs[i] == f) {
-            if ((CodeFreq == f)) {
-                HCode[i] = code;
-            } else HCode[i] = 0xFF;
             foundIndex = i;
             foundTime = HTimeS[i];
             foundBlacklisted = HBlacklisted[i];
@@ -981,7 +971,6 @@ static void FillfreqHistory()
         for (uint16_t i = foundIndex; i + 1 < indexFs; i++) {
             HFreqs[i]       = HFreqs[i + 1];
             HBlacklisted[i] = HBlacklisted[i + 1];
-            HCode[i] = HCode[i + 1];
             HTimeS[i] = HTimeS[i + 1];
         }
         if (indexFs > 0) indexFs--;
@@ -991,16 +980,11 @@ static void FillfreqHistory()
     for (int i = limit; i > 0; i--) {
         HFreqs[i]       = HFreqs[i - 1];
         HBlacklisted[i] = HBlacklisted[i - 1];
-        HCode[i]        = HCode[i - 1];
         HTimeS[i]       = HTimeS[i - 1];
     }
 
     HFreqs[0] = f;
     HBlacklisted[0] = foundBlacklisted;
-    if ((CodeFreq == f)) {
-        HCode[0] = code;
-    } else HCode[0] = 0xFF;
-    code = 0xFF;
     HTimeS[0] = foundTime;
     if (indexFs < HISTORY_SIZE) indexFs++;
     historyListIndex = 0;
@@ -1730,17 +1714,12 @@ static void SortHistoryByFrequencyAscending(void) {
             if (HFreqs[j] != 0 && (HFreqs[i] == 0 || HFreqs[j] < HFreqs[i])) {
                 uint32_t    tf  = HFreqs[i];
                 bool        tb  = HBlacklisted[i];
-                uint8_t     tc  = HCode[i];
                 uint8_t     tco = HTimeS[i];
-
                 HFreqs[i]           = HFreqs[j];
                 HBlacklisted[i]     = HBlacklisted[j];
-                HCode[i]            = HCode[j];
                 HTimeS[i]           = HTimeS[j];
-
                 HFreqs[j]       = tf;
                 HBlacklisted[j] = tb;
-                HCode[j]        = tc;
                 HTimeS[j]       = tco;
             }
         }
@@ -1760,7 +1739,6 @@ static void CompactHistory(void) {
         if (w != r) {
             HFreqs[w]       = HFreqs[r];
             HBlacklisted[w] = HBlacklisted[r];
-            HCode[w]        = HCode[r];
             HTimeS[w]       = HTimeS[r];
         }
         w++;
@@ -1769,7 +1747,6 @@ static void CompactHistory(void) {
     for (uint16_t i = w; i < limit; i++) {
         HFreqs[i]       = 0;
         HBlacklisted[i] = 0;
-        HCode[i]        = 0;
         HTimeS[i]       = 0;
     }
 
@@ -2181,7 +2158,6 @@ static void HandleKeySpectrum(uint8_t key) {
             if (historyListActive) {
                 memset(HFreqs,       0, sizeof(HFreqs));
                 memset(HBlacklisted, 0, sizeof(HBlacklisted));
-                memset(HCode,    0, sizeof(HCode));
                 memset(HTimeS,    0, sizeof(HTimeS));
                 historyListIndex    = 0;
                 historyScrollOffset = 0;
@@ -3268,13 +3244,11 @@ static void ClearHistory(uint8_t mode) {
     if (mode == 0) {
         memset(HFreqs, 0, sizeof(HFreqs));
         memset(HBlacklisted, 0, sizeof(HBlacklisted));
-        memset(HCode, 0, sizeof(HCode));
         memset(HTimeS, 0, sizeof(HTimeS));
     } else if (mode == 1) {
         for (int i = 0; i < HISTORY_SIZE; i++) {
             if (!HBlacklisted[i]) {
                 HFreqs[i] = 0;
-                HCode[i] = 0;
                 HTimeS[i] = 0;
             }
         }
@@ -3283,7 +3257,6 @@ static void ClearHistory(uint8_t mode) {
             if (HBlacklisted[i]) {
                 HFreqs[i] = 0;
                 HBlacklisted[i] = 0;
-                HCode[i] = 0;
                 HTimeS[i] = 0;
             }
         }
@@ -3520,15 +3493,7 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
     if (HTimeS[index] > 59)
         snprintf(timeStr, sizeof(timeStr), " %02d:%02d", HTimeS[index] / 60, HTimeS[index] % 60);
     else snprintf(timeStr, sizeof(timeStr), " %02d", HTimeS[index]);
-    if (HCode[index] != 0XFF) {
-        if (HCode[index] < 50) {
-            snprintf(row->right, sizeof(row->right), "CT:%u.%uHz %s", CTCSS_Options[HCode[index]] / 10, CTCSS_Options[HCode[index]] % 10,timeStr);
-        } 
-        if (HCode[index] > 100) {
-            snprintf(row->right, sizeof(row->right), "DC:D%03oN %s", DCS_Options[HCode[index]-100],timeStr);
-        }
-    }
-    else snprintf(row->right, sizeof(row->right), "%s", timeStr);
+    snprintf(row->right, sizeof(row->right), "%s", timeStr);
     snprintf(row->left, sizeof(row->left), "%s%s %s", prefix, freqStr, Name);
 }
 

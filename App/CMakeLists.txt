@@ -136,10 +136,6 @@ enable_feature(ENABLE_DTMF_PRE)
 enable_feature(ENABLE_SET_TOT_EOT)
 enable_feature(ENABLE_ALARM)
 enable_feature(ENABLE_TX1750)
-enable_feature(ENABLE_PWRON_PASSWORD
-    ui/lock.c
-)
-enable_feature(ENABLE_DTMF_CALLING)
 enable_feature(ENABLE_FLASHLIGHT
     app/flashlight.c
 )

@@ -94,7 +94,7 @@ build_preset() {
   2>&1 | sed "s|/src/|C:/Perso/Sonic/|g"
 
   docker run --rm -v "$PWD":/src -w /src "$IMAGE" \
-    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V1.1.elf
+    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V1.2.elf
 
   echo "✅ Done: ${preset}"
 }
@@ -125,10 +125,10 @@ fi
 # Définition du nom du binaire selon le preset
 case "$PRESET" in
   "USB")
-    BIN_NAME="SONIC.USB.V1.1.bin"
+    BIN_NAME="SONIC.USB.V1.2.bin"
     ;;
   "Dev")
-    BIN_NAME="SONIC.Dev.V1.1.bin"
+    BIN_NAME="SONIC.Dev.V1.2.bin"
     ;;
   "All")
     # Pour 'All', on peut flasher un binaire par défaut ou ignorer
