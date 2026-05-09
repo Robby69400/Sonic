@@ -417,18 +417,26 @@ uint16_t RADIO_ValidMemoryChannelsCount(bool bCheckScanList, uint8_t CurrentScan
 static void LoadActiveBands(void) {
     memset(BParams, 0, (MAX_BANDS) * sizeof(bandparameters));
     bandCount = 0;
-    for (uint16_t bd = 0; bd < MAX_BANDS; bd++)
+
+    for (uint16_t bd = 0; bd < MAX_BANDS; bd++) 
     {
-        gChannel = bd + MR_CHANNELS_MAX;
-        LookupChannelModulation(); //Fill BParams modulation and step
-        BParams[bd].modulationType = channelModulation;
-        BParams[bd].scanStep =  channelStep;
-        ChannelInfo_t freqs = FetchChannelFrequency(gChannel);
-        if(!freqs.frequency) return;
-        BParams[bd].Startfrequency = freqs.frequency;
-        BParams[bd].Stopfrequency  = freqs.offset;
-        PY25Q16_ReadBuffer(0x004000 + (gChannel * 16), BParams[bd].BandName, 10);
-        bandCount++;
+        uint16_t targetChannel = bd + MR_CHANNELS_MAX;
+        ChannelInfo_t freqs = FetchChannelFrequency(targetChannel);
+
+        if (freqs.frequency >= 1400000 && freqs.frequency <= 130000000)
+        {
+            gChannel = targetChannel;
+            LookupChannelModulation(); 
+
+            BParams[bandCount].modulationType = channelModulation;
+            BParams[bandCount].scanStep       = channelStep;
+            BParams[bandCount].Startfrequency = freqs.frequency;
+            BParams[bandCount].Stopfrequency  = freqs.offset;
+
+            PY25Q16_ReadBuffer(0x004000 + (targetChannel * 16), BParams[bandCount].BandName, 10);
+
+            bandCount++;
+        }
     }
 }
 

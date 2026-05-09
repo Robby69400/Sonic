@@ -9,7 +9,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
-set(CMAKE_PROJECT_NAME ROBZYL)
+set(CMAKE_PROJECT_NAME SONIC)
 
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -24,7 +24,7 @@ if(ENABLE_FEAT_F4HWN)
         set(AUTHOR_STRING_1 "")
     endif()
     if(NOT AUTHOR_STRING_2)
-        set(AUTHOR_STRING_2 "ROBZYL")
+        set(AUTHOR_STRING_2 "SONIC")
     endif()
     if(NOT VERSION_STRING_1)
         set(VERSION_STRING_1 "v0.22")

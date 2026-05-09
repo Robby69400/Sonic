@@ -24,7 +24,7 @@ DEBUG_SHOW_OBFUSCATED_COMMANDS = False
 DEBUG_SHOW_MEMORY_ACTIONS = False
 
 # TODO: remove the driver version when it's in mainline chirp 
-DRIVER_VERSION = "Quansheng UV-K1 driver ver: 2026/03/06 (c) ROBZYL"
+DRIVER_VERSION = "Quansheng UV-K1 driver ver: 2026/03/06 (c) SONIC"
 FIRMWARE_VERSION_UPDATE = "https://github.com/armel/uv-k1-k5v3-firmware-custom/releases"
 CHIRP_DRIVER_VERSION_UPDATE = "https://github.com/armel/uv-k1-k5v3-chirp-driver/releases"
 
@@ -410,7 +410,7 @@ struct {
 } cal;
 
 """
-# ROBZYL parameter
+# SONIC parameter
 FM_CHANNELS_MAX = 48
 MR_CHANNELS_MAX = 1024
 MR_CHANNELS_LIST = 21
@@ -420,31 +420,24 @@ FLAGS1_OFFSET_NONE = 0b00
 FLAGS1_OFFSET_MINUS = 0b10
 FLAGS1_OFFSET_PLUS = 0b01
 
-POWER_HIGH = 0b111
-POWER_MEDIUM = 0b110
-POWER_LOW5 = 0b101
-POWER_LOW4 = 0b100
-POWER_LOW3 = 0b011
-POWER_LOW2 = 0b010
-POWER_LOW1 = 0b001
+POWER_HIGH = 0b011
+POWER_MEDIUM = 0b010
+POWER_LOW = 0b001
 POWER_USER = 0b000
 
-# SET_LOW_POWER ROBZYL
-SET_LOW_LIST = [ "< 20mW", "125mW", "250mW", "500mW", "1W", "2W", "5W"]
+# SET_LOW_POWER SONIC
+SET_LOW_LIST = [ "User", "1W", "2W", "5W"]
 
-# SET_PTT ROBZYL
-SET_PTT_LIST = ["CLASSIC", "ONEPUSH"]
-
-# SET_TOT and SET_EOT ROBZYL
+# SET_TOT and SET_EOT SONIC
 SET_TOT_EOT_LIST = ["OFF", "SOUND", "VISUAL", "ALL"]
 
-# SET_OFF_ON ROBZYL
+# SET_OFF_ON SONIC
 SET_OFF_ON_LIST = ["OFF", "ON"]
 
-# SET_lck ROBZYL
+# SET_lck SONIC
 SET_LCK_LIST = ["KEYS", "KEYS+PTT"]
 
-# SET_MET SET_GUI ROBZYL
+# SET_MET SET_GUI SONIC
 SET_MET_LIST = ["TINY", "CLASSIC"]
 
 # dtmf_flags
@@ -452,11 +445,7 @@ PTTID_LIST = ["OFF", "UP CODE", "DOWN CODE", "UP+DOWN CODE", "APOLLO QUINDAR"]
 
 # power          
 UVK5_POWER_LEVELS = [chirp_common.PowerLevel("USER = < 20mW to 5W", watts=0.000),
-                     chirp_common.PowerLevel("LOW 1 = < 20mW", watts=0.020),
-                     chirp_common.PowerLevel("LOW 2 = 125mW", watts=0.125),
-                     chirp_common.PowerLevel("LOW 3 = 250mW", watts=0.250),
-                     chirp_common.PowerLevel("LOW 4 = 500mW", watts=0.500),
-                     chirp_common.PowerLevel("LOW 5 = 1W", watts=1.00),
+                     chirp_common.PowerLevel("LOW = < 20mW", watts=0.020),
                      chirp_common.PowerLevel("MID = 2W",  watts=2.00),
                      chirp_common.PowerLevel("HIGH = 5W", watts=5.00),
                      ]
@@ -607,7 +596,7 @@ VOICE_LIST = ["OFF", "Chinese", "English"]
 # ACTIVE CHANNEL
 TX_VFO_LIST = ["A", "B"]
 ALARMMODE_LIST = ["SITE", "TONE"]
-ROGER_LIST = ["OFF", "MARIO", "BLAST", "R2D2", "ROGER", "MORSE", "MDC data burst (MDC)"]
+ROGER_LIST = ["OFF", "MARIO", "BLAST", "R2D2", "ROGER", "AMBUL", "OURO","KLAC","PIU","ICQ"]
 RTE_LIST = ["OFF", "100ms", "200ms", "300ms", "400ms",
             "500ms", "600ms", "700ms", "800ms", "900ms", "1000ms"]
 VOX_LIST = ["OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
@@ -616,7 +605,7 @@ MEM_SIZE =      0x00B190    # size of all memory
 PROG_SIZE =     0x00A171    # size of the memory that we will write (LAST ADDRESS + 1 !!!)
 MEM_BLOCK =     0x80        # largest block of memory that we can reliably write
 CAL_START =     0x00B000    # calibration memory start address
-ROBZYL_START =   0x00A158    # calibration ROBZYL memory start address
+SONIC_START =   0x00A158    # calibration SONIC memory start address
 
 # fm radio supported frequencies
 FMMIN = 76.0
@@ -1278,7 +1267,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         if is_empty:
             mem.empty = True
             # set some sane defaults:
-            mem.power = UVK5_POWER_LEVELS[2]
+            mem.power = UVK5_POWER_LEVELS[0]
             mem.extra = RadioSettingGroup("Extra", "extra")
 
             val = RadioSettingValueBoolean(False)
@@ -1369,19 +1358,13 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         # power
         txpower = int(_mem.txpower)
         if txpower == POWER_HIGH:
-            mem.power = UVK5_POWER_LEVELS[7]
-        elif txpower == POWER_MEDIUM:
-            mem.power = UVK5_POWER_LEVELS[6]
-        elif txpower == POWER_LOW5:
-            mem.power = UVK5_POWER_LEVELS[5]
-        elif txpower == POWER_LOW4:
-            mem.power = UVK5_POWER_LEVELS[4]
-        elif txpower == POWER_LOW3:
             mem.power = UVK5_POWER_LEVELS[3]
-        elif txpower == POWER_LOW2:
+        elif txpower == POWER_MEDIUM:
             mem.power = UVK5_POWER_LEVELS[2]
-        elif txpower == POWER_LOW1:
+        elif txpower == POWER_LOW:
             mem.power = UVK5_POWER_LEVELS[1]
+        elif txpower == POWER_USER:
+            mem.power = UVK5_POWER_LEVELS[0]
         else:
             # Invalid power value, use default
             LOG.warning(f"Memory {mem.number}: Invalid txpower={txpower}, using USER as default")
@@ -1635,63 +1618,63 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             elif elname == "Battery_type":
                 _mem.Battery_type = int(element.value)
 
-            # set low_power ROBZYL
+            # set low_power SONIC
             elif elname == "set_pwr":
                 _mem.set_pwr = int(element.value)
 
-            # set ptt ROBZYL
+            # set ptt SONIC
             elif elname == "set_ptt":
                 _mem.set_ptt = int(element.value)
 
-            # set tot ROBZYL
+            # set tot SONIC
             elif elname == "set_tot":
                 _mem.set_tot = int(element.value)
 
-            # set eot ROBZYL
+            # set eot SONIC
             elif elname == "set_eot":
                 _mem.set_eot = int(element.value)
 
-            # set_contrast ROBZYL
+            # set_contrast SONIC
             elif elname == "set_contrast":
                 _mem.set_contrast = int(element.value)
 
-            # set inv ROBZYL
+            # set inv SONIC
             elif elname == "set_inv":
                 _mem.set_inv = int(element.value)
 
-            # set lck ROBZYL
+            # set lck SONIC
             elif elname == "set_lck":
                 _mem.set_lck = int(element.value)
 
-            # set met ROBZYL
+            # set met SONIC
             elif elname == "set_met":
                 _mem.set_met = int(element.value)
 
-            # set gui ROBZYL
+            # set gui SONIC
             elif elname == "set_gui":
                 _mem.set_gui = int(element.value)
                                
-            # set tmr ROBZYL
+            # set tmr SONIC
             elif elname == "set_tmr":
                 _mem.set_tmr = int(element.value)
 
-            # set off ROBZYL
+            # set off SONIC
             elif elname == "set_off_tmr":
                 _mem.set_off_tmr = int(element.value)
 
-            # set nfm ROBZYL
+            # set nfm SONIC
             elif elname == "set_nfm":
                 _mem.set_nfm = int(element.value)
 
-            # set rxa ROBZYL
+            # set rxa SONIC
             elif elname == "set_rxa":
                 _mem.set_rxa = int(element.value)
 
-            # set key ROBZYL
+            # set key SONIC
             elif elname == "set_key":
                 _mem.set_key = int(element.value)
 
-             # set menu lock ROBZYL
+             # set menu lock SONIC
             elif elname == "set_menu_lock":
                 _mem.set_menu_lock = int(element.value)
 
@@ -1829,7 +1812,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
 
 # add menu firmware with version and option display if version 3.0 and up
         ValFirm = "Firmware : " + self.FIRMWARE_VERSION 
-        Compair1 = "ROBZYL v6.17"  
+        Compair1 = "SONIC v6.17"  
 
         if self.FIRMWARE_VERSION == "":
             ValFirm = "Firmware : Only when read from the radio "
@@ -1844,7 +1827,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         val = RadioSettingValueBoolean(False)
         def validate_Go_Web_Firmware(value):
             if value :
-                msg = "To see information for the update of the Firmware ROBZYL \n"
+                msg = "To see information for the update of the Firmware SONIC \n"
                 ret = wx.MessageBox(msg, "Warning", wx.OK | wx.CANCEL |
                                     wx.CANCEL_DEFAULT | wx.ICON_WARNING)
                 if ret == wx.OK :
@@ -1854,8 +1837,8 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             return value
 
         val.set_validate_callback(validate_Go_Web_Firmware)
-        rs = RadioSetting("Update_Firmware_mise_a_jour","To see information for the update of the Firmware ROBZYL , select this box ->", val)
-        rs.set_doc('To see information for the update of the Firmware ROBZYL !')
+        rs = RadioSetting("Update_Firmware_mise_a_jour","To see information for the update of the Firmware SONIC , select this box ->", val)
+        rs.set_doc('To see information for the update of the Firmware SONIC !')
         radio_firmware.append(rs)
 
 # end add link for mise a jour information
@@ -2234,7 +2217,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                                '( A at the top, B at the bottom ) ')
 
                                      
-        # Set_Low_Power ROBZYL
+        # Set_Low_Power SONIC
         tmpsetpwr = list_def(_mem.set_pwr, SET_LOW_LIST, 0)
         val = RadioSettingValueList(SET_LOW_LIST, SET_LOW_LIST[tmpsetpwr])
         SetPwrSetting = RadioSetting("set_pwr", "Define Power Value when User selection is selected in POWER (SetPwr)", val)
@@ -2242,17 +2225,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                               '(see the "Power" column in the memories tab to set the TX level for each channel), ' + \
                               'if the User level is select, it will use this TX power level ')
         
-        # Set_Ptt ROBZYL
-        tmpsetptt = list_def(_mem.set_ptt, SET_PTT_LIST, 0)
-        val = RadioSettingValueList(SET_PTT_LIST, SET_PTT_LIST[tmpsetptt])
-        SetPttSetting = RadioSetting("set_ptt", "Ptt Mode: Set PTT Key Operating Mode (SetPtt)", val)
-        SetPttSetting.set_doc('SetPtt :\n' + \
-                              '* CLASSIC : press and hold to transmit, release to stop the transmission.\n' + \
-                              '* ONEPUSH : press once to transmit, no need to hold.\n' + \
-                              '       Simply press once to start transmission, and press a second time to stop.\n' + \
-                              ' No more finger cramps :) ')
-
-        # Set_tot ROBZYL
+        # Set_tot SONIC
         tmpsettot = list_def(_mem.set_tot, SET_TOT_EOT_LIST, 0)
         val = RadioSettingValueList(SET_TOT_EOT_LIST, SET_TOT_EOT_LIST[tmpsettot])
         SetTotSetting = RadioSetting("set_tot", "Set TX Timeout Indicator (SetTot)", val)
@@ -2262,7 +2235,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                                 '* VISUAL : screen blinking\n' + \
                                 '* ALL : audio and screen blinking')
 
-        # Set_eot ROBZYL
+        # Set_eot SONIC
         tmpseteot = list_def(_mem.set_eot, SET_TOT_EOT_LIST, 0)
         val = RadioSettingValueList(SET_TOT_EOT_LIST, SET_TOT_EOT_LIST[tmpseteot])
         SetEotSetting = RadioSetting("set_eot", "Set End Of Transmission Indicator (SetEot)", val)
@@ -2272,13 +2245,13 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                                 '* VISUAL : screen blinking\n' + \
                                 '* ALL : audio and screen blinking')
 
-        # Set_contrast ROBZYL
+        # Set_contrast SONIC
         tmpcontrast = min_max_def(_mem.set_contrast, 0, 15, 11)
         val = RadioSettingValueInteger(0, 15, tmpcontrast)
         contrastSetting = RadioSetting("set_contrast", "Set Contrast Level (SetCtr)", val)
         contrastSetting.set_doc('SetCtr: Set the display contrast level from 0 to 15, default is 10')
        
-        # Set_inv ROBZYL
+        # Set_inv SONIC
         tmpsetinv = list_def(_mem.set_inv, SET_OFF_ON_LIST, 0)
         val = RadioSettingValueList(SET_OFF_ON_LIST, SET_OFF_ON_LIST[tmpsetinv])
         SetInvSetting = RadioSetting("set_inv", "Invert Display (SetInv)", val)
@@ -2291,14 +2264,14 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         SetLckSetting = RadioSetting("set_lck", "Lock PTT Key When Keypad Is Locked (SetLck)", val)
         SetLckSetting.set_doc('SetLck: When the keypad is locked, lock also the PTT key')
         
-        # Set_met ROBZYL
+        # Set_met SONIC
         tmpsetmet = list_def(_mem.set_met, SET_MET_LIST, 0)
         val = RadioSettingValueList(SET_MET_LIST, SET_MET_LIST[tmpsetmet])
         SetMetSetting = RadioSetting("set_met", "S-Meter Display Style (SetMet)", val)
         SetMetSetting.set_doc('SetMet: Change the style of the S-meter display\n' + \
                               '* CLASSIC : classic display\n' + \
                               '* TINY : smaller display')
-        # Set_gui ROBZYL
+        # Set_gui SONIC
         tmpsetgui = list_def(_mem.set_gui, SET_MET_LIST, 0)
         val = RadioSettingValueList(SET_MET_LIST, SET_MET_LIST[tmpsetgui])
         SetGuiSetting = RadioSetting("set_gui", "Display Text Style (SetGui)", val)
@@ -2306,7 +2279,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                               '* CLASSIC : normal font\n' + \
                               '* TINY : smaller font')
 
-        # Set_tmr ROBZYL
+        # Set_tmr SONIC
         tmpsettmr = list_def(_mem.set_tmr, SET_OFF_ON_LIST, 0)
         val = RadioSettingValueList(SET_OFF_ON_LIST, SET_OFF_ON_LIST[tmpsettmr])
         SetTmrSetting = RadioSetting("set_tmr", "Set Timer (SetTmr)", val)
@@ -2314,7 +2287,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                               '* OFF : Disable \n' + \
                               '* ON : Enable ')
 
-        # Set_off ROBZYL
+        # Set_off SONIC
         tmpsetoff = list_def(_mem.set_off_tmr, SET_OFF_TMR_LIST, 0)
         val = RadioSettingValueList(SET_OFF_TMR_LIST, SET_OFF_TMR_LIST[tmpsetoff])
         SetOffSetting = RadioSetting("set_off_tmr", "Set Off (SetOff)", val)
@@ -2322,7 +2295,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                               'To inform you that the radio is in this mode, the Led will flashing in RED \n' + \
                               'the Display will be OFF and hardware go in sleepmode')
 
-        # Set_NFM ROBZYL
+        # Set_NFM SONIC
         tmpsetnfm = list_def(_mem.set_nfm, SET_NFM_LIST, 0)
         val = RadioSettingValueList(SET_NFM_LIST, SET_NFM_LIST[tmpsetnfm])
         SetNFMSetting = RadioSetting("set_nfm", "Set NFM (SetNFM)", val)
@@ -2330,7 +2303,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                               '* 12.5 kHz \n' + \
                               '* 6.25 kHz')
 
-        # Set_RXA ROBZYL
+        # Set_RXA SONIC
         tmpsetrxa = list_def(_mem.set_rxa, SET_RXA_LIST, 0)
         val = RadioSettingValueList(SET_RXA_LIST, SET_RXA_LIST[tmpsetrxa])
         SetRxASetting = RadioSetting("set_rxa", "Set RxA (SetRxA)", val)
@@ -2341,13 +2314,13 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                               '* BOOST \n' + \
                               '* MAX')
 
-        # Set_KEY ROBZYL
+        # Set_KEY SONIC
         tmpsetkey = list_def(_mem.set_key, SET_KEY_LIST, 0)
         val = RadioSettingValueList(SET_KEY_LIST, SET_KEY_LIST[tmpsetkey])
         SetKEYSetting = RadioSetting("set_key", "Set KEY (SetKEY)", val)
         SetKEYSetting.set_doc('SetKEY: Set KEY to enable RescueOps mode')
 
-        # Set_Menu_Lock ROBZYL
+        # Set_Menu_Lock SONIC
         tmpsetmenulock = list_def(_mem.set_menu_lock, SET_OFF_ON_LIST, 0)
         val = RadioSettingValueList(SET_OFF_ON_LIST, SET_OFF_ON_LIST[tmpsetmenulock])
         SetMenuLockSetting = RadioSetting("set_menu_lock", "Set RescueOps", val)
@@ -2390,7 +2363,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         val = RadioSettingValueList(TALK_TIME_LIST, None, tmptot)
         tx_t_out_setting = RadioSetting("tot", "Max TX Timeout (TxTOut)", val)
         tx_t_out_setting.set_doc('TxTOut: Select the TX time limit\n' + \
-                                 'See option (SetTot) of ROBZYL')
+                                 'See option (SetTot) of SONIC')
 
         tmpbatsave = list_def(_mem.battery_save, BATSAVE_LIST, 5)
         val = RadioSettingValueList(BATSAVE_LIST, None, tmpbatsave)
@@ -2656,7 +2629,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             firmware = self.FIRMWARE_VERSION
 
         append_label(roinfo,
-                     "=" * 6 + " Firmware ROBZYL " + "=" * 300, "=" * 300)
+                     "=" * 6 + " Firmware SONIC " + "=" * 300, "=" * 300)
 
         append_label(roinfo, "Firmware Version", firmware)
 
@@ -2665,7 +2638,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         val = RadioSettingValueBoolean(False)
         def validate_Go_Web_Page0(value):
             if value :
-                msg = "Go to the web Page of the Firmware ROBZYL \n" \
+                msg = "Go to the web Page of the Firmware SONIC \n" \
                       + FIRMWARE_VERSION_UPDATE
                 ret = wx.MessageBox(msg, "Warning", wx.OK | wx.CANCEL |
                                     wx.CANCEL_DEFAULT | wx.ICON_WARNING)
@@ -2676,7 +2649,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             return value
 
         val.set_validate_callback(validate_Go_Web_Page0)
-        rs = RadioSetting("Update_Firmware_0","Go to the web page of Latest Firmware ROBZYL select this Box ->", val)
+        rs = RadioSetting("Update_Firmware_0","Go to the web page of Latest Firmware SONIC select this Box ->", val)
         rs.set_doc('Be sure you have the latest firmware available!')
         roinfo.append(rs)
         
@@ -2684,11 +2657,11 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         rs = RadioSetting("Update_Firmware_1","Or copy this link (CTRL-C), paste (CTRL-V) to your browser -> ", val)
         rs.set_doc('Be sure you have the latest firmware available!')
         roinfo.append(rs)
-        append_label(roinfo, "The Firmware is done by ROBZYL","")
+        append_label(roinfo, "The Firmware is done by SONIC","")
         append_label(roinfo,"","")
                 
         append_label(roinfo,
-                     "=" * 6 + " Chirp Driver ROBZYL " + "=" * 300, "=" * 300)
+                     "=" * 6 + " Chirp Driver SONIC " + "=" * 300, "=" * 300)
                      
         append_label(roinfo, "Driver Chirp Version         ", DRIVER_VERSION)
         
@@ -2697,7 +2670,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         val = RadioSettingValueBoolean(False)
         def validate_Go_Web_Page(value):
             if value :
-                msg = "Go to the web Page of the Chirp Driver ROBZYL \n" \
+                msg = "Go to the web Page of the Chirp Driver SONIC \n" \
                       + CHIRP_DRIVER_VERSION_UPDATE
                 ret = wx.MessageBox(msg, "Warning", wx.OK | wx.CANCEL |
                                     wx.CANCEL_DEFAULT | wx.ICON_WARNING)
@@ -2708,7 +2681,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             return value
 
         val.set_validate_callback(validate_Go_Web_Page)
-        rs = RadioSetting("Update_Driver_Chirp_0","Go to the web page of Latest chirp Driver ROBZYL select this Box ->", val)
+        rs = RadioSetting("Update_Driver_Chirp_0","Go to the web page of Latest chirp Driver SONIC select this Box ->", val)
         rs.set_doc('Be sure you have the latest CHIRP driver available!')
         roinfo.append(rs)
 
@@ -2717,7 +2690,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         rs.set_doc('Be sure you have the latest CHIRP driver available!')
         roinfo.append(rs)
         
-        append_label(roinfo, "The driver module is done by VE2ZJM & ROBZYL")
+        append_label(roinfo, "The driver module is done by VE2ZJM & SONIC")
         append_label(roinfo,"","" )
         
         # ----------------- Calibration
@@ -3083,9 +3056,8 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
 
         # -------- LAYOUT
         append_label(basic,
-                     "=" * 6 + " Start of ROBZYL Settings." + "=" * 300, "=" * 300)
+                     "=" * 6 + " Start of SONIC Settings." + "=" * 300, "=" * 300)
         basic.append(SetPwrSetting)
-        basic.append(SetPttSetting)
         basic.append(SetTotSetting)
         basic.append(SetEotSetting)
         basic.append(contrastSetting)
@@ -3104,7 +3076,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         basic.append(SetMenuNavSetting)
 
         append_label(basic,
-                     "=" * 6 + " End of ROBZYL settings " + "=" * 300, "=" * 300)
+                     "=" * 6 + " End of SONIC settings " + "=" * 300, "=" * 300)
 
         append_label(basic,
                      "=" * 6 + " General settings " + "=" * 300, "=" * 300)
@@ -3270,20 +3242,12 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         _mem_chan.step = STEPS.index(memory.tuning_step)
 
         # tx power
-        if str(memory.power) == str(UVK5_POWER_LEVELS[7]):
+        if str(memory.power) == str(UVK5_POWER_LEVELS[3]):
             _mem_chan.txpower = POWER_HIGH
-        elif str(memory.power) == str(UVK5_POWER_LEVELS[6]):
-            _mem_chan.txpower = POWER_MEDIUM
-        elif str(memory.power) == str(UVK5_POWER_LEVELS[5]):
-            _mem_chan.txpower = POWER_LOW5
-        elif str(memory.power) == str(UVK5_POWER_LEVELS[4]):
-            _mem_chan.txpower = POWER_LOW4
-        elif str(memory.power) == str(UVK5_POWER_LEVELS[3]):
-            _mem_chan.txpower = POWER_LOW3
         elif str(memory.power) == str(UVK5_POWER_LEVELS[2]):
-            _mem_chan.txpower = POWER_LOW2
+            _mem_chan.txpower = POWER_MEDIUM
         elif str(memory.power) == str(UVK5_POWER_LEVELS[1]):
-            _mem_chan.txpower = POWER_LOW1
+            _mem_chan.txpower = POWER_LOW
         else:
             _mem_chan.txpower = POWER_USER
 
