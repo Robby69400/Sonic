@@ -224,22 +224,6 @@ void RADIO_InitInfo(VFO_Info_t *pInfo, const uint16_t ChannelSave, const uint32_
 void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure)
 {
     VFO_Info_t *pVfo = &gEeprom.VfoInfo[VFO];
-
-        // Пропускаем 350MHz диапазон только если он заблокирован настройкой
-#if defined(ENABLE_350EN)
-        if (!gSetting_350EN) {
-            if (gEeprom.FreqChannel[VFO] == FREQ_CHANNEL_FIRST + BAND5_350MHz)
-                gEeprom.FreqChannel[VFO] = FREQ_CHANNEL_FIRST + BAND6_400MHz;
-            if (gEeprom.ScreenChannel[VFO] == FREQ_CHANNEL_FIRST + BAND5_350MHz)
-                gEeprom.ScreenChannel[VFO] = FREQ_CHANNEL_FIRST + BAND6_400MHz;
-        }
-#else
-        if (gEeprom.FreqChannel[VFO] == FREQ_CHANNEL_FIRST + BAND5_350MHz)
-            gEeprom.FreqChannel[VFO] = FREQ_CHANNEL_FIRST + BAND6_400MHz;
-        if (gEeprom.ScreenChannel[VFO] == FREQ_CHANNEL_FIRST + BAND5_350MHz)
-            gEeprom.ScreenChannel[VFO] = FREQ_CHANNEL_FIRST + BAND6_400MHz;
-#endif
-
     uint16_t channel = gEeprom.ScreenChannel[VFO];
 
     if (IS_VALID_CHANNEL(channel)) {
@@ -273,7 +257,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 
     uint8_t band = att->band;
     if (band > BAND7_470MHz) {
-        band = BAND6_400MHz;
+        band = BAND1_50MHz;
     }
 
     uint8_t bParticipation;
@@ -442,9 +426,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 
     pVfo->freq_config_RX.Frequency = frequency;
 
-    if (frequency >= frequencyBandTable[BAND2_108MHz].upper && frequency < frequencyBandTable[BAND2_108MHz].upper)
-        pVfo->TX_OFFSET_FREQUENCY_DIRECTION = TX_OFFSET_FREQUENCY_DIRECTION_OFF;
-    else if (!IS_MR_CHANNEL(channel))
+    if (!IS_MR_CHANNEL(channel))
         pVfo->TX_OFFSET_FREQUENCY = FREQUENCY_RoundToStep(pVfo->TX_OFFSET_FREQUENCY, pVfo->StepFrequency);
 
     RADIO_ApplyOffset(pVfo);
@@ -465,10 +447,6 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         pVfo->pTX = &pVfo->freq_config_RX;
     }
 
-        FREQ_Config_t *pConfig = pVfo->pRX;
-        if (pConfig->Frequency >= 35000000 && pConfig->Frequency < 40000000)
-            pConfig->Frequency = 43300000;
-    
     pVfo->Compander = att->compander;
 
     #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS

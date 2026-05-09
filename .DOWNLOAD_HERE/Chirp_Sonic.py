@@ -1888,12 +1888,10 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         def get_action(action_num):
             """"get actual key action"""
             has_alarm = self._memobj.BUILD_OPTIONS.ENABLE_ALARM
-            has_1750 = self._memobj.BUILD_OPTIONS.ENABLE_TX1750
             has_flashlight = self._memobj.BUILD_OPTIONS.ENABLE_FLASHLIGHT
             has_fm_radio = self._memobj.BUILD_OPTIONS.ENABLE_FMRADIO
             has_rescue_ops = self._memobj.BUILD_OPTIONS.ENABLE_FEAT_F4HWN_RESCUE_OPS
             has_game = self._memobj.BUILD_OPTIONS.ENABLE_FEAT_F4HWN_GAME
-            has_vox = self._memobj.BUILD_OPTIONS.ENABLE_VOX
             
             lst = KEYACTIONS_LIST.copy()
             lst.remove("BACKLIGHT") # Only for key press on TX
@@ -2188,9 +2186,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             ch_list.append("Channel M" + str(ch))
         for bnd in range(1, 8):
             ch_list.append("Band F" + str(bnd))
-        if _mem.BUILD_OPTIONS.ENABLE_NOAA:
-            for bnd in range(1, 11):
-                ch_list.append("NOAA N" + str(bnd))
 
         tmpfreq0 = list_def(_mem.ScreenChannel_A, ch_list, 0)
         val = RadioSettingValueList(ch_list, None, tmpfreq0)
@@ -3088,9 +3083,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         basic.append(tx_t_out_setting)
         basic.append(bat_save_setting)
         basic.append(scn_rev_setting)
-        
-        if _mem.BUILD_OPTIONS.ENABLE_NOAA:
-            basic.append(noaa_auto_scan_setting)
         if _mem.BUILD_OPTIONS.ENABLE_AM_FIX:
             basic.append(am_fix_setting)
 
@@ -3115,15 +3107,11 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         append_label(basic, "=" * 6 + " Audio related settings "
                      + "=" * 300, "=" * 300)
 
-        if _mem.BUILD_OPTIONS.ENABLE_VOX:
-            basic.append(vox_setting)
         basic.append(mic_gain_setting)
         basic.append(beep_setting)
         basic.append(roger_setting)
         basic.append(ste_setting)
         basic.append(rp_ste_setting)
-        if _mem.BUILD_OPTIONS.ENABLE_VOICE:
-            basic.append(voice_setting)
         if _mem.BUILD_OPTIONS.ENABLE_ALARM:
             basic.append(alarm_setting)
 

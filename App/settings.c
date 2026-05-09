@@ -207,17 +207,6 @@ void SETTINGS_InitEEPROM(void)
         gEeprom.VFO_OPEN              = (Data[7] < 2) ? Data[7] : true;
     #endif
 
-    // 0E80..0E87
-    /*    
-    PY25Q16_ReadBuffer(0x00A010, Data, 8);
-    gEeprom.ScreenChannel[0]   = IS_VALID_CHANNEL(Data[0]) ? Data[0] : (FREQ_CHANNEL_FIRST + BAND6_400MHz);
-    gEeprom.ScreenChannel[1]   = IS_VALID_CHANNEL(Data[3]) ? Data[3] : (FREQ_CHANNEL_FIRST + BAND6_400MHz);
-    gEeprom.MrChannel[0]       = IS_MR_CHANNEL(Data[1])    ? Data[1] : MR_CHANNEL_FIRST;
-    gEeprom.MrChannel[1]       = IS_MR_CHANNEL(Data[4])    ? Data[4] : MR_CHANNEL_FIRST;
-    gEeprom.FreqChannel[0]     = IS_FREQ_CHANNEL(Data[2])  ? Data[2] : (FREQ_CHANNEL_FIRST + BAND6_400MHz);
-    gEeprom.FreqChannel[1]     = IS_FREQ_CHANNEL(Data[5])  ? Data[5] : (FREQ_CHANNEL_FIRST + BAND6_400MHz);
-    */
-
 // 0x00A010 .. 0x00A01F
 uint16_t Data16[8];
 
@@ -917,9 +906,6 @@ void SETTINGS_SaveSettings(void)
 
     State[6]  = gSetting_ScrambleEnable;
 
-#ifdef ENABLE_350EN
-    State[5]  = gSetting_350EN;
-#endif
 
     //if (!gSetting_TX_EN)             State[7] &= ~(1u << 0);
     if (!gSetting_live_DTMF_decoder) State[7] &= ~(1u << 1);
@@ -1135,9 +1121,7 @@ State[1] = 0
 #ifdef ENABLE_FLASHLIGHT
     | (1 << 0)
 #endif
-#ifdef ENABLE_WIDE_RX
-    | (1 << 1)
-#endif
+
 #ifdef ENABLE_AM_FIX
     | (1 << 4)
 #endif

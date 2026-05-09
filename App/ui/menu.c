@@ -619,14 +619,7 @@ void UI_DisplayMenu(void)
         case MENU_S_ADD3:
         case MENU_STE:
         case MENU_D_ST:
-#ifndef ENABLE_FEAT_F4HWN
-        case MENU_350TX:
-        case MENU_200TX:
-        case MENU_500TX:
-#endif
-#ifdef ENABLE_350EN
-        case MENU_350EN:
-#endif
+
 #ifdef ENABLE_SCRAMBLER
         case MENU_SCREN:
 #endif

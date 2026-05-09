@@ -232,19 +232,12 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
                     gRequestDisplayScreen = DISPLAY_MAIN;
                 } else {
                     // VFO: смена диапазона, пропускаем BAND2 (FM), авиа BAND3 остаётся
-#ifdef ENABLE_WIDE_RX
                 if (gTxVfo->Band == BAND7_470MHz && gTxVfo->pRX->Frequency < _1GHz_in_KHz) {
                     gTxVfo->pRX->Frequency = _1GHz_in_KHz;
                     break;
                 }
-#endif
+
                 gTxVfo->Band += 1;
-                    if (gTxVfo->Band == BAND2_108MHz)
-                        gTxVfo->Band = BAND3_137MHz;
-#ifdef ENABLE_350EN
-                if (gTxVfo->Band == BAND5_350MHz && !gSetting_350EN)
-                    gTxVfo->Band += 1;
-#endif
                 if (gTxVfo->Band >= BAND_N_ELEM)
                     gTxVfo->Band = BAND1_50MHz;
                 gEeprom.ScreenChannel[Vfo1] = FREQ_CHANNEL_FIRST + gTxVfo->Band;
@@ -469,17 +462,11 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                         gRequestSaveVFO       = true;
                         gRequestDisplayScreen = DISPLAY_MAIN;
                     } else {
-#ifdef ENABLE_WIDE_RX
                     if (gTxVfo->Band == BAND7_470MHz && gTxVfo->pRX->Frequency < _1GHz_in_KHz) {
                         gTxVfo->pRX->Frequency = _1GHz_in_KHz;
                             return;
                         }
-#endif
                     gTxVfo->Band += 1;
-#ifdef ENABLE_350EN
-                    if (gTxVfo->Band == BAND5_350MHz && !gSetting_350EN)
-                        gTxVfo->Band += 1;
-#endif
                     if (gTxVfo->Band >= BAND_N_ELEM)
                         gTxVfo->Band = BAND1_50MHz;
                     gEeprom.ScreenChannel[Vfo1] = FREQ_CHANNEL_FIRST + gTxVfo->Band;

@@ -86,7 +86,7 @@ void Main(void)
 
     // Читаем кнопку СРАЗУ при старте, до долгой инициализации
 
-    boot_counter_10ms = 250;   // 1 sec
+    boot_counter_10ms = 75;   // 750ms
 
 #ifdef ENABLE_UART
     UART_Init();

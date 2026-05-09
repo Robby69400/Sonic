@@ -123,19 +123,12 @@ enable_feature(ENABLE_FMRADIO
     app/fm.c 
     ui/fmradio.c
 )
-enable_feature(ENABLE_NOAA)
-enable_feature(ENABLE_VOICE 
-    driver/voice.c
-)
-enable_feature(ENABLE_VOX)
 enable_feature(ENABLE_SCRAMBLER)
 enable_feature(ENABLE_DTMF_CODES)
-enable_feature(ENABLE_350EN)
 enable_feature(ENABLE_DTMF_LIVE)
 enable_feature(ENABLE_DTMF_PRE)
 enable_feature(ENABLE_SET_TOT_EOT)
 enable_feature(ENABLE_ALARM)
-enable_feature(ENABLE_TX1750)
 enable_feature(ENABLE_FLASHLIGHT
     app/flashlight.c
 )
@@ -151,7 +144,6 @@ enable_feature(ENABLE_BIG_FREQ)
 enable_feature(ENABLE_SMALL_BOLD)
 enable_feature(ENABLE_CUSTOM_MENU_LAYOUT)
 enable_feature(ENABLE_KEEP_MEM_NAME)
-enable_feature(ENABLE_WIDE_RX)
 enable_feature(ENABLE_TX_WHEN_AM)
 enable_feature(ENABLE_F_CAL_MENU)
 enable_feature(ENABLE_CTCSS_TAIL_PHASE_SHIFT)

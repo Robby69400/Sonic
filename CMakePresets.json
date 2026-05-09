@@ -16,11 +16,8 @@
                 "ENABLE_VERSION": false,
                 "ENABLE_AIRCOPY": false,
                 "ENABLE_NOAA": false,
-                "ENABLE_VOICE": false,
-                "ENABLE_VOX": false,
                 "ENABLE_SCANNER": false,
                 "ENABLE_ALARM": false,
-                "ENABLE_TX1750": true,
                 "ENABLE_FLASHLIGHT": true,
                 "ENABLE_SPECTRUM": true,
                 "ENABLE_SCAN_RANGES": true,
@@ -32,7 +29,6 @@
                 "ENABLE_SMALL_BOLD": true,
                 "ENABLE_CUSTOM_MENU_LAYOUT": true,
                 "ENABLE_KEEP_MEM_NAME": true,
-                "ENABLE_WIDE_RX": true,
                 "ENABLE_TX_WHEN_AM": false,
                 "ENABLE_F_CAL_MENU": false,
                 "ENABLE_CTCSS_TAIL_PHASE_SHIFT": false,
@@ -74,7 +70,7 @@
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
                 "VERSION_STRING_1": "v0.22",
-                "VERSION_STRING_2": "V1.2" 
+                "VERSION_STRING_2": "V1.3" 
             }
         },
        
@@ -87,7 +83,7 @@
                 "ENABLE_UART": true,
                 "ENABLE_CPU_STATS": false,
                 "EDITION_STRING": "Dev",
-                "TARGET": "SONIC.Dev.V1.2"
+                "TARGET": "SONIC.Dev.V1.3"
             }
         },
         {
@@ -97,7 +93,7 @@
                 "ENABLE_USB": true,
                 "ENABLE_UART": false,
                 "EDITION_STRING": "USB",
-                "TARGET": "SONIC.USB.V1.2"
+                "TARGET": "SONIC.USB.V1.3"
             }
         },
         {
@@ -107,7 +103,7 @@
                 "ENABLE_USB": false,
                 "ENABLE_UART": true,
                 "EDITION_STRING": "RS232",
-                "TARGET": "SONIC.RS232.V1.2"
+                "TARGET": "SONIC.RS232.V1.3"
             }
         }
     ],

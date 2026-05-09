@@ -84,14 +84,6 @@ enum
 #endif
     MENU_RESET,
     MENU_F_LOCK,
-#ifndef ENABLE_FEAT_F4HWN
-    MENU_200TX,
-    MENU_350TX,
-    MENU_500TX,
-#endif
-#ifdef ENABLE_350EN
-    MENU_350EN,
-#endif
 #ifdef ENABLE_SCRAMBLER
     MENU_SCREN,
 #endif

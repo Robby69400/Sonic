@@ -210,19 +210,7 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
 
         #endif
         case MENU_BEEP:
-// removed KA52-only: case MENU_S_ADD1:
-// removed KA52-only: case MENU_S_ADD2:
-// removed KA52-only: case MENU_S_ADD3:
-        case MENU_STE:
-        case MENU_D_ST:
-#ifndef ENABLE_FEAT_F4HWN
-        case MENU_350TX:
-        case MENU_200TX:
-        case MENU_500TX:
-#endif
-#ifdef ENABLE_350EN
-        case MENU_350EN:
-#endif
+
 #ifdef ENABLE_SCRAMBLER
         case MENU_SCREN:
 #endif
@@ -635,41 +623,11 @@ void MENU_AcceptSetting(void)
             SETTINGS_FactoryReset(gSubMenuSelection);
             return;
 
-#ifndef ENABLE_FEAT_F4HWN
-        case MENU_350TX:
-            gSetting_350TX = gSubMenuSelection;
+        case MENU_F_LOCK: {
+            gSetting_F_LOCK = gSubMenuSelection;
+            gUnlockAllTxConfCnt = 0;   // сбрасываем счётчик
             break;
-#endif
-
-case MENU_F_LOCK: {
-    gSetting_F_LOCK = gSubMenuSelection;
-
-#ifdef ENABLE_FEAT_F4HWN // разрешить всё
-    if(gSetting_F_LOCK == F_LOCK_ALL) {
-    }
-#endif
-
-    gUnlockAllTxConfCnt = 0;   // сбрасываем счётчик
-    break;
-
-
         }
-#ifndef ENABLE_FEAT_F4HWN
-        case MENU_200TX:
-            gSetting_200TX = gSubMenuSelection;
-            break;
-
-        case MENU_500TX:
-            gSetting_500TX = gSubMenuSelection;
-            break;
-#endif
-#ifdef ENABLE_350EN
-        case MENU_350EN:
-            gSetting_350EN       = gSubMenuSelection;
-            gVfoConfigureMode    = VFO_CONFIGURE_RELOAD;
-            gFlagResetVfos       = true;
-            break;
-#endif
 
 #ifdef ENABLE_SCRAMBLER
         case MENU_SCREN:
@@ -989,35 +947,9 @@ void MENU_ShowCurrentSetting(void)
             gSubMenuSelection = gTxVfo->Modulation;
             break;
 
-
-                
-
-#ifndef ENABLE_FEAT_F4HWN
-        case MENU_350TX:
-            gSubMenuSelection = gSetting_350TX;
-            break;
-#endif
-
         case MENU_F_LOCK:
             gSubMenuSelection = gSetting_F_LOCK;
             break;
-
-#ifndef ENABLE_FEAT_F4HWN
-        case MENU_200TX:
-            gSubMenuSelection = gSetting_200TX;
-            break;
-
-        case MENU_500TX:
-            gSubMenuSelection = gSetting_500TX;
-            break;
-
-#endif
-#ifdef ENABLE_350EN
-        case MENU_350EN:
-            gSubMenuSelection = gSetting_350EN;
-            break;
-#endif
-
 
 #ifdef ENABLE_SCRAMBLER
         case MENU_SCREN:

@@ -21,7 +21,7 @@
 
 // the BK4819 has 2 bands it covers, 18MHz ~ 630MHz and 760MHz ~ 1300MHz
 
-#define BX4819_band1_lower 1800000
+#define BX4819_band1_lower 1400000
 #define BX4819_band2_upper 130000000
 
 const freq_band_table_t BX4819_band1 = {BX4819_band1_lower,  63000000};
@@ -29,20 +29,14 @@ const freq_band_table_t BX4819_band2 = {84000000, BX4819_band2_upper};
 
 const freq_band_table_t frequencyBandTable[] =
 {
-    #ifndef ENABLE_WIDE_RX
-        // QS original
-        [BAND1_50MHz ]={.lower =  5000000,  .upper =  7600000},
-        [BAND7_470MHz]={.lower = 47000000,  .upper = 60000000},
-    #else
 		// extended range
         [BAND1_50MHz ]={.lower =  BX4819_band1_lower, .upper =  10800000},
-        [BAND7_470MHz]={.lower = 47000000, .upper = BX4819_band2_upper},
-    #endif
         [BAND2_108MHz]={.lower = 10800000,  .upper = 13700000},
         [BAND3_137MHz]={.lower = 13700000,  .upper = 17400000},
         [BAND4_174MHz]={.lower = 17400000,  .upper = 35000000},
         [BAND5_350MHz]={.lower = 35000000,  .upper = 40000000},
-        [BAND6_400MHz]={.lower = 40000000,  .upper = 47000000}
+        [BAND6_400MHz]={.lower = 40000000,  .upper = 47000000},
+        [BAND7_470MHz]={.lower = 47000000, .upper = BX4819_band2_upper}
 };
 
 
@@ -155,18 +149,13 @@ int32_t TX_freq_check(const uint32_t Frequency)
     switch (gSetting_F_LOCK)
     {
         case F_LOCK_NONE:
-            // Всё разрешено
             return 0;
 
         case F_LOCK_ALL:
-            // Всё заблокировано
             return -1;
 
         case F_LOCK_136_500:
-            // 136.000 - 174.000 MHz  (VHF)
-            if (Frequency >= 13600000 && Frequency <= 17400000) return 0;
-            // 400.000 - 500.000 MHz  (UHF)
-            if (Frequency >= 40000000 && Frequency <= 50000000) return 0;
+            if (Frequency >= 13600000 && Frequency <= 50000000) return 0;
             break;
 
         case F_LOCK_PMR_LPD:
