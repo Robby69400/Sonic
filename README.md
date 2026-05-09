@@ -1,7 +1,7 @@
-# [◀️  Join the Robzyl Dev Telegram](https://t.me/k5robby69)
+# [◀️  Join the SonicFw Telegram](https://t.me/SonicFw)
 # [📺 Youtube Channel](https://www.youtube.com/@robby_69400)
-# [💾 DOWNLOAD (select RAW file)](https://github.com/Robby69400/Robzyl_K1/tree/main/.DOWNLOAD_HERE)
-## 🙏 Many thanks to Robzyl Team : Zylka, Kolyan, Iggy, Toni, Yves and Francois
+# [💾 DOWNLOAD (select RAW file)](https://github.com/Robby69400/Sonic/tree/main/.DOWNLOAD_HERE)
+## 🙏 Many thanks to Sonic Team : Zylka, Kolyan, Iggy, Toni, Yves and Francois
 
 Installation, use the same procédure as F4HWN
 after that do
@@ -10,44 +10,27 @@ in spectrum do a Reset Default
 Clear Histo ALL
 
 This software is a fork of Armel F4HWN firmware with code from NTOIVOLA, EGZUMER and DUAL TACHYON.
-Refer to this manual for global instructions,[🗲 F4HWN Manual](https://github.com/armel/uv-k1-k5v3-firmware-custom/wiki)
-Here we describe the spectrum and specific instructions for Robzyl:
-## HISTORY CHANGES
-### V6.20 to 1.0
-* registers tuning from Fagci
-* display refresh 100ms
-* auto zoom update
-* use key_8 to show scan view (no spectrum)
-* key_2 select min or max light, defined in VFO menu.
-* when Backlight_On_Rx is off, no backlight switch on other keys.
-* history display one or two lines dynamically
-* scanner removed
-* RESET VFO doesn't erase channels
-* Add count and code to history
-* BL fix working in spectrum and history
-* show RAM usage in BENCH menu
-* fix close call didn't exit
-  
-# Robzyl K1 Firmware Documentation
+
+Here we describe the spectrum and specific instructions for Sonic:
+# Sonic Firmware Documentation
 
 * RS232 version uses the kenwood cable and has 200 history entries
 * USB version uses USB-C cable and has 100 history entries,
-* USB is deactivated by default: press any key but PTT when switch ON to enable USB
 
-**CHIRP Driver included**: `Chirp_Robzyl_K1.py`  
+**CHIRP Driver included**: `Chirp_Sonic.py`  
 This driver also allows 
-* **customization of the 50 bands on channels 975 to 1024.**
+* **customization of the 50 bands on channels 976 to 1024.**
 Select start frequency  and offset as stop frequency, step and modulation
 
 * **Scanlist Monitor setting**
 Select up to 20ch to Monitor scanlist anywhere in the channels.
 <img width="2573" height="612" alt="image" src="https://github.com/user-attachments/assets/65648e2e-808f-4594-b7ce-bb3b91204502" />
 
-## Robzyl Spectrum
+## Sonic Spectrum
 
 | Mode | Description |
 |---------|-------------|
-| **BAND** | 24 configurable bands |
+| **BAND** | 50 configurable bands |
 | **SCAN-LIST** | 20 scan-lists based on your memory channels |
 | **RANGE** | Spectrum within start/end frequency limits |
 | **FREQUENCY** | Spectrum centered on the VFO frequency |
