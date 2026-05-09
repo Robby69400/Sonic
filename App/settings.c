@@ -92,7 +92,7 @@ void SETTINGS_InitEEPROM(void)
             {
                 uint8_t dispBuf[8] = {0};
                 PY25Q16_ReadBuffer(0x00A0A8, dispBuf, sizeof(dispBuf));
-                dispBuf[7] = POWER_ON_DISPLAY_MODE_ALL;
+                dispBuf[7] = POWER_ON_DISPLAY_MODE_MESSAGE;
                 PY25Q16_WriteBuffer(0x00A0A8, dispBuf, sizeof(dispBuf), false);
             }
 
@@ -267,11 +267,7 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
     gEeprom.KEY_2_LONG_PRESS_ACTION      = (Data[4] < ACTION_OPT_LEN) ? Data[4] : ACTION_OPT_NONE;
     gEeprom.SCAN_RESUME_MODE             = (Data[5] < 105)            ? Data[5] : 14;
     gEeprom.AUTO_KEYPAD_LOCK             = (Data[6] < 41)             ? Data[6] : 0;
-#ifdef ENABLE_FEAT_F4HWN
-    gEeprom.POWER_ON_DISPLAY_MODE        = (Data[7] < 6)              ? Data[7] : POWER_ON_DISPLAY_MODE_ALL;
-#else
-    gEeprom.POWER_ON_DISPLAY_MODE        = (Data[7] < 4)              ? Data[7] : POWER_ON_DISPLAY_MODE_ALL;
-#endif
+    gEeprom.POWER_ON_DISPLAY_MODE        = (Data[7] < 3)              ? Data[7] : POWER_ON_DISPLAY_MODE_LOGO;
 
     // 0E98..0E9F
 

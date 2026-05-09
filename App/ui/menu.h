@@ -146,7 +146,7 @@ extern const char* const gSubMenu_MDF[4];
 #endif
 
 extern const char* const gSubMenu_PTT_ID[5];
-extern const char        gSubMenu_PONMSG[2][8];
+extern const char        gSubMenu_PONMSG[3][8];
 extern const char        gSubMenu_ROGER[10][6];
 extern const char        gSubMenu_RESET[2][5];
 extern const char* const gSubMenu_F_LOCK[F_LOCK_LEN];

@@ -86,7 +86,7 @@ void Main(void)
 
     // Читаем кнопку СРАЗУ при старте, до долгой инициализации
 
-    boot_counter_10ms = 100;   // 1 sec
+    boot_counter_10ms = 250;   // 1 sec
 
 #ifdef ENABLE_UART
     UART_Init();
@@ -191,12 +191,7 @@ void Main(void)
         UI_DisplayWelcome();
 
         BACKLIGHT_TurnOn();
-
-#ifdef ENABLE_FEAT_F4HWN
-        if (gEeprom.POWER_ON_DISPLAY_MODE != POWER_ON_DISPLAY_MODE_NONE && gEeprom.POWER_ON_DISPLAY_MODE != POWER_ON_DISPLAY_MODE_SOUND)
-#else
         if (gEeprom.POWER_ON_DISPLAY_MODE != POWER_ON_DISPLAY_MODE_NONE)
-#endif
         {   // 2.55 second boot-up screen
             while (boot_counter_10ms > 0)
             {

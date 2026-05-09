@@ -179,6 +179,7 @@ const char* const gSubMenu_PTT_ID[] =
 const char gSubMenu_PONMSG[][8] =
 {
     "ON",
+    "LOGO",
     "OFF"
 };
 

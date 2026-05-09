@@ -616,7 +616,7 @@ void MENU_AcceptSetting(void)
 
 
         case MENU_PONMSG:
-            gEeprom.POWER_ON_DISPLAY_MODE = (gSubMenuSelection == 0) ? POWER_ON_DISPLAY_MODE_ALL : POWER_ON_DISPLAY_MODE_NONE;
+            gEeprom.POWER_ON_DISPLAY_MODE = gSubMenuSelection;
             break;
 
         case MENU_ROGER:
@@ -978,7 +978,7 @@ void MENU_ShowCurrentSetting(void)
 
 
         case MENU_PONMSG:
-            gSubMenuSelection = (gEeprom.POWER_ON_DISPLAY_MODE == POWER_ON_DISPLAY_MODE_ALL) ? 0 : 1;
+            gSubMenuSelection = gEeprom.POWER_ON_DISPLAY_MODE;
             break;
 
         case MENU_ROGER:
