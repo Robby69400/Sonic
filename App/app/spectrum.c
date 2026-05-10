@@ -1396,7 +1396,7 @@ static int16_t Rssi2Y(uint16_t rssi) {
 }
 
 static void DrawSpectrum(void) {
-    // Строим topY[] с преобразованием rssi → Y-координата
+    // Build topY[] with rssi → Y-coordinate conversion
     uint8_t topY[128];
     for (uint8_t x = 0; x < 128; x++) {
         if (!rssiHistory[x]) { topY[x] = 0xFF; continue; }
@@ -1404,7 +1404,7 @@ static void DrawSpectrum(void) {
         topY[x] = (y >= 0 && y <= DrawingEndY) ? (uint8_t)y : 0xFF;
     }
 
-    // Сглаживание пиков: каждый пиксель = среднее с соседями
+    // Peak smoothing: each pixel = average with neighbors
     uint8_t prev = topY[0];
     for (uint8_t x = 1; x < 127; x++) {
         uint8_t cur = topY[x], nxt = topY[x + 1];
@@ -1416,27 +1416,30 @@ static void DrawSpectrum(void) {
         topY[x] = (uint8_t)((s + n / 2) / n);
     }
 
-    // Рисуем заливку
+    // Draw the fill
     for (uint8_t x = 0; x < 128; x++) {
         uint8_t y0 = topY[x];
         if (y0 == 0xFF || y0 > DrawingEndY) continue;
 
-        // Мост к соседям — сплошной гребень
+        // Bridge to neighbors — solid ridge
         uint8_t ct = y0, cb = y0;
         if (x > 0   && topY[x-1] != 0xFF) { uint8_t m = (y0 + topY[x-1] + 1) >> 1; if (m < ct) ct = m; if (m > cb) cb = m; }
         if (x < 127 && topY[x+1] != 0xFF) { uint8_t m = (y0 + topY[x+1] + 1) >> 1; if (m < ct) ct = m; if (m > cb) cb = m; }
         for (uint8_t y = ct; y <= cb; y++)
             gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
 
-        uint8_t mid = (cb + DrawingEndY) >> 1;
-        // Сплошная зона верх
+        // Make the black line above thinner: only 25% of remaining height instead of 50%
+        uint8_t mid = cb + ((DrawingEndY - cb) >> 3);  // >> 2 ticker
+        
+        // Solid top area (thinner)
         for (uint8_t y = cb + 1; y < mid; y++)
             gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
-        // Шахматка низ
+            
+        // Checkerboard bottom area
         for (uint8_t y = mid; y <= DrawingEndY; y++)
             if (!((x + y) & 1))
                 gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
-        }
+    }
 }
 
 static void RemoveTrailZeros(char *s) {

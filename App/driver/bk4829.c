@@ -1741,11 +1741,20 @@ static void Roger2(void) {
 
 //###########################################################################################
 
+/* static void sonicBeep() {
+    play_note(1320, 50);   // 880 Hz for 50 ms
+    play_note(1569, 50);  // 1046 Hz
+    play_note(1977, 50);  // 1318 Hz
+    play_note(2352, 300);  // 1568 Hz, slightly longer
+} */
+//###########################################################################################
+
 // OURO — глубокий протяжный гудок ~340 Гц (из OURO.mp3)
 static void roger_beep_OURO(void) {
-    play_note(340, 660);
-    play_note(0,    40);
-    play_note(340,  40);
+play_note(1100, 40);
+    play_note(1300, 40);
+    play_note(1500, 40);
+    play_note(1800, 60);
 }
 
 // KLAC — механический клик-бёрст (из KLAC.mp3)
