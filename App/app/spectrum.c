@@ -1557,31 +1557,14 @@ static void UpdateCssDetection(void) {
 
 static void ScanProgress_DrawGaugeLine(uint8_t line, uint32_t current_index, uint32_t total)
 {
-    // Safety: prevent crash if line index is out of bounds
     if (line >= 8) return; 
-
-    const uint8_t gauge_left  = 2;
-    const uint8_t gauge_right = 126;
-    const uint8_t fill_start  = gauge_left + 2;
-    const uint8_t fill_end    = gauge_right - 2;
-    const uint8_t fill_cols   = fill_end - fill_start + 1;
-
+    const uint8_t fill_start  = 4;
+    const uint8_t fill_cols   = 121;
     if (total == 0) total = 1;
     if (current_index > total) current_index = total;
-
-    // Fixed-point calculation for fill width
     uint8_t filled_until = (uint8_t)((current_index * (uint32_t)fill_cols) / total);
-
-    // Draw frame boundaries
-    gFrameBuffer[line][gauge_left]      = 0x0C;
-    gFrameBuffer[line][gauge_left + 1]  = 0x12;
-    gFrameBuffer[line][gauge_right - 1] = 0x12;
-    gFrameBuffer[line][gauge_right]     = 0x0C;
-
-    // Fill the gauge
     for (uint8_t col = 0; col < fill_cols; col++) {
-        // 0x2D is filled pattern, 0x21 is empty pattern
-        gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0x2D : 0x21;
+        gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0xF0 : 0x00;
     }
 }
 
@@ -1657,11 +1640,12 @@ static void DrawF(uint32_t f) {
                 break;
             }
             case 2: {       //SCAN
-                if(isListening) DrawMeter(4);
-                else ScanProgress_DrawGaugeLine(4,scanInfo.i,GetStepsCount());
                 UI_DisplayFrequency(line1, 3, 0, 1);
                 UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
-                UI_PrintStringSmallbackground(line3, 0, 127, 5, 1);
+                ScanProgress_DrawGaugeLine(3,scanInfo.i,GetStepsCount());
+                if(isListening) DrawMeter(4);
+                UI_PrintStringSmallbackground(Text, 0, 127, 5, 0);
+                UI_PrintStringSmallbackground(line3, 0, 127, 6, 0);
                 break;
             }
     } 
