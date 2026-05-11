@@ -1396,6 +1396,16 @@ static int16_t Rssi2Y(uint16_t rssi) {
 }
 
 static void DrawSpectrum(void) {
+    int16_t y_baseline = Rssi2Y(0); 
+    for (uint8_t i = 0; i < 128; i++) {
+        int16_t y_curr = Rssi2Y(rssiHistory[i]);
+        for (int16_t y = y_curr; y <= y_baseline; y++) {
+                gFrameBuffer[y >> 3][i] |= (1 << (y & 7));
+            }
+        }
+}
+
+/* static void DrawSpectrum(void) {
     // Build topY[] with rssi → Y-coordinate conversion
     uint8_t topY[128];
     for (uint8_t x = 0; x < 128; x++) {
@@ -1440,7 +1450,7 @@ static void DrawSpectrum(void) {
             if (!((x + y) & 1))
                 gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
     }
-}
+} */
 
 static void RemoveTrailZeros(char *s) {
     char *p;
@@ -1545,6 +1555,36 @@ static void UpdateCssDetection(void) {
     StringCode[0] = '\0';
 }
 
+static void ScanProgress_DrawGaugeLine(uint8_t line, uint32_t current_index, uint32_t total)
+{
+    // Safety: prevent crash if line index is out of bounds
+    if (line >= 8) return; 
+
+    const uint8_t gauge_left  = 2;
+    const uint8_t gauge_right = 126;
+    const uint8_t fill_start  = gauge_left + 2;
+    const uint8_t fill_end    = gauge_right - 2;
+    const uint8_t fill_cols   = fill_end - fill_start + 1;
+
+    if (total == 0) total = 1;
+    if (current_index > total) current_index = total;
+
+    // Fixed-point calculation for fill width
+    uint8_t filled_until = (uint8_t)((current_index * (uint32_t)fill_cols) / total);
+
+    // Draw frame boundaries
+    gFrameBuffer[line][gauge_left]      = 0x0C;
+    gFrameBuffer[line][gauge_left + 1]  = 0x12;
+    gFrameBuffer[line][gauge_right - 1] = 0x12;
+    gFrameBuffer[line][gauge_right]     = 0x0C;
+
+    // Fill the gauge
+    for (uint8_t col = 0; col < fill_cols; col++) {
+        // 0x2D is filled pattern, 0x21 is empty pattern
+        gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0x2D : 0x21;
+    }
+}
+
 static void DrawF(uint32_t f) {
     static uint32_t fprev;
     if ((f == 0) || f < 1400000 || f > 130000000) f=fprev;
@@ -1610,18 +1650,18 @@ static void DrawF(uint32_t f) {
     
     switch(ShowLines) {
             case 1: {       // BIG FREQUENCY
-                UI_DisplayFrequency(line1, 3, 0, 0);  
-                UI_PrintStringSmallbackground(line2,3, 127, 2, 1);  
+                UI_DisplayFrequency(line1, 3, 0, 1);  
+                UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
                 GUI_DisplaySmallest(Text, 42, Bottom_print, false, true);
                 ArrowLine = 3;
                 break;
             }
             case 2: {       //SCAN
-                 if(isListening) DrawMeter(0);
-                UI_DisplayFrequency(line1, 3, 1, 0);
-                UI_PrintString(line2, 3, 127, 3, 8);
-                UI_PrintStringSmallbackground(line3, 3, 127, 5, 1);
-                //if (StringCode[0]) { UI_PrintStringSmallbackground(StringCode, 1, 127, 6, 1);}
+                if(isListening) DrawMeter(4);
+                else ScanProgress_DrawGaugeLine(4,scanInfo.i,GetStepsCount());
+                UI_DisplayFrequency(line1, 3, 0, 1);
+                UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
+                UI_PrintStringSmallbackground(line3, 0, 127, 5, 1);
                 break;
             }
     } 
