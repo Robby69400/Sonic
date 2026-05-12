@@ -58,7 +58,6 @@ uint8_t code = 0;
 typedef struct {
     uint32_t    HFreqs;
     uint8_t     HBlacklisted;
-    uint8_t     code; // 0=None, 1-50=CTCSS, 100+=DCS
     uint16_t    HTimeS;
 } HistoryStruct;
 
@@ -861,7 +860,6 @@ void SaveHistory(void) {
 
     History.HFreqs = 0;
     History.HBlacklisted = 0xFF;
-    History.code        = 0;
     History.HTimeS    = 0;
 
     PY25Q16_WriteBuffer(ADRESS_HISTORY + indexFs * sizeof(HistoryStruct),
@@ -3481,24 +3479,18 @@ static void RenderUnifiedList(
         getRow(itemIndex, &row);
 
         bool needsTwoLines = ((strlen(row.left) + strlen(row.right)) > 19);
-        uint8_t itemHeight = needsTwoLines ? 2 : 1;
-
-        if (currentLine + itemHeight > 7) break; // Sécurité limite physique LCD
+        if (needsTwoLines) {
+            int maxLeftLen = 19 - strlen(row.right);
+            if (maxLeftLen < 0) maxLeftLen = 0; // Safety check
+            row.left[maxLeftLen] = '\0';
+            needsTwoLines = 0;
+        }
 
         bool sel = (itemIndex == selectedIndex);
         bool inv = sel && invertSelected;
 
-        if (!needsTwoLines) {
-            ListDrawRow(currentLine, row.left, row.right, inv);
-        } else {
-            if (inv) {
-                ListDrawSelectedBg(currentLine);
-                ListDrawSelectedBg(currentLine + 1);
-            }
-            UI_PrintStringSmallbackground(row.left,  1, 0, currentLine, inv);
-            UI_PrintStringSmallbackground(row.right, 1, 0, currentLine + 1, inv);
-        }
-        currentLine += itemHeight;
+        ListDrawRow(currentLine, row.left, row.right, inv);
+        currentLine++;
     }
     ST7565_BlitFullScreen();
 }
