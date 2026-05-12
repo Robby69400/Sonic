@@ -933,9 +933,7 @@ static uint16_t GetRssi(void) {
     if (isListening) SYSTICK_DelayUs(12000);
     else             SYSTICK_DelayUs(DelayRssi * 1000);
     rssi = BK4819_GetRSSI();
-    if (FREQUENCY_GetBand(scanInfo.f) > BAND4_174MHz) {rssi += UHF_NOISE_FLOOR;}
-    BK4819_ReadRegister(0x63);
-  return rssi;
+    return rssi;
 }
 
 static void ToggleAudio(bool on) {
@@ -1160,9 +1158,8 @@ static void Measure() {
     } else {
             if (!gIsPeak && rssi > previousRssi + settings.rssiTriggerLevelUp) {
                 SYSTEM_DelayMs(10);
-                
                 uint16_t rssi2 = scanInfo.rssi = GetRssi();
-                if (rssi2 > rssi+10) {
+                if (rssi2 > rssi + 10) {
                     peak.f = scanInfo.f;
                     peak.i = scanInfo.i-1;
                     if (settings.rssiTriggerLevelUp < 50) {
@@ -2910,7 +2907,6 @@ static void UpdateListening(void) {
         UpdateNoiseOn();
         UpdateGlitch();
     }
-        
     spectrumElapsedCount += 200; 
     if (peak.f >= 1400000 && peak.f <= 130000000 && gNextTimeslice_HTimeS) {
     gNextTimeslice_HTimeS = 0;
@@ -3478,17 +3474,13 @@ static void RenderUnifiedList(
         ListRow row;
         getRow(itemIndex, &row);
 
-        bool needsTwoLines = ((strlen(row.left) + strlen(row.right)) > 19);
-        if (needsTwoLines) {
+        if (((strlen(row.left) + strlen(row.right)) > 19)) {
             int maxLeftLen = 19 - strlen(row.right);
             if (maxLeftLen < 0) maxLeftLen = 0; // Safety check
             row.left[maxLeftLen] = '\0';
-            needsTwoLines = 0;
         }
-
         bool sel = (itemIndex == selectedIndex);
         bool inv = sel && invertSelected;
-
         ListDrawRow(currentLine, row.left, row.right, inv);
         currentLine++;
     }
