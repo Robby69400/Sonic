@@ -1899,8 +1899,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
 
             if not has_alarm:
                 lst.remove("ALARM")
-            if not has_1750:
-                lst.remove("1750Hz")
             if not has_flashlight:
                 lst.remove("FLASHLIGHT")
             if not has_fm_radio:
@@ -1908,9 +1906,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             if not has_rescue_ops:
                 lst.remove("POWER HIGH")
                 lst.remove("REMOVE OFFSET")
-            if not has_vox:
-                lst.remove("MUTE")
-
             action_num = int(action_num)
             if action_num >= len(KEYACTIONS_LIST) or \
                KEYACTIONS_LIST[action_num] not in lst:

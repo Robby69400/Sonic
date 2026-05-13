@@ -68,27 +68,16 @@ BOOT_Mode_t BOOT_GetMode(void)
     return BOOT_MODE_NORMAL;
 }
 
-// Стирание с прогресс-баром
-// with_calib=false → PTT+SIDE1: всё кроме калибровок
-// with_calib=true  → PTT+SIDE2: всё включая калибровки
-static void DoErase(bool with_calib)
+static void DoErase()
 {
-    KEY_Code_t hold_key = with_calib ? KEY_SIDE2 : KEY_SIDE1;
+    KEY_Code_t hold_key = KEY_SIDE2;
 
-    // Экран предупреждения
     UI_DisplayClear();
-    if (with_calib) {
-        UI_PrintString("FULL ERASE",  0, 127, 0, 10);
-        UI_PrintString("+CALIB DATA", 0, 127, 2, 10);
-        UI_PrintString("HOLD SIDE2",  0, 127, 4, 10);
-    } else {
-        UI_PrintString("ERASE FLASH", 0, 127, 0, 10);
-        UI_PrintString("KEEP CALIB",  0, 127, 2, 10);
-        UI_PrintString("HOLD SIDE1",  0, 127, 4, 10);
-    }
+    BACKLIGHT_TurnOn();
+    UI_PrintString("ERASE FLASH", 0, 127, 0, 10);
+    UI_PrintString("KEEP CALIB",  0, 127, 2, 10);
+    UI_PrintString("HOLD SIDE2",  0, 127, 4, 10);
     ST7565_BlitFullScreen();
-
-    // Удержание 3 секунды — защита от случайного нажатия
     for (int t = 0; t < 300; t++) {
         SYSTEM_DelayMs(10);
         if (KEYBOARD_Poll() != hold_key || !GPIO_IsPttPressed()) {
@@ -100,77 +89,17 @@ static void DoErase(bool with_calib)
         }
     }
 
-    // Подтверждено — стираем
     UI_DisplayClear();
     UI_PrintString("ERASING...", 0, 127, 0, 10);
     ST7565_BlitFullScreen();
-
-    // Сначала снимаем защиту Block Protect
-    // (закрытые прошивки могут её ставить)
     PY25Q16_ClearBlockProtect();
-    // Небольшая пауза после снятия защиты
     SYSTEM_DelayMs(10);
-
-    // Базовые зоны (всегда)
-    static const uint32_t zones_base[][2] = {
-        {0x000000, 0x009000},  // каналы: данные + имена + атрибуты
-        {0x00A000, 0x00A000},  // настройки F4HWN + welcome string
-        {0x00B000, 0x00B000},  // дополнительные настройки
-        {0x00C000, 0x00C000},  // spectrum EEPROM
-    };
-    const uint8_t base_count = 4;
-
-    // Зоны калибровок (только с PTT+SIDE2)
-    static const uint32_t zones_calib[][2] = {
-        {0x010000, 0x011000},  // squelch + RSSI + TX мощность + батарея + VOX
-    };
-    const uint8_t calib_count = 1;
-
-    // Считаем общее число секторов для прогресс-бара
-    uint16_t total = 0;
-    for (uint8_t z = 0; z < base_count; z++)
-        total += (uint16_t)((zones_base[z][1] - zones_base[z][0]) / 0x1000 + 1);
-    if (with_calib)
-        for (uint8_t z = 0; z < calib_count; z++)
-            total += (uint16_t)((zones_calib[z][1] - zones_calib[z][0]) / 0x1000 + 1);
-
-    uint16_t done = 0;
-
-    // Стираем базовые зоны
-    for (uint8_t z = 0; z < base_count; z++) {
-        for (uint32_t addr = zones_base[z][0]; addr <= zones_base[z][1]; addr += 0x1000) {
-            PY25Q16_SectorErase(addr);
-            done++;
-            uint8_t bar_w = (uint8_t)((uint32_t)done * 120 / total);
-            memset(gFrameBuffer[6], 0, 128);
-            for (uint8_t x = 4; x < 4 + bar_w; x++)
-                gFrameBuffer[6][x] = 0x3C;
-            ST7565_BlitLine(6);
-        }
-    }
-
-    // Стираем калибровки если нужно
-    if (with_calib) {
-        for (uint8_t z = 0; z < calib_count; z++) {
-            for (uint32_t addr = zones_calib[z][0]; addr <= zones_calib[z][1]; addr += 0x1000) {
-                PY25Q16_SectorErase(addr);
-                done++;
-                uint8_t bar_w = (uint8_t)((uint32_t)done * 120 / total);
-                memset(gFrameBuffer[6], 0, 128);
-                for (uint8_t x = 4; x < 4 + bar_w; x++)
-                    gFrameBuffer[6][x] = 0x3C;
-                ST7565_BlitLine(6);
-            }
-        }
-    }
-
-    // Готово
+    SETTINGS_FactoryReset(1);
     UI_DisplayClear();
     UI_PrintString("DONE!", 0, 127, 1, 10);
     UI_PrintString("POWER OFF", 0, 127, 3, 10);
     ST7565_BlitFullScreen();
 
-    // Ждём отпускания кнопок, потом виснем — нужен power cycle
     while (GPIO_IsPttPressed() || KEYBOARD_Poll() != KEY_INVALID)
         SYSTEM_DelayMs(10);
     for (;;) SYSTEM_DelayMs(100);
@@ -181,6 +110,7 @@ void BOOT_ProcessMode(BOOT_Mode_t Mode)
     if (Mode == BOOT_MODE_ERASE_NO_CALIB) {
         // PTT+FN2: ALL reset — same as menu ALL, keeps calibration
         UI_DisplayClear();
+        BACKLIGHT_TurnOn();
         UI_PrintString("RESET ALL",   0, 127, 0, 10);
         UI_PrintString("KEEP CALIB",  0, 127, 2, 10);
         UI_PrintString("HOLD FN2",    0, 127, 4, 10);
@@ -210,8 +140,8 @@ void BOOT_ProcessMode(BOOT_Mode_t Mode)
         for (;;) SYSTEM_DelayMs(100);
     }
 
-    if (Mode == BOOT_MODE_ERASE_WITH_CALIB) {
-        DoErase(true);
+    if (Mode == BOOT_MODE_ERASE) {
+        DoErase();
         GUI_SelectNextDisplay(DISPLAY_MAIN);
         return;
     }

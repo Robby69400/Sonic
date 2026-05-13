@@ -561,94 +561,20 @@ void SETTINGS_FetchChannelName(char *s, const uint16_t channel)
         s[i--] = 0;               // null term
 }
 
-void SETTINGS_FactoryReset(int resetMode)
-{
-    // EEPROM layout (PY25Q16, sector = 0x1000 bytes):
-    //   0x000000-0x003FFF  channel raw data (freq/CTCSS/etc), ch 0..1023
-    //                      ch 1000-1023 (bands) = 0x003E80..0x003FFF (end of sector 0x3000)
-    //   0x004000-0x007FFF  channel names (16 bytes x 1024)
-    //                      band names   = 0x007E80..0x007FFF (end of sector 0x7000)
-    //   0x008000-0x008FFF  MR_ChannelAttributes (scanlist bits) + list names
-    //   0x009000-0x009FFF  VFO freq settings (FreqChannel A/B)
-    //   0x00A000           radio settings (SQL, F_LOCK, ...)
-    //   0x010000+          factory calibration -- NEVER touch
-    //
-    // resetMode:
-    //   0 = NoCH -- erase VFO + radio settings only, ALL channel/band data intact
-    //   1 = ALL  -- erase everything except bands (ch 1000-1023) and calibration
-
-    if (resetMode == 0) {
-        // NoCH: сбросить VFO + настройки, НО сохранить:
-        //   - ScreenChannel/MrChannel/FreqChannel (0xA010, 16 байт)
-        //   - gFM_Channels (0xA028, 40 байт = 20×uint16)
-        //   - FM-слоты памяти (0xA070, 16 байт)
-
-        // 1. Читаем всё что нужно сохранить ДО стирания
-        uint16_t saved_vfo_indices[8];
-        PY25Q16_ReadBuffer(0x00A010, saved_vfo_indices, sizeof(saved_vfo_indices));
-
-        uint16_t saved_fm_channels[20];
-        PY25Q16_ReadBuffer(0x00A028, saved_fm_channels, sizeof(saved_fm_channels));
-
-        uint8_t saved_fm_slots[16];
-        PY25Q16_ReadBuffer(0x00A070, saved_fm_slots, sizeof(saved_fm_slots));
-
-        // 2. Стираем сектора
-        PY25Q16_SectorErase(0x009000);
+void SETTINGS_FactoryReset(bool bIsAll)
+{    
         PY25Q16_SectorErase(0x00A000);
 
-        // 3. Восстанавливаем сохранённые данные
-        // ScreenChannel/MrChannel/FreqChannel
-        PY25Q16_WriteBuffer(0x00A010, saved_vfo_indices, sizeof(saved_vfo_indices), false);
-        // FM-каналы (preset-ы, не наши слоты памяти)
-        PY25Q16_WriteBuffer(0x00A028, saved_fm_channels, sizeof(saved_fm_channels), false);
-        // FM-слоты памяти (наши 6 ячеек)
-        PY25Q16_WriteBuffer(0x00A070, saved_fm_slots, sizeof(saved_fm_slots), false);
-
-        // 4. Дефолты: SQL=1, VFO_OPEN=0 (канальный режим), маркер
-        {
-            // 0xA000: основные настройки (SQL и др.)
-            uint8_t mainSet[8];
-            memset(mainSet, 0xFF, sizeof(mainSet));
-            mainSet[0] = 0xA5;  // маркер
-            mainSet[1] = 1;     // SQL = 1
-            PY25Q16_WriteBuffer(0x00A000, mainSet, sizeof(mainSet), false);
+    // 0d60 - 0e30
+    if (bIsAll)
+    {
+        for (uint32_t addr = 0x000000; addr <= 0x009000; addr += 0x1000) {
+            PY25Q16_SectorErase(addr);
         }
-        {
-            // 0xA008: VFO_OPEN=0 в byte[6] bit2 → стартуем в канальном режиме
-            uint8_t vfoSet[8];
-            memset(vfoSet, 0xFF, sizeof(vfoSet));
-            vfoSet[6] = 0x00;   // VFO_OPEN=0, nfm=0
-            vfoSet[7] = 0x00;   // CURRENT_STATE=0
-            PY25Q16_WriteBuffer(0x00A008, vfoSet, sizeof(vfoSet), false);
-        }
-
-        uint8_t zeros[16] = {0};
-        PY25Q16_WriteBuffer(0x00A0C8, zeros, 16, false);
-        PY25Q16_WriteBuffer(0x00A0D8, zeros, 16, false);
-    } else {
-        // ALL: erase everything except factory calibration (0x010000+).
-        // Channel data 0x0000-0x3FFF (all 1024 channels incl. bands)
-        PY25Q16_SectorErase(0x000000);
-        PY25Q16_SectorErase(0x001000);
-        PY25Q16_SectorErase(0x002000);
-        PY25Q16_SectorErase(0x003000);
-        // Channel names 0x4000-0x7FFF
-        PY25Q16_SectorErase(0x004000);
-        PY25Q16_SectorErase(0x005000);
-        PY25Q16_SectorErase(0x006000);
-        PY25Q16_SectorErase(0x007000);
-        // Channel attributes + list names 0x8000-0x8FFF
-        PY25Q16_SectorErase(0x008000);
-        // VFO + radio settings
-        PY25Q16_SectorErase(0x009000);
-        PY25Q16_SectorErase(0x00A000);
-        uint8_t zeros[16] = {0};
-        PY25Q16_WriteBuffer(0x00A0C8, zeros, 16, false);
-        PY25Q16_WriteBuffer(0x00A0D8, zeros, 16, false);
+        
     }
 
-    // Prevent restart in locked/RO mode
+    // Prevent reset to restart in RO mode...
     #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
         uint8_t Data8[0x10];
         PY25Q16_ReadBuffer(0x00A000, Data8, sizeof(Data8));

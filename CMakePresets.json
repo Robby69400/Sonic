@@ -70,7 +70,7 @@
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
                 "VERSION_STRING_1": "v0.22",
-                "VERSION_STRING_2": "V1.4" 
+                "VERSION_STRING_2": "V1.5" 
             }
         },
        
@@ -83,7 +83,7 @@
                 "ENABLE_UART": true,
                 "ENABLE_CPU_STATS": false,
                 "EDITION_STRING": "Dev",
-                "TARGET": "SONIC.Dev.V1.4"
+                "TARGET": "SONIC.Dev.V1.5"
             }
         },
         {
@@ -93,7 +93,7 @@
                 "ENABLE_USB": true,
                 "ENABLE_UART": false,
                 "EDITION_STRING": "USB",
-                "TARGET": "SONIC.USB.V1.4"
+                "TARGET": "SONIC.USB.V1.5"
             }
         },
         {
@@ -103,7 +103,7 @@
                 "ENABLE_USB": false,
                 "ENABLE_UART": true,
                 "EDITION_STRING": "RS232",
-                "TARGET": "SONIC.RS232.V1.4"
+                "TARGET": "SONIC.RS232.V1.5"
             }
         }
     ],

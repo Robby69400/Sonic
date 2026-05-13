@@ -86,7 +86,7 @@ void Main(void)
 
     // Читаем кнопку СРАЗУ при старте, до долгой инициализации
 
-    boot_counter_10ms = 150;
+    boot_counter_10ms = 75;
 
 #ifdef ENABLE_UART
     UART_Init();
@@ -131,7 +131,7 @@ void Main(void)
     BOOT_Mode_t  BootMode = BOOT_GetMode();
 
     // Erase режимы — обрабатываем немедленно, до любой инициализации настроек
-    if (BootMode == BOOT_MODE_ERASE_NO_CALIB || BootMode == BOOT_MODE_ERASE_WITH_CALIB)
+    if (BootMode == BOOT_MODE_ERASE_NO_CALIB || BootMode == BOOT_MODE_ERASE)
     {
         BOOT_ProcessMode(BootMode);
         // Если вернулись (отмена) — продолжаем нормальную загрузку

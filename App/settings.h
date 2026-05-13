@@ -260,7 +260,7 @@ void     SETTINGS_InitEEPROM(void);
 void     SETTINGS_LoadCalibration(void);
 uint32_t SETTINGS_FetchChannelFrequency(const uint16_t channel);
 void     SETTINGS_FetchChannelName(char *s, const uint16_t channel);
-void     SETTINGS_FactoryReset(int resetMode); // 0=NoCH, 1=ALL
+void     SETTINGS_FactoryReset(bool bIsAll); // 0=NoCH, 1=ALL
 #ifdef ENABLE_FMRADIO
     void SETTINGS_SaveFM(void);
 #endif

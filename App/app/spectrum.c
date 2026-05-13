@@ -102,12 +102,9 @@ static uint8_t  GlitchMax = 20;              // case 14
 static bool     SoundBoost = 0;              // case 15
 static uint8_t  PttEmission = 0;             // case 16
 static bool     gMonitorScan = true;         // case 17
-//ClearHistory All                           // case 18
-//ClearHistory BL                            // case 19
-//ClearHistory Not BL                        // case 20
-//ClearSettings                              // case 21
+//ClearSettings                              // case 18
    
-#define PARAMETER_COUNT 22
+#define PARAMETER_COUNT 19
 ////////////////////////////////////////////////////////////////////
 uint8_t osdPopupIndex = 3;
 bool Cleared = 0;
@@ -2103,16 +2100,7 @@ static void HandleKeyParameters(uint8_t key) {
                 case 17: /* gMonitorScan */
                     gMonitorScan = !gMonitorScan; 
                     break;
-                case 18: /* Clear history */
-                        if (isKey3) ClearHistory(0);
-                        break;
-                case 19: /* Clear history */
-                        if (isKey3) ClearHistory(1);
-                        break;
-                case 20: /* Clear history */
-                        if (isKey3) ClearHistory(2);
-                        break;
-                case 21: /* Reset to defaults */
+                case 18: /* Reset to defaults */
                       if (isKey3) ClearSettings();
                       break;
 
@@ -2136,20 +2124,8 @@ static void HandleKeyParameters(uint8_t key) {
 /* --- SPECTRUM state: main spectrum view keys, including list entry shortcuts --- */
 static void HandleKeySpectrum(uint8_t key) {
 
-    /* Shortcuts that open list sub-states from SPECTRUM */
-    if (appMode == SCAN_BAND_MODE && key == KEY_4) {
-        SetState(BAND_LIST_SELECT);
-        bandListSelectedIndex = 0;
-        bandListScrollOffset  = 0;
-        return;
-    }
-    if (appMode == CHANNEL_MODE && key == KEY_4) {
-        SetState(SCANLIST_SELECT);
-        scanListSelectedIndex = 0;
-        scanListScrollOffset  = 0;
-        return;
-    }
-    if (key == KEY_5) {
+switch (key) {
+        case KEY_5: {
         if (historyListActive) {
             gHistoryScan = !gHistoryScan;
             ShowOSDPopup(gHistoryScan ? "SCAN HISTORY ON" : "SCAN HISTORY OFF");
@@ -2161,11 +2137,9 @@ static void HandleKeySpectrum(uint8_t key) {
                 parametersScrollOffset = 0;
                 parametersStateInitialized = true;
             }
-            return;
             }
+            break;
         }
-
-    switch (key) {
         case KEY_STAR: {
             if (kbd.counter > 22) {settings.rssiTriggerLevelUp = 50;}
             else {
@@ -2199,7 +2173,6 @@ static void HandleKeySpectrum(uint8_t key) {
             }
             break;
         case KEY_9: {
-            if (historyListActive) {ClearHistory(2);return;}
             ToggleModulation();
             char modText[32];
             sprintf(modText, "MOD: %s", gModulationStr[settings.modulationType]);
@@ -2207,16 +2180,31 @@ static void HandleKeySpectrum(uint8_t key) {
             break;
         }
         case KEY_1:
-            if (historyListActive) {ClearHistory(1);return;}
-            Skip();
-            ShowOSDPopup("SKIPPED");
+            if (historyListActive) {ClearHistory(0);SpectrumMonitor = 0;}   //clear everything
+            else {
+                Skip();
+                ShowOSDPopup("SKIPPED");
+            }
+            break;
+        case KEY_4:
+            if (historyListActive) {ClearHistory(2);return;}                // Clear BL
+            if (appMode == SCAN_BAND_MODE) {
+                SetState(BAND_LIST_SELECT);
+                bandListSelectedIndex = 0;
+                bandListScrollOffset  = 0;
+                return;
+            }
+            if (appMode == CHANNEL_MODE) {
+                SetState(SCANLIST_SELECT);
+                scanListSelectedIndex = 0;
+                scanListScrollOffset  = 0;
+                return;
+            }
+            if (appMode != SCAN_RANGE_MODE) ToggleStepsCount();
             break;
         case KEY_7:
-            if (historyListActive) {
-                SaveHistory();
-            } else {
-                SaveSettings();
-            }
+            if (historyListActive) {ClearHistory(1);}                       // Clear NBL
+            else {SaveSettings();}
             break;
         case KEY_2:
             static bool light = 0;
@@ -2232,14 +2220,7 @@ static void HandleKeySpectrum(uint8_t key) {
             light = !light;
             break;
         case KEY_8:
-            if (historyListActive) {
-                memset(HFreqs,       0, sizeof(HFreqs));
-                memset(HBlacklisted, 0, sizeof(HBlacklisted));
-                memset(HTimeS,    0, sizeof(HTimeS));
-                historyListIndex    = 0;
-                historyScrollOffset = 0;
-                indexFs             = 0;
-                SpectrumMonitor     = 0;
+            if (historyListActive) {SaveHistory();
             } else {
                 ShowLines++;
                 if (ShowLines > 2 || ShowLines < 1) ShowLines = 1;
@@ -2249,7 +2230,7 @@ static void HandleKeySpectrum(uint8_t key) {
                 sprintf(viewText, "VIEW: %s", viewName);
                 ShowOSDPopup(viewText);
             }
-    break;
+            break;
         case KEY_UP:
             if (historyListActive) {
                 uint16_t count = CountValidHistoryItems();
@@ -2334,9 +2315,6 @@ static void HandleKeySpectrum(uint8_t key) {
                 }
             }
             break;
-  case KEY_4:
-            if (appMode != SCAN_RANGE_MODE) ToggleStepsCount();
-    break;
         case KEY_0:
             if (kbd.counter > 22) {
                 if (!gHistorySortLongPressDone) {
@@ -3315,14 +3293,16 @@ static void ClearHistory(uint8_t mode) {
         memset(HFreqs, 0, sizeof(HFreqs));
         memset(HBlacklisted, 0, sizeof(HBlacklisted));
         memset(HTimeS, 0, sizeof(HTimeS));
-    } else if (mode == 1) {
+    } 
+    if (mode == 1) {
         for (int i = 0; i < HISTORY_SIZE; i++) {
             if (!HBlacklisted[i]) {
                 HFreqs[i] = 0;
                 HTimeS[i] = 0;
             }
         }
-    } else if (mode == 2) {
+    } 
+    if (mode == 2) {
         for (int i = 0; i < HISTORY_SIZE; i++) {
             if (HBlacklisted[i]) {
                 HFreqs[i] = 0;
@@ -3331,12 +3311,7 @@ static void ClearHistory(uint8_t mode) {
             }
         }
     }
-    historyListIndex = 0;
-    historyScrollOffset = 0;
-    indexFs = HISTORY_SIZE;
-    SaveHistory();
-    indexFs = 0;
-    LoadHistory();
+    CompactHistory();
 }
 
 void ClearSettings() 
@@ -3682,18 +3657,6 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             else snprintf(row->right, sizeof(row->right), "OFF");
             break;
         case 18:
-            snprintf(row->left, sizeof(row->left), "Clear Histo ALL");
-            strncpy(row->right, ">", sizeof(row->right) - 1);
-            break;
-        case 19:
-            snprintf(row->left, sizeof(row->left), "Clear Histo N BL");
-            strncpy(row->right, ">", sizeof(row->right) - 1);
-            break;
-        case 20:
-            snprintf(row->left, sizeof(row->left), "Clear Histo BL");
-            strncpy(row->right, ">", sizeof(row->right) - 1);
-            break;
-        case 21:
             snprintf(row->left, sizeof(row->left), "Reset Default");
             strncpy(row->right, ">", sizeof(row->right) - 1);
             break;
@@ -3736,7 +3699,7 @@ void RenderBandSelect() {
 static void RenderHistoryList() {
     uint16_t count = CountValidHistoryItems();
     char title[32];
-    sprintf(title, "HISTORY:%d %s", count);
+    sprintf(title, "HISTORY: %d", count);
     
     RenderUnifiedList(title, true, count, historyListIndex,
                       historyScrollOffset, true, GetHistoryRow);
