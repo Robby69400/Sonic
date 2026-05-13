@@ -844,9 +844,42 @@ void LoadHistory(void) {
     }
 }
 
+static void CompactHistory(void) {
+    uint16_t w = 0;
+    uint16_t limit = (indexFs > HISTORY_SIZE) ? HISTORY_SIZE : indexFs;
+
+    for (uint16_t r = 0; r < limit; r++) {
+        if (HFreqs[r] == 0) continue;
+        if (w != r) {
+            HFreqs[w]       = HFreqs[r];
+            HBlacklisted[w] = HBlacklisted[r];
+            HTimeS[w]       = HTimeS[r];
+        }
+        w++;
+    }
+
+    for (uint16_t i = w; i < limit; i++) {
+        HFreqs[i]       = 0;
+        HBlacklisted[i] = 0;
+        HTimeS[i]       = 0;
+    }
+
+    indexFs = w;
+    if (indexFs == 0) {
+        historyListIndex = 0;
+        historyScrollOffset = 0;
+    } else {
+        if (historyListIndex >= indexFs) historyListIndex = indexFs - 1;
+        if (historyScrollOffset >= indexFs) {
+            historyScrollOffset = (indexFs > MAX_VISIBLE_LINES) ? (indexFs - MAX_VISIBLE_LINES) : 0;
+        }
+    }
+}
 
 void SaveHistory(void) {
     HistoryStruct History = {0};
+    CompactHistory();
+    SortHistoryByFrequencyAscending();
     for (uint16_t position = 0; position < indexFs; position++) {
         History.HFreqs          = HFreqs[position];
         History.HBlacklisted    = HBlacklisted[position];
@@ -1802,37 +1835,7 @@ static void SortHistoryByFrequencyAscending(void) {
     ShowOSDPopup("HISTORY SORTED");  //skrocic?
 }
 
-static void CompactHistory(void) {
-    uint16_t w = 0;
-    uint16_t limit = (indexFs > HISTORY_SIZE) ? HISTORY_SIZE : indexFs;
 
-    for (uint16_t r = 0; r < limit; r++) {
-        if (HFreqs[r] == 0) continue;
-        if (w != r) {
-            HFreqs[w]       = HFreqs[r];
-            HBlacklisted[w] = HBlacklisted[r];
-            HTimeS[w]       = HTimeS[r];
-        }
-        w++;
-    }
-
-    for (uint16_t i = w; i < limit; i++) {
-        HFreqs[i]       = 0;
-        HBlacklisted[i] = 0;
-        HTimeS[i]       = 0;
-    }
-
-    indexFs = w;
-    if (indexFs == 0) {
-        historyListIndex = 0;
-        historyScrollOffset = 0;
-    } else {
-        if (historyListIndex >= indexFs) historyListIndex = indexFs - 1;
-        if (historyScrollOffset >= indexFs) {
-            historyScrollOffset = (indexFs > MAX_VISIBLE_LINES) ? (indexFs - MAX_VISIBLE_LINES) : 0;
-        }
-    }
-}
 
 void NextAppMode(void) {
         // 0 = FR, 1 = SL, 2 = BD, 3 = RG
@@ -2196,6 +2199,7 @@ static void HandleKeySpectrum(uint8_t key) {
             }
             break;
         case KEY_9: {
+            if (historyListActive) {ClearHistory(2);return;}
             ToggleModulation();
             char modText[32];
             sprintf(modText, "MOD: %s", gModulationStr[settings.modulationType]);
@@ -2203,6 +2207,7 @@ static void HandleKeySpectrum(uint8_t key) {
             break;
         }
         case KEY_1:
+            if (historyListActive) {ClearHistory(1);return;}
             Skip();
             ShowOSDPopup("SKIPPED");
             break;
@@ -2912,6 +2917,8 @@ static void UpdateListening(void) {
     static uint16_t stableCount = 0;
     static bool SoundBoostsave = false; // Initialisation
     
+    scanInfo.rssi = GetRssi();
+
     if (SoundBoost != SoundBoostsave) {
         if (SoundBoost) {
             BK4819_WriteRegister(0x54, 0x90D1);    // default is 0x9009
@@ -3532,7 +3539,7 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
     if (!f) return;
 
     char freqStr[10];
-    char timeStr[7];
+    char timeStr[16];
     snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
     RemoveTrailZeros(freqStr);
 
@@ -3728,32 +3735,9 @@ void RenderBandSelect() {
 
 static void RenderHistoryList() {
     uint16_t count = CountValidHistoryItems();
-
-    uint32_t totalTime = 0;
-    for (uint16_t i = 0; i < count; i++) {
-        totalTime += HTimeS[i];
-    }
-
-    char timeStr[12];
-    if (totalTime >= 3600) {
-        sprintf(timeStr, "%u:%02u:%02u",
-                totalTime / 3600,
-                (totalTime % 3600) / 60,
-                totalTime % 60);
-    } else if (totalTime >= 60) {
-        sprintf(timeStr, "%u:%02u",
-                totalTime / 60,
-                totalTime % 60);
-    } else {
-        sprintf(timeStr, "%us", (unsigned)totalTime);
-    }
-
     char title[32];
-    sprintf(title, "HISTORY:%d %s", count, timeStr);
-    if (strlen(title) > 22) {
-        sprintf(title, "HST:%d %s", count, timeStr);
-    }
-
+    sprintf(title, "HISTORY:%d %s", count);
+    
     RenderUnifiedList(title, true, count, historyListIndex,
                       historyScrollOffset, true, GetHistoryRow);
 }
