@@ -1550,15 +1550,50 @@ static void UpdateCssDetection(void) {
     StringCode[0] = '\0';
 }
 
-static void ScanProgress_DrawGaugeLine(uint8_t line, uint32_t current_index, uint32_t total)
+static void ScanProgress_DrawGaugeLine(uint8_t line)
 {
     if (line >= 8) return; 
-    const uint8_t fill_start  = 4;
-    const uint8_t fill_cols   = 121;
+    
+    static uint16_t total = 0;
+    static uint16_t current_index = 0;
+    static uint32_t globalStepOffset = 0;
+
+    if (appMode == SCAN_BAND_MODE) {
+        globalStepOffset = 0;
+        
+        // FIX: Start at index 0. Loop through all bands strictly BEFORE the current band 'bl'.
+        for (uint8_t i = 0; i < bl; i++) {
+            if (scanStepValues[BParams[i].scanStep] && settings.bandEnabled[i]) {
+                globalStepOffset += (BParams[i].Stopfrequency - BParams[i].Startfrequency) / scanStepValues[BParams[i].scanStep];
+            }
+        }
+        // scanInfo.i represents the current step within the current band 'bl'
+        current_index = globalStepOffset + scanInfo.i;
+        // Calculate total steps across all active bands for the denominator
+        total = 0;
+        for (uint8_t i = 0; i < bandCount; i++) {
+            if (scanStepValues[BParams[i].scanStep] && settings.bandEnabled[i]) {
+                total += (BParams[i].Stopfrequency - BParams[i].Startfrequency) / scanStepValues[BParams[i].scanStep];
+            }
+        }
+    } else {
+        // Standard single-range or channel mode logic
+        total = GetStepsCount();
+        current_index = scanInfo.i;
+    }
+    const uint8_t fill_start = 4;
+    const uint8_t fill_cols  = 121;
+
+    // Safety checks to prevent division by zero or overflow
     if (total == 0) total = 1;
     if (current_index > total) current_index = total;
+
+    // Map progress to display width
     uint8_t filled_until = (uint8_t)((current_index * (uint32_t)fill_cols) / total);
+
+    // Update framebuffer pixels
     for (uint8_t col = 0; col < fill_cols; col++) {
+        // 0xF0 creates a horizontal bar in the middle of the 8-bit vertical page
         gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0xF0 : 0x00;
     }
 }
@@ -1637,7 +1672,7 @@ static void DrawF(uint32_t f) {
             case 2: {       //SCAN
                 UI_DisplayFrequency(line1, 3, 0, 1);
                 UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
-                ScanProgress_DrawGaugeLine(3,scanInfo.i,GetStepsCount());
+                ScanProgress_DrawGaugeLine(3);
                 if(isListening) DrawMeter(4);
                 UI_PrintStringSmallbackground(Text, 0, 127, 5, 0);
                 UI_PrintStringSmallbackground(line3, 0, 127, 6, 0);
