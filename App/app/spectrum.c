@@ -1594,7 +1594,7 @@ static void ScanProgress_DrawGaugeLine(uint8_t line)
     // Update framebuffer pixels
     for (uint8_t col = 0; col < fill_cols; col++) {
         // 0xF0 creates a horizontal bar in the middle of the 8-bit vertical page
-        gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0xF0 : 0x00;
+        gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0x3C : 0x00;
     }
 }
 
@@ -2647,21 +2647,33 @@ static void MyDrawVLine(uint8_t x, uint8_t y_start, uint8_t y_end, uint8_t step)
 
 static void MyDrawFrameLines(void)
 {
-    MyDrawHLine(50, true);   // белая горизонтальная на y=50
-    MyDrawHLine(49, false);  // чёрная горизонтальная на y=49
-    MyDrawVLine(0,   21, 49, 1);  // левая вертикальная сплошная
-    MyDrawVLine(127, 21, 49, 1);  // правая вертикальная сплошная
-    MyDrawVLine(0,   0, 17, 1);  // левая вертикальная сплошная
-    MyDrawVLine(127, 0, 17, 1);  // правая вертикальная сплошная
-    MyDrawShortHLine(0, 0, 3, 1, false);  // верх кор лев
-    MyDrawShortHLine(0, 4, 8, 2, false);  // верх кор лев
-    MyDrawShortHLine(0, 124, 127, 1, false);  // верх кор прав
-    MyDrawShortHLine(0, 118, 123, 2, false);  // верх кор прав
-    MyDrawShortHLine(17, 0, 10, 1, false);  // верх кор лев
-    MyDrawShortHLine(21, 0, 10, 1, false);  // верх кор лев
-    //MyDrawShortHLine(19, 11, 119, 2, false);  // центр длин
-    MyDrawShortHLine(21, 120, 127, 1, false);  // кор прав
-    MyDrawShortHLine(17, 120, 127, 1, false);  // кор прав
+
+    MyDrawVLine(0,   0, 17, 1);   // Left vertical solid line (top section)
+    MyDrawVLine(127, 0, 17, 1);   // Right vertical solid line (top section)
+    
+    MyDrawShortHLine(0, 0, 3, 1, false);      // Top short horizontal line (left edge)
+    MyDrawShortHLine(0, 4, 8, 2, false);      // Top short horizontal line (inner left)
+    
+    MyDrawShortHLine(0, 124, 127, 1, false);  // Top short horizontal line (right edge)
+    MyDrawShortHLine(0, 118, 123, 2, false);  // Top short horizontal line (inner right)
+    
+    MyDrawShortHLine(17, 0, 10, 1, false);    // Mid-top short horizontal line (left)
+    MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
+    
+    MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
+    MyDrawShortHLine(17, 120, 127, 1, false); // Mid-top short horizontal line (right)
+    if (ShowLines == 1) {
+        MyDrawHLine(50, true);  // Black horizontal line at y=49
+        MyDrawHLine(49, false);  // Black horizontal line at y=49
+        MyDrawVLine(0,   21, 49, 1);  // Left vertical solid line (bottom section)
+        MyDrawVLine(127, 21, 49, 1);  // Right vertical solid line (bottom section)
+    }
+    if (ShowLines == 2) {
+        MyDrawHLine(55, false);  // Black horizontal line at y=49
+        MyDrawHLine(38, false);  // Black horizontal line at y=49
+        MyDrawVLine(0,   21, 61, 1);  // Left vertical solid line (bottom section)
+        MyDrawVLine(127, 21, 61, 1);  // Right vertical solid line (bottom section)
+    }
 }
 #endif
 
@@ -2677,59 +2689,40 @@ static void RenderSpectrum()
         DrawNums();
         UpdateDBMaxAuto();
         DrawSpectrum();
+        }
 #ifdef ENABLE_SPECTRUM_LINES
             MyDrawFrameLines();
 #endif
-        }
 }
 
 static void DrawMeter(int line) {
-    const uint8_t METER_PAD_LEFT = 7;
-    const uint8_t NUM_SQUARES    = 23;          // чуть короче, чтобы точно влез
-    const uint8_t SQUARE_SIZE    = 4;
-    const uint8_t SQUARE_GAP     = 1;
-    const uint8_t Y_START_BIT    = 2;
-    uint8_t max_width_px = NUM_SQUARES * (SQUARE_SIZE + SQUARE_GAP) - SQUARE_GAP;
+    const uint8_t METER_PAD_LEFT = 4;
+    const uint8_t LINE_HEIGHT    = 4;           // Height of the vertical lines
+    const uint8_t Y_START_BIT    = 1;
+    const uint8_t SPACING        = 2;           // Space between each vertical line
+    
+    // Total width available for the meter
+    uint8_t max_width_px = 120; 
     uint8_t fill_px      = Rssi2PX(scanInfo.rssi, 0, max_width_px);
-    uint8_t fill_count   = fill_px / (SQUARE_SIZE + SQUARE_GAP);
+    
     settings.dbMax = -60; 
     settings.dbMin = -120;
-    // Очистка строки
+
+    // Clear the current line in the frame buffer
     for (uint8_t px = 0; px < 128; px++) {
         gFrameBuffer[line][px] = 0;
     }
 
-    // Рисуем все квадратики с обводкой
-    for (uint8_t sq = 0; sq < NUM_SQUARES; sq++) {
-        uint8_t x_left  = METER_PAD_LEFT + sq * (SQUARE_SIZE + SQUARE_GAP);
-        uint8_t x_right = x_left + SQUARE_SIZE - 1;
+    // Draw alternating vertical lines instead of squares
+    for (uint8_t x = 0; x < fill_px; x += SPACING) {
+        uint8_t x_pos = METER_PAD_LEFT + x;
 
-        if (x_right >= 128) break;
+        // Boundary check
+        if (x_pos >= 128) break;
 
-        // Верх и низ
-        for (uint8_t x = x_left; x <= x_right; x++) {
-            gFrameBuffer[line][x] |= (1 << Y_START_BIT);
-            gFrameBuffer[line][x] |= (1 << (Y_START_BIT + SQUARE_SIZE - 1));
-        }
-
-        // Лево и право
-        for (uint8_t bit = Y_START_BIT; bit < Y_START_BIT + SQUARE_SIZE; bit++) {
-            gFrameBuffer[line][x_left]  |= (1 << bit);
-            gFrameBuffer[line][x_right] |= (1 << bit);
-        }
-    }
-
-    // Заполняем активные квадратики
-    for (uint8_t sq = 0; sq < fill_count; sq++) {
-        uint8_t x_left  = METER_PAD_LEFT + sq * (SQUARE_SIZE + SQUARE_GAP);
-        uint8_t x_right = x_left + SQUARE_SIZE - 1;
-
-        if (x_right >= 128) break;
-
-        for (uint8_t x = x_left; x <= x_right; x++) {
-            for (uint8_t bit = Y_START_BIT; bit < Y_START_BIT + SQUARE_SIZE; bit++) {
-                gFrameBuffer[line][x] |= (1 << bit);
-            }
+        // Draw a single vertical line at the current X position
+        for (uint8_t bit = Y_START_BIT; bit < Y_START_BIT + LINE_HEIGHT; bit++) {
+            gFrameBuffer[line][x_pos] |= (1 << bit);
         }
     }
 }
