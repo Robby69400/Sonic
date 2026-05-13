@@ -1512,7 +1512,7 @@ switch(SpectrumMonitor) {
 // ------------------ Frequency string ------------------
 static void FormatFrequency(uint32_t f, char *buf, size_t buflen) {
     snprintf(buf, buflen, "%u.%05u", f / 100000, f % 100000);
-    //RemoveTrailZeros(buf);
+
 }
 
 // ------------------ CSS detection ------------------
@@ -1655,14 +1655,15 @@ static void DrawF(uint32_t f) {
         }
     } else ArrowLine = 2;
     static char Text[16]="";
-    if(isListening) { sprintf(Text, "%d dBm", Rssi2DBm(scanInfo.rssi)); }
-    else { 
-              if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) {
-                FormatFrequency(lastReceivingFreq, Text, sizeof(Text));
-              }}
     
     switch(ShowLines) {
             case 1: {       // BIG FREQUENCY
+                if(isListening) { sprintf(Text, "%d dBm", Rssi2DBm(scanInfo.rssi)); }
+                else { 
+                    if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) {
+                        snprintf(Text, sizeof(Text), "%u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
+                    }
+                }
                 UI_DisplayFrequency(line1, 3, 0, 1);  
                 UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
                 GUI_DisplaySmallest(Text, 42, Bottom_print, false, true);
@@ -1670,6 +1671,12 @@ static void DrawF(uint32_t f) {
                 break;
             }
             case 2: {       //SCAN
+                if(isListening) { sprintf(Text, "Signal %d dBm", Rssi2DBm(scanInfo.rssi)); }
+                else { 
+                    if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) {
+                        snprintf(Text, sizeof(Text), "Last %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
+                    }
+                }
                 UI_DisplayFrequency(line1, 3, 0, 1);
                 UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
                 ScanProgress_DrawGaugeLine(3);
