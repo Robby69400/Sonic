@@ -15,7 +15,6 @@ target_sources(App INTERFACE
     driver/st7565.c
     driver/system.c
     driver/systick.c
-    driver/iwdg.c
     # Main
     app/action.c
     app/app.c

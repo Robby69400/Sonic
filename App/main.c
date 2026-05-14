@@ -46,7 +46,6 @@
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
 #include "driver/gpio.h"
-#include "driver/iwdg.h"
 #include "driver/system.h"
 #include "driver/systick.h"
 #include "driver/py25q16.h"
@@ -248,11 +247,7 @@ void Main(void)
         }
     #endif
 
-    /* Start hardware watchdog — resets CPU if main loop stalls > ~4.8 s */
-    IWDG_Init();
-
     while (true) {
-        IWDG_Feed();
         APP_Update();
 
         if (gNextTimeslice) {
