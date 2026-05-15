@@ -2671,17 +2671,19 @@ static void RenderStill() {
 
 static void Render() {
     memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
+    if(historyListActive) {
+        if(gNextTimeslice_history) RenderHistoryList();
+        gNextTimeslice_history = 0;
+        return;
+    }
     switch (currentState) {
         case SPECTRUM:
-            if(historyListActive) {RenderHistoryList(); return;}
-            else {
-                RenderSpectrum();
-                if (spectrumElapsedCount < 500 || ShowLines > 1) {
-                    ST7565_BlitLine(4);
-                    ST7565_BlitLine(5);
-                    ST7565_BlitLine(6);
-                } else return;
-            }
+            RenderSpectrum();
+            if (spectrumElapsedCount < 500 || ShowLines > 1) {
+                ST7565_BlitLine(4);
+                ST7565_BlitLine(5);
+                ST7565_BlitLine(6);
+            } else return;
             break;
         case FREQ_INPUT:
             RenderFreqInput();
@@ -3313,6 +3315,7 @@ static void ListDrawRow(uint8_t line, const char *left, const char *right, bool 
     if (right[0])
         UI_PrintStringSmallbackground(right, ListRightX(right), 0, line, bg);
 }
+static bool inv = 0;
 
 static void RenderUnifiedList(
     const char  *title,
@@ -3361,15 +3364,15 @@ static void RenderUnifiedList(
     uint8_t currentLine = 1;
     for (uint16_t itemIndex = scrollOffset; itemIndex < numItems; itemIndex++) {
         ListRow row;
+        bool sel = (itemIndex == selectedIndex);
+        inv = sel && invertSelected;
         getRow(itemIndex, &row);
-
         if (((strlen(row.left) + strlen(row.right)) > 19)) {
             int maxLeftLen = 19 - strlen(row.right);
             if (maxLeftLen < 0) maxLeftLen = 0; // Safety check
             row.left[maxLeftLen] = '\0';
         }
-        bool sel = (itemIndex == selectedIndex);
-        bool inv = sel && invertSelected;
+
         ListDrawRow(currentLine, row.left, row.right, inv);
         currentLine++;
     }
@@ -3388,12 +3391,13 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
     char freqStr[10];
     snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
     RemoveTrailZeros(freqStr);
-
     char Name[12] = "";
-    uint16_t ch = BOARD_gMR_fetchChannel(f);
-    if (ch != 0xFFFF) {
-        SETTINGS_FetchChannelName(Name, ch);
-        Name[10] = '\0';
+    if (inv) {
+        uint16_t ch = BOARD_gMR_fetchChannel(f);
+        if (ch != 0xFFFF) {
+            SETTINGS_FetchChannelName(Name, ch);
+            Name[10] = '\0';
+        }
     }
     const char *prefix = HBlacklisted[index] ? "#" : "";
     snprintf(row->left, sizeof(row->left), "%s%s %s", prefix, freqStr, Name);
