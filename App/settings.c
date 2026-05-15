@@ -563,12 +563,11 @@ void SETTINGS_FetchChannelName(char *s, const uint16_t channel)
 
 void SETTINGS_FactoryReset(bool bIsAll)
 {    
-        PY25Q16_SectorErase(0x00A000);
+    PY25Q16_SectorErase(0x00A000);
 
-    // 0d60 - 0e30
     if (bIsAll)
     {
-        for (uint32_t addr = 0x000000; addr <= 0x009000; addr += 0x1000) {
+        for (uint32_t addr = 0x000000; addr < 0x00C000; addr += 0x1000) {
             PY25Q16_SectorErase(addr);
         }
         

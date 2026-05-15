@@ -57,7 +57,6 @@ uint8_t code = 0;
 typedef struct {
     uint32_t    HFreqs;
     uint8_t     HBlacklisted;
-    uint16_t    HTimeS;
 } HistoryStruct;
 
 #if defined(ENABLE_USB)
@@ -68,7 +67,6 @@ typedef struct {
 
 static uint16_t historyListIndex = 0;
 static int historyScrollOffset = 0;
-static bool gHistorySortLongPressDone = false;
 static bool gHistoryScan = false;
 static uint32_t CodeFreq = 0;
 // ============================================================
@@ -151,7 +149,6 @@ static int bandListScrollOffset = 0;
 static void RenderBandSelect();
 static void ClearHistory(uint8_t mode);
 static void DrawMeter(int);
-static void SortHistoryByFrequencyAscending(void); //nowe
 static uint8_t scanListSelectedIndex = 0;
 static uint8_t scanListScrollOffset = 0;
 static uint8_t parametersSelectedIndex = 0;
@@ -210,7 +207,6 @@ static uint32_t         *ScanFrequencies = NULL;
 static bandparameters   *BParams = NULL;
 static uint32_t         HFreqs[HISTORY_SIZE];
 static bool             HBlacklisted[HISTORY_SIZE];
-static uint16_t         HTimeS[HISTORY_SIZE];  
 static uint32_t         MonitorFreqs[MONITOR_SIZE];
 /****************************************************************************/
 
@@ -752,13 +748,11 @@ static void DeleteHistoryItem(void) {
     for (uint16_t i = indexToDelete; i < indexFs - 1; i++) {
         HFreqs[i]       = HFreqs[i + 1];
         HBlacklisted[i] = HBlacklisted[i + 1];
-        HTimeS[i]       = HTimeS[i + 1];
     }
     indexFs--;
     
     HFreqs[indexFs]         = 0;
     HBlacklisted[indexFs]   = 0xFF;
-    HTimeS[indexFs]         = 0;
     if (historyListIndex >= indexFs && indexFs > 0) {
         historyListIndex = indexFs - 1;
     } else if (indexFs == 0) {
@@ -821,7 +815,6 @@ void LoadHistory(void) {
     HistoryStruct History = {0};
     memset(HFreqs, 0, sizeof(HFreqs));
     memset(HBlacklisted, 0, sizeof(HBlacklisted));
-    memset(HTimeS, 0, sizeof(HTimeS));
     indexFs = 0;
 
     for (uint16_t position = 0; position < HISTORY_SIZE; position++) {
@@ -834,7 +827,6 @@ void LoadHistory(void) {
       if (History.HFreqs){
         HFreqs[position]        = History.HFreqs;
         HBlacklisted[position]  = History.HBlacklisted;
-        HTimeS[position]        = History.HTimeS;
         indexFs                 = position + 1;
       }
     }
@@ -849,7 +841,6 @@ static void CompactHistory(void) {
         if (w != r) {
             HFreqs[w]       = HFreqs[r];
             HBlacklisted[w] = HBlacklisted[r];
-            HTimeS[w]       = HTimeS[r];
         }
         w++;
     }
@@ -857,7 +848,6 @@ static void CompactHistory(void) {
     for (uint16_t i = w; i < limit; i++) {
         HFreqs[i]       = 0;
         HBlacklisted[i] = 0;
-        HTimeS[i]       = 0;
     }
 
     indexFs = w;
@@ -875,19 +865,16 @@ static void CompactHistory(void) {
 void SaveHistory(void) {
     HistoryStruct History = {0};
     CompactHistory();
-    SortHistoryByFrequencyAscending();
     for (uint16_t position = 0; position < indexFs; position++) {
         History.HFreqs          = HFreqs[position];
         History.HBlacklisted    = HBlacklisted[position];
-        History.HTimeS          = HTimeS[position];
         PY25Q16_WriteBuffer(ADRESS_HISTORY + position * sizeof(HistoryStruct),
                            (uint8_t *)&History, sizeof(HistoryStruct), 0);
     }
 
     History.HFreqs = 0;
     History.HBlacklisted = 0xFF;
-    History.HTimeS    = 0;
-
+    
     PY25Q16_WriteBuffer(ADRESS_HISTORY + indexFs * sizeof(HistoryStruct),
                        (uint8_t *)&History, sizeof(HistoryStruct), 0);
     
@@ -979,20 +966,17 @@ static void FillfreqHistory()
     if (f == 0 || f < 1400000 || f > 130000000) return;
 
     uint16_t foundIndex = 0xFFFF;
-    uint16_t foundTime = 0;
     bool foundBlacklisted = false;
     
     for (uint16_t i = 0; i < indexFs; i++) {
         if (HFreqs[i] == f) {
             foundIndex = i;
-            foundTime = HTimeS[i];
             foundBlacklisted = HBlacklisted[i];
             break;
         }
     }
     bool freezeOrder = historyListActive && (SpectrumMonitor || gHistoryScan);
     if (freezeOrder) {
-            if (foundIndex != 0xFFFF) { HTimeS[foundIndex] = foundTime; }
             lastReceivingFreq = f;
             return;
         }
@@ -1001,7 +985,6 @@ static void FillfreqHistory()
         for (uint16_t i = foundIndex; i + 1 < indexFs; i++) {
             HFreqs[i]       = HFreqs[i + 1];
             HBlacklisted[i] = HBlacklisted[i + 1];
-            HTimeS[i] = HTimeS[i + 1];
         }
         if (indexFs > 0) indexFs--;
     }
@@ -1010,12 +993,10 @@ static void FillfreqHistory()
     for (int i = limit; i > 0; i--) {
         HFreqs[i]       = HFreqs[i - 1];
         HBlacklisted[i] = HBlacklisted[i - 1];
-        HTimeS[i]       = HTimeS[i - 1];
     }
 
     HFreqs[0] = f;
     HBlacklisted[0] = foundBlacklisted;
-    HTimeS[0] = foundTime;
     if (indexFs < HISTORY_SIZE) indexFs++;
     historyListIndex = 0;
     lastReceivingFreq = f;
@@ -1799,38 +1780,6 @@ static void NextScanStep() {
     }
 }
 
-static void SortHistoryByFrequencyAscending(void) {
-    uint16_t count = CountValidHistoryItems();
-
-    if (count < 2) {
-        historyListIndex = 0;
-        historyScrollOffset = 0;
-        return;
-    }
-
-    for (uint16_t i = 0; i < count - 1; i++) {
-        for (uint16_t j = i + 1; j < count; j++) {
-            if (HFreqs[j] != 0 && (HFreqs[i] == 0 || HFreqs[j] < HFreqs[i])) {
-                uint32_t    tf  = HFreqs[i];
-                bool        tb  = HBlacklisted[i];
-                uint8_t     tco = HTimeS[i];
-                HFreqs[i]           = HFreqs[j];
-                HBlacklisted[i]     = HBlacklisted[j];
-                HTimeS[i]           = HTimeS[j];
-                HFreqs[j]       = tf;
-                HBlacklisted[j] = tb;
-                HTimeS[j]       = tco;
-            }
-        }
-    }
-
-    historyListIndex = 0;
-    historyScrollOffset = 0;
-    ShowOSDPopup("HISTORY SORTED");  //skrocic?
-}
-
-
-
 void NextAppMode(void) {
         // 0 = FR, 1 = SL, 2 = BD, 3 = RG
         if (++Spectrum_state > 3) {Spectrum_state = 0;}
@@ -2120,7 +2069,7 @@ static void HandleKeyParameters(uint8_t key) {
 /* --- SPECTRUM state: main spectrum view keys, including list entry shortcuts --- */
 static void HandleKeySpectrum(uint8_t key) {
 
-switch (key) {
+    switch (key) {
         case KEY_5: {
         if (historyListActive) {
             gHistoryScan = !gHistoryScan;
@@ -2137,23 +2086,17 @@ switch (key) {
             break;
         }
         case KEY_STAR: {
-            if (kbd.counter > 22) {settings.rssiTriggerLevelUp = 50;}
-            else {
                 int step = (settings.rssiTriggerLevelUp >= 20) ? 5 : 1;
                 settings.rssiTriggerLevelUp =
                     (settings.rssiTriggerLevelUp >= 50 ? 0 : settings.rssiTriggerLevelUp + step);
-            }
             SPECTRUM_PAUSED = true;
             SetTrigger50();
             break;
         }
         case KEY_F: {
-            if (kbd.counter > 22) {settings.rssiTriggerLevelUp = 50;}
-            else {
             int step = (settings.rssiTriggerLevelUp <= 20) ? 1 : 5;
             settings.rssiTriggerLevelUp =
                 (settings.rssiTriggerLevelUp <= 0 ? 50 : settings.rssiTriggerLevelUp - step);
-            }
             SPECTRUM_PAUSED = true;
             SetTrigger50();
             break;
@@ -2312,30 +2255,16 @@ switch (key) {
             }
             break;
         case KEY_0:
-            if (kbd.counter > 22) {
-                if (!gHistorySortLongPressDone) {
-                    CompactHistory();
-                    SortHistoryByFrequencyAscending();
-
                 if (!historyListActive) {
-                        historyListActive   = true;
-                        prevSpectrumMonitor = SpectrumMonitor;
-                    }
-
-                historyListIndex = 0;
-                historyScrollOffset = 0;
-                gHistorySortLongPressDone = true;
+                    CompactHistory();
+                    historyListActive   = true;
+                    historyListIndex    = 0;
+                    historyScrollOffset = 0;
+                    prevSpectrumMonitor = SpectrumMonitor;
                 }
-            } else if (!historyListActive) {
-                CompactHistory();
-                historyListActive   = true;
-                historyListIndex    = 0;
-        historyScrollOffset = 0;
-        prevSpectrumMonitor = SpectrumMonitor;
-        }
-    break;
+                break;
   
-     case KEY_6: // next mode
+    case KEY_6: // next mode
         NextAppMode();
         break;
     case KEY_SIDE1:
@@ -2582,9 +2511,9 @@ static void RenderFreqInput() {
 }
 
 static void RenderStatus() {
-  memset(gStatusLine, 0, sizeof(gStatusLine));
-  DrawStatus();
-  ST7565_BlitStatusLine();
+    memset(gStatusLine, 0, sizeof(gStatusLine));
+    DrawStatus();
+    ST7565_BlitStatusLine();
 }
 #ifdef ENABLE_SPECTRUM_LINES
 
@@ -2784,13 +2713,13 @@ static void Render() {
             RenderStill();
             break;
         case BAND_LIST_SELECT:
-            if (kbd.counter > 2) RenderBandSelect();
+            if (kbd.counter) RenderBandSelect();
             return;
         case SCANLIST_SELECT:
-            if (kbd.counter > 2) RenderScanListSelect();
+            if (kbd.counter) RenderScanListSelect();
             return;
         case PARAMETERS_SELECT:
-            if (kbd.counter > 2) RenderParametersSelect();
+            if (kbd.counter) RenderParametersSelect();
             return;
     }
 ST7565_BlitFullScreen();
@@ -2803,12 +2732,9 @@ static void HandleUserInput(void) {
     // ---- Anti-rebond + répétition ----
     if (kbd.current != KEY_INVALID && kbd.current == kbd.prev) {
         kbd.counter++;
-    } else {
-        if (kbd.prev == KEY_0) {gHistorySortLongPressDone = false;}
-        kbd.counter = 0;
-      }
+    } else kbd.counter =0;
 
-    if (kbd.counter == 3 || (kbd.counter > 17 && (kbd.counter % 15 == 0))) {
+    if (kbd.counter == 2 || (kbd.counter > 50 && (kbd.counter % 20 == 0))) {
         if(Backlight_On_Rx) BACKLIGHT_TurnOn();
         switch (currentState) {
             case SPECTRUM:
@@ -2916,17 +2842,6 @@ static void UpdateListening(void) {
         UpdateGlitch();
     }
     spectrumElapsedCount += 200; 
-    if (peak.f >= 1400000 && peak.f <= 130000000 && gNextTimeslice_HTimeS) {
-    gNextTimeslice_HTimeS = 0;
-    for (uint16_t i = 0; i < indexFs; i++) {
-        if (HFreqs[i] == peak.f) {
-            if (HTimeS[i] < 3600) {
-                HTimeS[i] += 1;
-            } else {HTimeS[i] = 3599;}
-            break;
-        }
-    }
-}
     uint32_t maxCount = (uint32_t)MaxListenTime * 1000;
 
     if (MaxListenTime && spectrumElapsedCount >= maxCount && !SpectrumMonitor) {
@@ -2961,7 +2876,8 @@ static void Tick() {
         if(SpectrumPauseCount) SpectrumPauseCount--;
         if (osdPopupTimer > 0) {
             UI_DisplayPopup(osdPopupText);
-            ST7565_BlitFullScreen();
+            ST7565_BlitLine(2);
+            ST7565_BlitLine(3);
             osdPopupTimer -= 10; 
             if (osdPopupTimer <= 0) {osdPopupText[0] = '\0';}
             return;
@@ -3275,13 +3191,11 @@ static void ClearHistory(uint8_t mode) {
     if (mode == 0) {
         memset(HFreqs, 0, sizeof(HFreqs));
         memset(HBlacklisted, 0, sizeof(HBlacklisted));
-        memset(HTimeS, 0, sizeof(HTimeS));
     } 
     if (mode == 1) {
         for (int i = 0; i < HISTORY_SIZE; i++) {
             if (!HBlacklisted[i]) {
                 HFreqs[i] = 0;
-                HTimeS[i] = 0;
             }
         }
     } 
@@ -3290,7 +3204,6 @@ static void ClearHistory(uint8_t mode) {
             if (HBlacklisted[i]) {
                 HFreqs[i] = 0;
                 HBlacklisted[i] = 0;
-                HTimeS[i] = 0;
             }
         }
     }
@@ -3468,8 +3381,6 @@ static void RenderUnifiedList(
         DrawMeter(0);
     else if (title)
         UI_PrintStringSmallbackground(title, 1, LCD_WIDTH - 1, 0, 0);
-    ST7565_BlitLine(0);
-
     uint8_t currentLine = 1;
     for (uint16_t itemIndex = scrollOffset; itemIndex < numItems; itemIndex++) {
         ListRow row;
@@ -3483,10 +3394,9 @@ static void RenderUnifiedList(
         bool sel = (itemIndex == selectedIndex);
         bool inv = sel && invertSelected;
         ListDrawRow(currentLine, row.left, row.right, inv);
-        ST7565_BlitLine(currentLine);
         currentLine++;
     }
-for (uint8_t i =currentLine; i<7;i++) ST7565_BlitLine(i);
+    ST7565_BlitFullScreen();
 }
 
 /* ---- GetRow callbacks for each list type ---- */
@@ -3499,7 +3409,6 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
     if (!f) return;
 
     char freqStr[10];
-    char timeStr[16];
     snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
     RemoveTrailZeros(freqStr);
 
@@ -3510,10 +3419,6 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
         Name[10] = '\0';
     }
     const char *prefix = HBlacklisted[index] ? "#" : "";
-    if (HTimeS[index] > 59)
-        snprintf(timeStr, sizeof(timeStr), " %02d:%02d", HTimeS[index] / 60, HTimeS[index] % 60);
-    else snprintf(timeStr, sizeof(timeStr), " %02d", HTimeS[index]);
-    snprintf(row->right, sizeof(row->right), "%s", timeStr);
     snprintf(row->left, sizeof(row->left), "%s%s %s", prefix, freqStr, Name);
 }
 

@@ -71,9 +71,8 @@ BOOT_Mode_t BOOT_GetMode(void)
 static void DoErase()
 {
     KEY_Code_t hold_key = KEY_SIDE2;
-
-    UI_DisplayClear();
     BACKLIGHT_TurnOn();
+    UI_DisplayClear();
     UI_PrintString("ERASE FLASH", 0, 127, 0, 10);
     UI_PrintString("KEEP CALIB",  0, 127, 2, 10);
     UI_PrintString("HOLD SIDE2",  0, 127, 4, 10);
