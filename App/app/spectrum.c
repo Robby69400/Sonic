@@ -35,6 +35,7 @@
 #include "debugging.h"
 #endif
 #include <stdlib.h>
+#include "settings.h"
 // ============================================================
 // SECTION: Compile-time configuration
 // ============================================================
@@ -761,9 +762,6 @@ static void DeleteHistoryItem(void) {
     ShowOSDPopup("Deleted");
     
 }
-
-
-#include "settings.h"
 
 static void SaveHistoryToFreeChannel(void) {
     if (!historyListActive) return;

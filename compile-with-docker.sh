@@ -94,7 +94,7 @@ build_preset() {
   2>&1 | sed "s|/src/|C:/Perso/Sonic/|g"
 
   docker run --rm -v "$PWD":/src -w /src "$IMAGE" \
-    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V1.6.elf
+    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V1.7.elf
 
   echo "✅ Done: ${preset}"
 }
@@ -122,25 +122,10 @@ fi
 # Automatic flash
 # ---------------------------------------------
 
-# Définition du nom du binaire selon le preset
-case "$PRESET" in
-  "USB")
-    BIN_NAME="SONIC.USB.V1.6.bin"
-    ;;
-  "Dev")
-    BIN_NAME="SONIC.Dev.V1.6.bin"
-    ;;
-  "All")
-    BIN_NAME="SONIC.USB.V1.6.bin"
-    ;;
-  *)
-    ;;
-esac
-
-echo "⚡ Flashing firmware: ${BIN_NAME} on COM14..."
+echo "⚡ Flashing USB firmware on COM14..."
 
 # Vérification de l'existence du fichier avant de flasher
-IFILE="./build/${PRESET}/${BIN_NAME}"
+IFILE="./build/USB/SONIC.USB.V1.7.bin"
 
 if [[ -f "$IFILE" ]]; then
     python flash.py "$IFILE" -p COM14

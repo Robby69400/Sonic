@@ -536,29 +536,19 @@ uint32_t SETTINGS_FetchChannelFrequency(const uint16_t channel)
 
 void SETTINGS_FetchChannelName(char *s, const uint16_t channel)
 {
-    if (s == NULL)
-        return;
-
+    if (s == NULL) return;
     s[0] = 0;
-
-    if (channel < 0)
-        return;
-
-    if (!RADIO_CheckValidChannel(channel, false, 0))
-        return;
-
-    // 0x0F50
+    if (!RADIO_CheckValidChannel(channel, false, 0)) return;
     PY25Q16_ReadBuffer(0x004000 + (channel * 16), s, 10);
-
     int i;
     for (i = 0; i < 10; i++)
+    {
         if (s[i] < 32 || s[i] > 127)
-            break;                // invalid char
-
-    s[i--] = 0;                   // null term
-
-    while (i >= 0 && s[i] == 32)  // trim trailing spaces
-        s[i--] = 0;               // null term
+            break; // caractère invalide
+    }
+    s[i--] = 0; // Terminaison nulle
+    while (i >= 0 && s[i] == 32) {s[i--] = 0;}
+    if (s[0] == 0) {sprintf(s, "CH%u", channel + 1);}
 }
 
 void SETTINGS_FactoryReset(bool bIsAll)
