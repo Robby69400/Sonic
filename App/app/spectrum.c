@@ -249,27 +249,6 @@ bool gComeBack = 0;
 static void LoadActiveBands(void);
 uint16_t BOARD_gMR_fetchChannel(const uint32_t freq);
 static void LoadActiveScanFrequencies(void);
-#ifdef ENABLE_CPU_STATS
-    static void RenderRAMView();
-    static void OnKeyDownRAMView(uint8_t key);
-    static void RenderMemBuffers();
-    static void OnKeyDownMemBuffers(uint8_t key);
-    static void RenderMemViewer();
-    static void OnKeyDownMemViewer(uint8_t key);
-    static uint8_t memBufSelectedIndex = 0;   /* selected entry in MEM_BUFFERS */
-    static uint8_t memBufScrollOffset  = 0;   /* scroll offset for MEM_BUFFERS list */
-    static uint16_t memViewOffset      = 0;   /* byte offset into buffer in MEM_VIEWER */
-    
-    typedef enum {
-        MEM_VIEW_HEX_ASCII = 0, /* wide HEX+ASCII, 6 bytes per row (default) */
-        MEM_VIEW_BIN,           /* BIN detail for one byte                    */
-        MEM_VIEW_INFO,          /* buffer metadata / INFO screen              */
-        MEM_VIEW_MODE_COUNT
-    } MemViewMode_t;
-    
-    static MemViewMode_t memViewMode = MEM_VIEW_HEX_ASCII;
-    static void OnKeyDownCPUView(uint8_t key);
-#endif
 static uint8_t bandCount;
 STEP_Setting_t channelStep;
 int Rssi2DBm(const uint16_t rssi) {return (rssi >> 1) - 160;}

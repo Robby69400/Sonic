@@ -16,7 +16,6 @@
  */
 
 #include <string.h>
-
 #include "app/dtmf.h"
 #include "frequencies.h"
 #include "radio.h"
@@ -29,7 +28,7 @@
 #include "misc.h"
 #include "settings.h"
 #include "ui/menu.h"
-
+#include <stdio.h>
 EEPROM_Config_t gEeprom = { 0 };
 
 void SETTINGS_InitEEPROM(void)
@@ -542,12 +541,11 @@ void SETTINGS_FetchChannelName(char *s, const uint16_t channel)
     PY25Q16_ReadBuffer(0x004000 + (channel * 16), s, 10);
     int i;
     for (i = 0; i < 10; i++)
-    {
         if (s[i] < 32 || s[i] > 127)
-            break; // caractère invalide
-    }
-    s[i--] = 0; // Terminaison nulle
-    while (i >= 0 && s[i] == 32) {s[i--] = 0;}
+            break;                // invalid char
+    s[i--] = 0;                   // null term
+    while (i >= 0 && s[i] == 32)  // trim trailing spaces
+        s[i--] = 0;               // null term
     if (s[0] == 0) {sprintf(s, "CH%u", channel + 1);}
 }
 
