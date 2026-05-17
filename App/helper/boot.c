@@ -152,45 +152,5 @@ void BOOT_ProcessMode(BOOT_Mode_t Mode)
     }
     #endif
 
-    #ifdef ENABLE_AIRCOPY
-    if (Mode == BOOT_MODE_AIRCOPY)
-    {
-        gEeprom.DUAL_WATCH               = DUAL_WATCH_OFF;
-        gEeprom.BATTERY_SAVE             = 0;
-        gEeprom.CROSS_BAND_RX_TX         = CROSS_BAND_OFF;
-        gEeprom.AUTO_KEYPAD_LOCK         = false;
-        gEeprom.KEY_1_SHORT_PRESS_ACTION = ACTION_OPT_NONE;
-        gEeprom.KEY_1_LONG_PRESS_ACTION  = ACTION_OPT_NONE;
-        gEeprom.KEY_2_SHORT_PRESS_ACTION = ACTION_OPT_NONE;
-        gEeprom.KEY_2_LONG_PRESS_ACTION  = ACTION_OPT_NONE;
-        gEeprom.KEY_M_LONG_PRESS_ACTION  = ACTION_OPT_NONE;
-
-        RADIO_InitInfo(gRxVfo, FREQ_CHANNEL_LAST - 1, DEFAULT_FREQ);
-
-        gRxVfo->CHANNEL_BANDWIDTH = BANDWIDTH_NARROW;
-        gRxVfo->OUTPUT_POWER      = OUTPUT_POWER_LOW;
-
-        RADIO_ConfigureSquelchAndOutputPower(gRxVfo);
-
-        gCurrentVfo = gRxVfo;
-
-        RADIO_SetupRegisters(true);
-        BK4819_SetupAircopy();
-        BK4819_ResetFSK();
-
-        gAircopyState = AIRCOPY_READY;
-
-        gEeprom.BACKLIGHT_TIME = 61;
-        gEeprom.KEY_LOCK       = 0;
-
-        #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-            gEeprom.CURRENT_STATE = 0;
-        #endif
-
-        GUI_SelectNextDisplay(DISPLAY_AIRCOPY);
-        return;
-    }
-    #endif
-
     GUI_SelectNextDisplay(DISPLAY_MAIN);
 }

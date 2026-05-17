@@ -286,20 +286,6 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
                 toggle_chan_scanlist();
             break;
 
-        case KEY_6:
-            // F+6: toggle X (TX forbidden on this channel)
-            if (gTxVfo->OUTPUT_POWER == OUTPUT_POWER_X) {
-                gTxVfo->OUTPUT_POWER = (gSavedPowerBeforeX >= OUTPUT_POWER_LOW &&
-                                        gSavedPowerBeforeX <= OUTPUT_POWER_USER)
-                                       ? gSavedPowerBeforeX : OUTPUT_POWER_LOW;
-            } else {
-                gSavedPowerBeforeX   = gTxVfo->OUTPUT_POWER;
-                gTxVfo->OUTPUT_POWER = OUTPUT_POWER_X;
-            }
-            gRequestSaveChannel   = 2;
-            gRequestDisplayScreen = gScreenToDisplay;
-            break;
-
         case KEY_7:
 #ifdef ENABLE_SPECTRUM
             APP_RunSpectrumMode(1); // F+7 = ScanList режим

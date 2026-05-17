@@ -76,28 +76,6 @@ const char *VfoStateStr[] = {
 // DISPLAY HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * @brief Draw signal strength bars (F4HWN style, no antenna icon)
- * @param p Pointer to frame buffer line
- * @param level Signal level 0-6 (used for bar count)
- *
- * Draws growing power bars. Style depends on gSetting_set_gui:
- *   0 - flat rectangular bars (0b00111110)
- *   1 - graduated bars (taller with each level)
- */
-static void DrawSmallPowerBars(uint8_t *p, unsigned int level)
-{
-    if(level > 6)
-        level = 6;
-
-    // плоские одинаковые бары — одинаково в main-only и dual-screen
-    const char bar = 0b00111110;
-
-    for(uint8_t i = 0; i <= level; i++) {
-        memset(p + 2 + i*3, bar, 2);
-    }
-}
-
 #if defined ENABLE_AUDIO_BAR || defined ENABLE_RSSI_BAR
 
 /**
@@ -547,11 +525,10 @@ void DisplayRSSIBar(const bool now)
     }
 
     uint8_t *pLine = (gEeprom.RX_VFO == 0)? gFrameBuffer[2] : gFrameBuffer[6];
-    if (now)
+    if (now) {
         memset(pLine, 0, 23);
-    DrawSmallPowerBars(pLine, Level);
-    if (now)
         ST7565_BlitFullScreen();
+    }
 #endif
 
 }
@@ -937,37 +914,14 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold("S", LCD_WIDTH + x, 0, y);
         }
 
-        // ── МОЩНОСТЬ ─────────────────────────────────────────────────
-        {
             uint8_t x_mr = 91, y_mr = 5;
             uint8_t x_vfo = 91, y_vfo = 5;
             uint8_t x = isMR ? x_mr : x_vfo;
             uint8_t y = isMR ? y_mr : y_vfo;
-            // Show actual power level + "X" suffix if TX is forbidden
-            // e.g. "LX", "MX", "HX", "UX" — so you always see both the power and the X flag
-            uint8_t p = (vfoInfo->OUTPUT_POWER < OUTPUT_POWER_LEN) ? vfoInfo->OUTPUT_POWER : OUTPUT_POWER_LOW;
-            const char pwr_base[][2] = {"L","L","M","H","U"}; // index 0 (X) → show "L" as base
-            char pwrStr[4] = {0};
-            if (p == OUTPUT_POWER_X) {
-                // X active: show saved power level letter + X
-                uint8_t saved = (gSavedPowerBeforeX >= OUTPUT_POWER_LOW && gSavedPowerBeforeX <= OUTPUT_POWER_USER)
-                                ? gSavedPowerBeforeX : OUTPUT_POWER_LOW;
-                const char base_letters[] = {'L','M','H','U'};
-                uint8_t idx = (saved >= OUTPUT_POWER_LOW && saved <= OUTPUT_POWER_USER)
-                              ? (saved - OUTPUT_POWER_LOW) : 0;
-                pwrStr[0] = base_letters[idx];
-                pwrStr[1] = 'X';
-                pwrStr[2] = '\0';
-            } else {
-                pwrStr[0] = pwr_base[p][0];
-                pwrStr[1] = '\0';
-            }
-            // Сдвиг влево при X-режиме: меняй цифру 5 для подгонки
-            uint8_t pwr_x = (p == OUTPUT_POWER_X) ? (x - 5) : x;
-            UI_PrintStringSmallBold(pwrStr, LCD_WIDTH + pwr_x, 0, y);
-        }
+            
+            const char pwr_base[][2] = {"L","M","H"}; // index 0 (X) → show "L" as base
+            UI_PrintStringSmallBold(pwr_base[vfoInfo->OUTPUT_POWER], LCD_WIDTH + x, 0, y);
 
-        // ── ДУПЛЕКС +/- ──────────────────────────────────────────────
         if (vfoInfo->freq_config_RX.Frequency != vfoInfo->freq_config_TX.Frequency)
         {
             uint8_t x_mr = 4, y_mr = 3;
@@ -1104,7 +1058,6 @@ void UI_DisplayMain(void)
         }
         const bool         isMainVFO  = (vfo_num == gEeprom.TX_VFO);
         uint8_t           *p_line0    = gFrameBuffer[line + 0];
-        uint8_t           *p_line1    = gFrameBuffer[line + 1];
         enum Vfo_txtr_mode mode       = VFO_MODE_NONE;      
 #else
         const unsigned int line0 = 0;  // text screen line
@@ -1453,39 +1406,6 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
 #endif
             }
         }
-
-        // ************
-
-        {   // show the TX/RX level — ровные палочки (как в старом mainOLD.c)
-            int8_t Level = -1;
-
-            if (mode == VFO_MODE_TX)
-            {   // TX power level: ровные палочки показывают уровень мощности при передаче
-                // X=0 баров, L=2, M=4, H=6, U=3
-                switch (gRxVfo->OUTPUT_POWER) {
-                    case OUTPUT_POWER_X:    Level = 0; break;
-                    case OUTPUT_POWER_LOW:  Level = 2; break;
-                    case OUTPUT_POWER_MID:  Level = 4; break;
-                    case OUTPUT_POWER_HIGH: Level = 6; break;
-                    case OUTPUT_POWER_USER: Level = 3; break;
-                    default:               Level = 2; break;
-                }
-            }
-            else
-            if (mode == VFO_MODE_RX)
-            {   // RX signal level
-                #ifndef ENABLE_RSSI_BAR
-                    // bar graph
-                    if (gVFO_RSSI_bar_level[vfo_num] > 0)
-                        Level = gVFO_RSSI_bar_level[vfo_num];
-                #endif
-            }
-            if(Level >= 0)
-                DrawSmallPowerBars(p_line1 + LCD_WIDTH, Level);
-        }
-
-        // ************
-
         String[0] = '\0';
         const VFO_Info_t *vfoInfo = &gEeprom.VfoInfo[vfo_num];
 
@@ -1590,45 +1510,29 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
         {   // show the TX power
             uint8_t currentPower = (vfoInfo->OUTPUT_POWER < OUTPUT_POWER_LEN) ? vfoInfo->OUTPUT_POWER : OUTPUT_POWER_LOW;
 
-            // Build display string: power letter + "X" suffix if TX forbidden
+            // Build display string: power letter
             char pwr_gui[4] = {0};
             char pwr_text[6] = {0};
-            if (currentPower == OUTPUT_POWER_X) {
-                uint8_t saved = (gSavedPowerBeforeX >= OUTPUT_POWER_LOW && gSavedPowerBeforeX <= OUTPUT_POWER_USER)
-                                ? gSavedPowerBeforeX : OUTPUT_POWER_LOW;
-                const char *short_base[] = {"L","L","M","H","U"};
-                const char *long_base[]  = {"LOW","LOW","MID","HIGH","USER"};
-                uint8_t idx = saved; // LOW=1,MID=2,HIGH=3,USER=4
-                sprintf(pwr_gui,  "%sX", short_base[idx]);
-                sprintf(pwr_text, "%sX", long_base[idx]);
-            } else {
-                const char *short_base[] = {"L","L","M","H","U"};
-                const char *long_base[]  = {"LOW","LOW","MID","HIGH","USER"};
-                sprintf(pwr_gui,  "%s", short_base[currentPower]);
-                sprintf(pwr_text, "%s", long_base[currentPower]);
-            }
+            
+            const char *short_base[] = {"L","M","H"};
+            const char *long_base[]  = {"LOW","MID","HIGH"};
+            sprintf(pwr_gui,  "%s", short_base[currentPower]);
+            sprintf(pwr_text, "%s", long_base[currentPower]);
+            
 
             if (gSetting_set_gui)
             {
                 // При TX-запрете (X) сдвигаем влево: меняй цифру 5 для подгонки
                 uint8_t pwr_x_bold = LCD_WIDTH + 80;
-                if (currentPower == OUTPUT_POWER_X)
-                    pwr_x_bold -= 5;
                 UI_PrintStringSmallBold(pwr_gui, pwr_x_bold, 0, line + 1);
             }
             else
             {
                 // При TX-запрете (X) сдвигаем влево: меняй цифру 3 для подгонки
                 uint8_t pwr_x_small = 97;
-                if (currentPower == OUTPUT_POWER_X)
-                    pwr_x_small -= 3;
                 GUI_DisplaySmallest(pwr_text, pwr_x_small, line == 0 ? 17 : 49, false, true); // [МОЩНОСТЬ] x=97
             }
 
-           // if(userPower == true)
-           // {
-           //     memcpy(p_line0 + 256 + arrowPos, BITMAP_PowerUser, sizeof(BITMAP_PowerUser));
-           // }
         }
 
         if (vfoInfo->freq_config_RX.Frequency != vfoInfo->freq_config_TX.Frequency)

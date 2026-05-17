@@ -414,27 +414,8 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
         PY25Q16_ReadBuffer(0x00A158, Data, 8);
         gSetting_set_pwr = (((Data[7] & 0xF0) >> 4) < 7) ? ((Data[7] & 0xF0) >> 4) : 0;
         gSetting_set_ptt = (((Data[7] & 0x0F)) < 2) ? ((Data[7] & 0x0F)) : 0;
-        // gSetting_set_pwr_mw stored in Data[0..1] of this block (uint16_t LE)
-        {
-            uint16_t mw = (uint16_t)Data[0] | ((uint16_t)Data[1] << 8);
-            gSetting_set_pwr_mw = (mw >= 20 && mw <= 5500) ? mw : 500;
-        }
-
         gSetting_set_tot = (((Data[6] & 0xF0) >> 4) < 4) ? ((Data[6] & 0xF0) >> 4) : 0;
         gSetting_set_eot = (((Data[6] & 0x0F)) < 4) ? ((Data[6] & 0x0F)) : 0;
-
-        /*
-        int tmp = ((Data[5] & 0xF0) >> 4);
-
-        gSetting_set_inv = (((tmp >> 0) & 0x01) < 2) ? ((tmp >> 0) & 0x01): 0;
-        gSetting_set_lck = (((tmp >> 1) & 0x01) < 2) ? ((tmp >> 1) & 0x01): 0;
-        gSetting_set_met = (((tmp >> 2) & 0x01) < 2) ? ((tmp >> 2) & 0x01): 0;
-        gSetting_set_gui = (((tmp >> 3) & 0x01) < 2) ? ((tmp >> 3) & 0x01): 0;
-        gSetting_set_ctr = (((Data[5] & 0x0F)) > 00 && ((Data[5] & 0x0F)) < 16) ? ((Data[5] & 0x0F)) : 10;
-
-        gSetting_set_tmr = ((Data[4] & 1) < 2) ? (Data[4] & 1): 0;
-        */
-
         int tmp = (Data[5] & 0xF0) >> 4;
 
 #ifdef ENABLE_FEAT_F4HWN_INV
@@ -875,10 +856,6 @@ void SETTINGS_SaveSettings(void)
     State[5] = ((tmp << 4) | (gSetting_set_ctr & 0x0F));
     State[6] = ((gSetting_set_tot << 4) | (gSetting_set_eot & 0x0F));
     State[7] = ((gSetting_set_pwr << 4) | (gSetting_set_ptt & 0x0F));
-    // Store gSetting_set_pwr_mw in bytes 0..1
-    State[0] = (uint8_t)(gSetting_set_pwr_mw & 0xFF);
-    State[1] = (uint8_t)((gSetting_set_pwr_mw >> 8) & 0xFF);
-
     gEeprom.KEY_LOCK_PTT = gSetting_set_lck;
 
     PY25Q16_WriteBuffer(0x00A158, SecBuf, 8, false);

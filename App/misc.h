@@ -155,8 +155,6 @@ extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 
 #ifdef ENABLE_FEAT_F4HWN
     extern uint8_t            gSetting_set_pwr;
-    extern uint16_t           gSetting_set_pwr_mw; // U level in mW
-    extern uint8_t            gSavedPowerBeforeX;  // power before X mode
     extern bool               gDeleteChannelPending; // F+2 MR delete confirm
     extern bool               gSetting_set_ptt;
     extern uint8_t            gSetting_set_tot;

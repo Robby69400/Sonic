@@ -90,21 +90,21 @@ static uint32_t RangeStop = 11000000;        // case 4
 //Step                                       // case 5      
 //ListenBW                                   // case 6      
 //Modulation                                 // case 7      
-static bool     Backlight_On_Rx = 0;         // case 8
-static uint16_t SpectrumSleepMs = 0;         // case 9
-static uint8_t  Noislvl_OFF = NoisLvl;        // case 10
+static uint16_t SpectrumSleepMs = 0;         // case 8
+static uint8_t  Noislvl_OFF = NoisLvl;       // case 9
 static uint8_t  Noislvl_ON = NoisLvl - NoiseHysteresis;
-static uint16_t osdPopupSetting = 500;       // case 11
-static uint16_t UOO_trigger = 15;            // case 12
-static uint8_t  AUTO_KEYLOCK = AUTOLOCK_OFF; // case 13
-static uint8_t  GlitchMax = 20;              // case 14 
-static bool     SoundBoost = 0;              // case 15
-static uint8_t  PttEmission = 0;             // case 16
-static bool     gMonitorScan = true;         // case 17
-//ClearSettings                              // case 18
+static uint16_t osdPopupSetting = 500;       // case 10
+static uint16_t UOO_trigger = 15;            // case 11
+static uint8_t  AUTO_KEYLOCK = AUTOLOCK_OFF; // case 12
+static uint8_t  GlitchMax = 20;              // case 13 
+static bool     SoundBoost = 0;              // case 14
+static uint8_t  PttEmission = 0;             // case 15
+static bool     gMonitorScan = true;         // case 16
+//ClearSettings                              // case 17
    
-#define PARAMETER_COUNT 19
+#define PARAMETER_COUNT 18
 ////////////////////////////////////////////////////////////////////
+static bool     Backlight_On = 1;
 uint8_t osdPopupIndex = 3;
 bool Cleared = 0;
 static bool SettingsLoaded = false;
@@ -1988,10 +1988,7 @@ static void HandleKeyParameters(uint8_t key) {
                                   ToggleModulation();
                           }
                           break;
-                    case 8: /* RX Backlight */
-                        Backlight_On_Rx = !Backlight_On_Rx;
-                          break;
-                    case 9: /* Power Save */
+                    case 8: /* Power Save */
                             if (isKey3) {
                             if (++IndexPS > PS_STEP_COUNT) IndexPS = 0;
                             } else {
@@ -2000,46 +1997,46 @@ static void HandleKeyParameters(uint8_t key) {
                             }
                             SpectrumSleepMs = PS_Steps[IndexPS];
                           break;
-                    case 10: /* Noise level OFF */
+                    case 9: /* Noise level OFF */
                           Noislvl_OFF = isKey3 ? 
                                       (Noislvl_OFF >= 80 ? 30  : Noislvl_OFF + 1) :
                                       (Noislvl_OFF <= 30  ? 80 : Noislvl_OFF - 1);
                           Noislvl_ON = NoisLvl - NoiseHysteresis;                      
                           break;
-                    case 11: /* OSD popup duration */
+                    case 10: /* OSD popup duration */
                           static const int osdPopupTimes[] = {0, 200, 300, 500, 1000, 2000, 3000};
                           osdPopupIndex = isKey3 ? 
                                           (osdPopupIndex >= 6 ? 0 : osdPopupIndex + 1):
                                           (osdPopupIndex <= 0 ? 6 : osdPopupIndex - 1);
                           osdPopupSetting = osdPopupTimes[osdPopupIndex];
                           break;
-                    case 12: /* Record trigger */
+                    case 11: /* Record trigger */
                           UOO_trigger = isKey3 ? 
                                       (UOO_trigger >= 50 ? 0  : UOO_trigger + 1) :
                                       (UOO_trigger <= 0  ? 50 : UOO_trigger - 1);
                           break;
-                    case 13: /* Auto keylock */
+                    case 12: /* Auto keylock */
                           AUTO_KEYLOCK = isKey3 ? 
                                        (AUTO_KEYLOCK > 2  ? 0 : AUTO_KEYLOCK + 1) :
                                      (AUTO_KEYLOCK <= 0 ? 3 : AUTO_KEYLOCK - 1);
                           gKeylockCountdown = durations[AUTO_KEYLOCK];
                           break;
-                    case 14: /* Glitch max */
+                    case 13: /* Glitch max */
                         if (isKey3) { if (GlitchMax < 75) GlitchMax += 5; }
                         else        { if (GlitchMax > 5) GlitchMax -= 5; }
                           break;
-                    case 15: /* Sound boost */
+                    case 14: /* Sound boost */
                           SoundBoost = !SoundBoost;
                           break;
-                    case 16: // PttEmission
+                    case 15: // PttEmission
                           PttEmission = isKey3 ?
                                 (PttEmission >= 2 ? 0 : PttEmission + 1) :
                                 (PttEmission <= 0 ? 2 : PttEmission - 1);
                           break;  
-                    case 17: /* gMonitorScan */
+                    case 16: /* gMonitorScan */
                         gMonitorScan = !gMonitorScan; 
                         break;
-                    case 18: /* Reset to defaults */
+                    case 17: /* Reset to defaults */
                           if (isKey3) ClearSettings();
                           break;
                 }
@@ -2139,17 +2136,12 @@ static void HandleKeySpectrum(uint8_t key) {
             else {SaveSettings();}
             break;
         case KEY_2:
-            static bool light = 0;
             if (historyListActive) SaveHistoryToFreeChannel();
-            else if (light)
-                {
-                    BACKLIGHT_SetBrightness(gEeprom.BACKLIGHT_MAX);
-                }
-                else 
-                {
-                    BACKLIGHT_SetBrightness(gEeprom.BACKLIGHT_MIN);
-                }
-            light = !light;
+            else {
+                Backlight_On = !Backlight_On;
+                if (Backlight_On) {BACKLIGHT_TurnOn();}
+                else {BACKLIGHT_TurnOff();}
+            }
             break;
         case KEY_8:
             if (historyListActive) {SaveHistory();
@@ -2428,7 +2420,7 @@ static void OnKeyDownStill(KEY_Code_t key) {
                 SetF(stillFreq);
             }
           break;
-      case KEY_2: // przewijanie w górę po liście rejestrów
+      case KEY_2:
           if (stillEditRegs && stillRegSelected > 0) {
             stillRegSelected--;
           }
@@ -2695,7 +2687,7 @@ static void Render() {
     switch (currentState) {
         case SPECTRUM:
             RenderSpectrum();
-            if (spectrumElapsedCount < 500 || ShowLines > 1) {
+            if (spectrumElapsedCount < 500) {
                 ST7565_BlitLine(4);
                 ST7565_BlitLine(5);
                 ST7565_BlitLine(6);
@@ -2730,7 +2722,7 @@ static void HandleUserInput(void) {
     } else kbd.counter =0;
 
     if (kbd.counter == 2 || (kbd.counter > 50 && (kbd.counter % 20 == 0))) {
-        if(Backlight_On_Rx) BACKLIGHT_TurnOn();
+        if(Backlight_On) BACKLIGHT_TurnOn();
         switch (currentState) {
             case SPECTRUM:
             case BAND_LIST_SELECT:
@@ -2824,7 +2816,7 @@ static void UpdateListening(void) {
             if (!SpectrumMonitor) FillfreqHistory();
             if (gEeprom.BACKLIGHT_MAX > 5)
                 BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
-            if(Backlight_On_Rx) BACKLIGHT_TurnOn();
+            if(Backlight_On) BACKLIGHT_TurnOn();
         }
     } else {
         stableFreq = peak.f;
@@ -3077,7 +3069,7 @@ typedef struct {
     uint16_t osdPopupSetting;
     uint8_t GlitchMax;  
     uint8_t Spectrum_state;  
-    bool Backlight_On_Rx;
+    bool Backlight_On;
     bool SoundBoost;  
     bool gMonitorScan;
 } SettingsEEPROM;
@@ -3124,7 +3116,7 @@ void LoadSettings()
   Noislvl_ON  = Noislvl_OFF - NoiseHysteresis; 
   UOO_trigger = eepromData.UOO_trigger;
   osdPopupSetting = eepromData.osdPopupSetting;
-  Backlight_On_Rx = eepromData.Backlight_On_Rx;
+  Backlight_On = eepromData.Backlight_On;
   GlitchMax = eepromData.GlitchMax;    
   Spectrum_state = eepromData.Spectrum_state;    
   SoundBoost = eepromData.SoundBoost;
@@ -3161,7 +3153,7 @@ static void SaveSettings()
   eepromData.SpectrumDelay = SpectrumDelay;
   eepromData.IndexMaxLT = IndexMaxLT;
   eepromData.IndexPS = IndexPS;
-  eepromData.Backlight_On_Rx = Backlight_On_Rx;
+  eepromData.Backlight_On = Backlight_On;
   eepromData.Noislvl_OFF = Noislvl_OFF;
   eepromData.UOO_trigger = UOO_trigger;
   eepromData.osdPopupSetting = osdPopupSetting;
@@ -3235,7 +3227,7 @@ void ClearSettings()
   MaxListenTime = 0;
   IndexMaxLT = 0;
   IndexPS = 0;
-  Backlight_On_Rx = 1;
+  Backlight_On = 1;
   Noislvl_OFF = NoisLvl; 
   Noislvl_ON = NoisLvl - NoiseHysteresis;  
   UOO_trigger = 15;
@@ -3509,18 +3501,14 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             snprintf(row->right, sizeof(row->right), "%s", gModulationStr[settings.modulationType]);
             break;
         case 8:
-            snprintf(row->left, sizeof(row->left), "RX Backlight:");
-            strncpy(row->right, Backlight_On_Rx ? "ON" : "OFF", sizeof(row->right) - 1);
-            break;
-        case 9:
             snprintf(row->left,  sizeof(row->left),  "Power Save:");
             snprintf(row->right, sizeof(row->right), "%s", labelsPS[IndexPS]);
             break;
-        case 10:
+        case 9:
             snprintf(row->left,  sizeof(row->left),  "Nois LVL OFF:");
             snprintf(row->right, sizeof(row->right), "%d", Noislvl_OFF);
             break;
-        case 11:
+        case 10:
             snprintf(row->left, sizeof(row->left), "Popups:");
             if (osdPopupSetting) {
                 uint8_t sec = osdPopupSetting / 1000;
@@ -3531,11 +3519,11 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
                 strncpy(row->right, "OFF", sizeof(row->right) - 1);
             }
             break;
-        case 12:
+        case 11:
             snprintf(row->left,  sizeof(row->left),  "Record Trig:");
             snprintf(row->right, sizeof(row->right), "%d", UOO_trigger);
             break;
-        case 13:
+        case 12:
             if (AUTO_KEYLOCK) {
                 snprintf(row->left,  sizeof(row->left),  "Keylock:");
                 snprintf(row->right, sizeof(row->right), "%ds", durations[AUTO_KEYLOCK] / 2);
@@ -3543,26 +3531,26 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
                 snprintf(row->left, sizeof(row->left), "Key Unlocked");
             }
             break;
-        case 14:
+        case 13:
             snprintf(row->left,  sizeof(row->left),  "GlitchMax:");
             snprintf(row->right, sizeof(row->right), "%d", GlitchMax);
             break;
-        case 15:
+        case 14:
             snprintf(row->left, sizeof(row->left), "SoundBoost:");
             strncpy(row->right, SoundBoost ? "ON" : "OFF", sizeof(row->right) - 1);
             break;
-        case 16:
+        case 15:
             snprintf(row->left, sizeof(row->left), "PTT:");
             if      (PttEmission == 0) strncpy(row->right, "VFO FREQ", sizeof(row->right) - 1);
             else if (PttEmission == 1) strncpy(row->right, "NINJA",    sizeof(row->right) - 1);
             else                       strncpy(row->right, "LAST RX",  sizeof(row->right) - 1);
             break;
-        case 17:
+        case 16:
             snprintf(row->left, sizeof(row->left), "Monitor SL");
             if (gMonitorScan) snprintf(row->right, sizeof(row->right), "ON");
             else snprintf(row->right, sizeof(row->right), "OFF");
             break;
-        case 18:
+        case 17:
             snprintf(row->left, sizeof(row->left), "Reset Default");
             strncpy(row->right, ">", sizeof(row->right) - 1);
             break;

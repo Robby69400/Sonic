@@ -420,13 +420,13 @@ FLAGS1_OFFSET_NONE = 0b00
 FLAGS1_OFFSET_MINUS = 0b10
 FLAGS1_OFFSET_PLUS = 0b01
 
-POWER_HIGH = 0b011
-POWER_MEDIUM = 0b010
-POWER_LOW = 0b001
-POWER_USER = 0b000
+
+POWER_HIGH =    0b010
+POWER_MEDIUM =  0b001
+POWER_LOW =     0b000
 
 # SET_LOW_POWER SONIC
-SET_LOW_LIST = [ "User", "1W", "2W", "5W"]
+SET_LOW_LIST = [ "Low", "Mid", "High"]
 
 # SET_TOT and SET_EOT SONIC
 SET_TOT_EOT_LIST = ["OFF", "SOUND", "VISUAL", "ALL"]
@@ -444,10 +444,9 @@ SET_MET_LIST = ["TINY", "CLASSIC"]
 PTTID_LIST = ["OFF", "UP CODE", "DOWN CODE", "UP+DOWN CODE", "APOLLO QUINDAR"]
 
 # power          
-UVK5_POWER_LEVELS = [chirp_common.PowerLevel("USER = < 20mW to 5W", watts=0.000),
-                     chirp_common.PowerLevel("LOW = < 20mW", watts=0.020),
-                     chirp_common.PowerLevel("MID = 2W",  watts=2.00),
-                     chirp_common.PowerLevel("HIGH = 5W", watts=5.00),
+UVK5_POWER_LEVELS = [chirp_common.PowerLevel("LOW"),
+                     chirp_common.PowerLevel("MID"),
+                     chirp_common.PowerLevel("HIGH"),
                      ]
 
 # compander
@@ -1358,16 +1357,12 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         # power
         txpower = int(_mem.txpower)
         if txpower == POWER_HIGH:
-            mem.power = UVK5_POWER_LEVELS[3]
-        elif txpower == POWER_MEDIUM:
             mem.power = UVK5_POWER_LEVELS[2]
-        elif txpower == POWER_LOW:
+        elif txpower == POWER_MEDIUM:
             mem.power = UVK5_POWER_LEVELS[1]
-        elif txpower == POWER_USER:
+        elif txpower == POWER_LOW:
             mem.power = UVK5_POWER_LEVELS[0]
         else:
-            # Invalid power value, use default
-            LOG.warning(f"Memory {mem.number}: Invalid txpower={txpower}, using USER as default")
             mem.power = UVK5_POWER_LEVELS[0]
 
         # We'll consider any blank (i.e. 0MHz frequency) to be empty
@@ -3225,15 +3220,12 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         _mem_chan.step = STEPS.index(memory.tuning_step)
 
         # tx power
-        if str(memory.power) == str(UVK5_POWER_LEVELS[3]):
+        if str(memory.power) == str(UVK5_POWER_LEVELS[2]):
             _mem_chan.txpower = POWER_HIGH
-        elif str(memory.power) == str(UVK5_POWER_LEVELS[2]):
-            _mem_chan.txpower = POWER_MEDIUM
         elif str(memory.power) == str(UVK5_POWER_LEVELS[1]):
+            _mem_chan.txpower = POWER_MEDIUM
+        elif str(memory.power) == str(UVK5_POWER_LEVELS[0]):
             _mem_chan.txpower = POWER_LOW
-        else:
-            _mem_chan.txpower = POWER_USER
-
         # -------- EXTRA SETTINGS
 
         def get_setting(name, def_val):

@@ -48,7 +48,6 @@ const t_menu_item MenuList[] =
     {"Step",        MENU_STEP          },
     {"Sql",         MENU_SQL           },
     {"Mode",        MENU_AM            },
-    {"UPower",      MENU_TXP           },
     {"RxMode",      MENU_TDR           },
     {"RxDCS",       MENU_R_DCS         },
     {"RxCTCS",      MENU_R_CTCS        },
@@ -110,9 +109,6 @@ const t_menu_item MenuList[] =
 };
 
 const uint8_t FIRST_HIDDEN_MENU_ITEM = MENU_F_LOCK;
-
-// gSubMenu_TXP removed: UPower is now a numeric mW input for U level
-const char gSubMenu_TXP[][6] = {"U"}; // dummy, not used for display
 
 const char gSubMenu_SFT_D[][4] =
 {
@@ -255,10 +251,6 @@ const char gSubMenu_SCRAMBLER[][7] =
 
 
 #ifdef ENABLE_FEAT_F4HWN
-    const char gSubMenu_SET_PWR[][6] =
-    {
-        "X"
-    };
 
     // const char gSubMenu_SET_PTT[][8] =
     // {
@@ -462,27 +454,6 @@ void UI_DisplayMenu(void)
             sprintf(String, "%d.%02ukHz", step / 100, step % 100);
             break;
         }
-
-        case MENU_TXP: // UPower: 4-digit mW input for U level
-            if (gIsInSubMenu && gInputBoxIndex > 0) {
-                // Show only entered digits, pad rest with _
-                const char *ascii = INPUTBOX_GetAscii();
-                char tmp[5] = {"____"};
-                for (uint8_t i = 0; i < gInputBoxIndex && i < 4; i++)
-                    tmp[i] = ascii[i];
-                sprintf(String, "U\n%s mW", tmp);
-            } else {
-                // Integer arithmetic only — no float on CM0+
-                uint16_t mw = (uint16_t)gSubMenuSelection;
-                if (mw >= 1000) {
-                    uint16_t w  = mw / 1000;
-                    uint16_t mf = (mw % 1000) / 10;
-                    sprintf(String, "U\n%u.%02uW", w, mf);
-                } else {
-                    sprintf(String, "U\n%umW", mw);
-                }
-            }
-            break;
 
         case MENU_R_DCS:
         case MENU_T_DCS:
@@ -819,10 +790,6 @@ case MENU_F_LOCK: // разрешить всё
 
 
 #ifdef ENABLE_FEAT_F4HWN
-     //   case MENU_SET_PWR:
-     //       sprintf(String, "%s\n%sW", gSubMenu_TXP[gSubMenuSelection + 1], gSubMenu_SET_PWR[gSubMenuSelection]);
-     //       break;
-
 
         case MENU_SET_CTR:
                 strcpy(String, gSubMenu_NA);

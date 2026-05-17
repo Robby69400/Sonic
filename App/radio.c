@@ -535,70 +535,18 @@ void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
     Band = FREQUENCY_GetBand(pInfo->pTX->Frequency);
 
     uint8_t Txp[3];
-    uint8_t Op = 0; // calibration set: 0=Low, 1=Mid, 2=High
-
-    // X = TX forbidden on this channel
-    if (pInfo->OUTPUT_POWER == OUTPUT_POWER_X) {
-        pInfo->TXP_CalculatedSetting = 0;
-        return;
+    
+    PY25Q16_ReadBuffer(0x100D0 + (Band * 16) + (pInfo->OUTPUT_POWER * 3), Txp, 3);
+    const uint8_t p1 = 200;
+	const uint8_t p2 = 4;
+	const uint8_t p3 = 24;	
+    
+    for (uint8_t p = 0; p < 3; p++){
+        if (pInfo->OUTPUT_POWER == OUTPUT_POWER_LOW)    Txp[p] /= p1;
+		if (pInfo->OUTPUT_POWER == OUTPUT_POWER_MID)    Txp[p] /= p2;
+		if (pInfo->OUTPUT_POWER == OUTPUT_POWER_HIGH)   Txp[p] += p3;
     }
 
-    // ── Поправки мощности — МЕНЯЙ ЗДЕСЬ, раздельно для каждого диапазона ──
-    //   + громче,  - тише.   Результаты замеров твоей рации:
-    //   430МГц: L=1.16W  M=3.35W  H=5.74W  U=5.85W  (при pL/M/H/U_add ниже)
-    //   145МГц: L=1.65W  M=3.25W  H=5.41W  U=5.40W
-    //   290МГц: L=0.52W  M=2.32W  H=3.20W  U=3.20W
-    //   U — независим от H, своя прибавка pU_add + шкала 0..5500mW в меню
-
-    int8_t pL_add, pM_add, pH_add, pU_add;
-
-    if (Band == BAND6_400MHz || Band == BAND7_470MHz) {
-        // ── 430 МГц ──────────────────── L      M      H      U
-        pL_add =  1;   //               1.16W  (+3≈1.5W   -1≈0.8W)
-        pM_add =  1;   //               3.35W  (+3≈3.8W   -3≈2.8W)
-        pH_add = 10;   //               5.74W  (+12≈6.2W  +8≈5.3W)
-        pU_add =  5;   //  U база       независимо (+5≈как H, 0≈ниже H)
-    } else if (Band == BAND3_137MHz || Band == BAND4_174MHz) {
-        // ── 145 МГц ──────────────────── L      M      H      U
-        pL_add =  1;   //               1.65W  (+3≈2.0W   0≈1.5W)
-        pM_add =  1;   //               3.25W  (+3≈3.8W   -1≈3.0W)
-        pH_add = 13;   //  ← +3 чтобы сравнять с 430: ~5.74W
-        pU_add =  5;   //  U база       независимо
-    } else {
-        // ── прочие (290МГц и др.) ─────── L      M      H      U
-        pL_add =  1;   //               0.52W
-        pM_add =  1;   //               2.32W
-        pH_add = 10;   //               3.20W
-        pU_add =  5;   //  U база
-    }
-    // ─────────────────────────────────────────────────────────────────────
-
-    if (pInfo->OUTPUT_POWER == OUTPUT_POWER_LOW) {
-        Op = 0;                                              // L — читает Low  cal-байты из EEPROM
-    } else if (pInfo->OUTPUT_POWER == OUTPUT_POWER_MID) {
-        Op = 1;                                              // M — читает Mid  cal-байты из EEPROM
-    } else {
-        Op = 2;                                              // H и U — читают High cal-байты из EEPROM U -1,4 / 0.8 (2.5W) 433 u 0.5=0 5,5=5,2
-    }
-
-    PY25Q16_ReadBuffer(0x100D0 + (Band * 16) + (Op * 3), Txp, 3);
-
-    if (pInfo->OUTPUT_POWER == OUTPUT_POWER_LOW) {
-        for (uint8_t p = 0; p < 3; p++)
-            Txp[p] = (uint8_t)MAX(0, MIN(255, (int16_t)Txp[p] + pL_add)); // L: cal + pL_add
-    } else if (pInfo->OUTPUT_POWER == OUTPUT_POWER_MID) {
-        for (uint8_t p = 0; p < 3; p++)
-            Txp[p] = (uint8_t)MAX(0, MIN(255, (int16_t)Txp[p] + pM_add)); // M: cal + pM_add
-    } else if (pInfo->OUTPUT_POWER == OUTPUT_POWER_HIGH) {
-        for (uint8_t p = 0; p < 3; p++)
-            Txp[p] = (uint8_t)MAX(0, MIN(255, (int16_t)Txp[p] + pH_add)); // H: cal + pH_add
-    } else if (pInfo->OUTPUT_POWER == OUTPUT_POWER_USER) {
-        for (uint8_t p = 0; p < 3; p++) {
-            uint32_t full   = (uint32_t)MAX(0, MIN(255, (int16_t)Txp[p] + pU_add)); // U: своя база pU_add (не pH_add)
-            uint32_t scaled = (full * (uint32_t)gSetting_set_pwr_mw) / 5500u;       // U: МЕНЯЙ 5500u — 100% шкалы (= cal+pU_add при 5500mW)
-            Txp[p] = (scaled > 255u) ? 255u : (uint8_t)scaled;
-        }
-    }
 
     pInfo->TXP_CalculatedSetting = FREQUENCY_CalculateOutputPower(
         Txp[0],
@@ -1044,16 +992,7 @@ void RADIO_PrepareTX(void)
 
     RADIO_SelectCurrentVfo();
 
-        // X power mode = TX forbidden on this channel (check gTxVfo — always the TX side)
-        if (gTxVfo->OUTPUT_POWER == OUTPUT_POWER_X) {
-            State = VFO_STATE_TX_DISABLE;
-            gVfoConfigureMode = VFO_CONFIGURE;
-        } else
-#ifdef ENABLE_FEAT_F4HWN
-        if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0
-#else
-        if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0
-#endif
+    if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0
     ){
         // TX frequency not allowed
         State = VFO_STATE_TX_DISABLE;

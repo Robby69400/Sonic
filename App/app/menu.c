@@ -150,11 +150,6 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             *pMax = ARRAY_SIZE(gSubMenu_MDF) - 1;
             break;
 
-        case MENU_TXP: // UPower: mW for U level
-            *pMin = 20;
-            *pMax = 5500;
-            break;
-
         case MENU_SFT_D:
             //*pMin = 0;
             *pMax = ARRAY_SIZE(gSubMenu_SFT_D) - 1;
@@ -314,11 +309,7 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
 
 
 #ifdef ENABLE_FEAT_F4HWN
-      //  case MENU_SET_PWR:
-      //      *pMax = ARRAY_SIZE(gSubMenu_SET_PWR) - 1;
-      //      break;
 
-     //   case MENU_TX_LOCK:
 #ifdef ENABLE_FEAT_F4HWN_INV
         case MENU_SET_INV:
             //*pMin = 0;
@@ -382,14 +373,6 @@ void MENU_AcceptSetting(void)
             {
                 gRequestSaveChannel = 1;
             }
-            return;
-
-        case MENU_TXP: // UPower: save mW value for U level
-            gSetting_set_pwr_mw = (uint16_t)gSubMenuSelection;
-            SETTINGS_SaveSettings();
-            // Apply immediately if current channel is using U power
-            if (gTxVfo->OUTPUT_POWER == OUTPUT_POWER_USER)
-                RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
             return;
 
         case MENU_T_DCS:
@@ -740,10 +723,6 @@ void MENU_ShowCurrentSetting(void)
 
         case MENU_STEP:
             gSubMenuSelection = FREQUENCY_GetSortedIdxFromStepIdx(gTxVfo->STEP_SETTING);
-            break;
-
-        case MENU_TXP: // UPower
-            gSubMenuSelection = gSetting_set_pwr_mw;
             break;
 
         case MENU_RESET:
@@ -1149,23 +1128,6 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         }
 
         gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-        return;
-    }
-
-    // UPower (MENU_TXP): 4-digit mW input (20..5500)
-    if (UI_MENU_GetCurrentMenuId() == MENU_TXP)
-    {
-        if (gInputBoxIndex < 4) {
-            gRequestDisplayScreen = DISPLAY_MENU;
-            return;
-        }
-        gInputBoxIndex = 0;
-        Value = (gInputBox[0]*1000) + (gInputBox[1]*100) + (gInputBox[2]*10) + gInputBox[3];
-        if (Value >= 20 && Value <= 5500) {
-            gSubMenuSelection = Value;
-        } else {
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-        }
         return;
     }
 

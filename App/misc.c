@@ -91,9 +91,7 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 
 #ifdef ENABLE_FEAT_F4HWN
     uint8_t       gSetting_set_pwr = 1;
-uint16_t      gSetting_set_pwr_mw = 500;  // U power level in mW, default 500
-uint8_t       gSavedPowerBeforeX  = OUTPUT_POWER_LOW; // power saved before X mode
-bool          gDeleteChannelPending = false; // F+2 in MR mode: waiting M to confirm
+    bool          gDeleteChannelPending = false; // F+2 in MR mode: waiting M to confirm
     bool          gSetting_set_ptt = 0;
     uint8_t       gSetting_set_tot = 0;
     uint8_t       gSetting_set_ctr = 10;

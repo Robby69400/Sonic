@@ -67,11 +67,9 @@ enum {
 };
 
 enum {
-    OUTPUT_POWER_X = 0,  // TX запрещён на канале
-    OUTPUT_POWER_LOW,     // L  = фиксированный низкий
-    OUTPUT_POWER_MID,     // M  = средний
-    OUTPUT_POWER_HIGH,    // H  = высокий
-    OUTPUT_POWER_USER,    // U  = настраиваемый из меню
+    OUTPUT_POWER_LOW = 0, 
+    OUTPUT_POWER_MID,   
+    OUTPUT_POWER_HIGH,  
     OUTPUT_POWER_LEN
 };
 

@@ -465,11 +465,11 @@ void APP_StartListening(FUNCTION_Type_t function)
     // Мигание фонарика при входящем сигнале
     if (gEeprom.FlashlightOnRX &&
         (function == FUNCTION_RECEIVE || function == FUNCTION_INCOMING)) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 2; i++) {
             GPIO_SetOutputPin(GPIO_PIN_FLASHLIGHT);
             SYSTEM_DelayMs(50);
             GPIO_ResetOutputPin(GPIO_PIN_FLASHLIGHT);
-            SYSTEM_DelayMs(50);
+            SYSTEM_DelayMs(20);
         }
     }
 #endif
