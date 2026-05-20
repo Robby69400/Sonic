@@ -71,6 +71,9 @@ static uint16_t historyListIndex = 0;
 static int historyScrollOffset = 0;
 static bool gHistoryScan = false;
 static uint32_t CodeFreq = 0;
+static uint16_t cachedChannels[6];      // Stocke les numéros de canaux trouvés
+static uint16_t cachedAbsoluteIdx[6];   // Mémorise à quel index d'historique ils appartiennent
+static uint8_t  cacheWriteHead = 0;     // Tête d'écriture circulaire
 // ============================================================
 
 static uint16_t indexFs = 0;
@@ -3401,12 +3404,39 @@ static void RenderUnifiedList(
     ST7565_BlitFullScreen();
 }
 
-/* ---- GetRow callbacks for each list type ---- */
+// === Effectue un unique balayage pour les 6 lignes visibles au départ ===
+void PreloadHistoryChannels(uint16_t startScrollIndex, uint16_t totalCount) {
+    // 1. Initialisation propre du cache
+    for (uint8_t i = 0; i < 6; i++) {
+        cachedChannels[i] = 0xFFFF;
+        cachedAbsoluteIdx[i] = 0xFFFF; 
+    }
+    cacheWriteHead = 0;
 
-/* History list: frequency[+channel name] on left, TX count on right */
+    if (!inv || totalCount == 0) return;
+
+    // 2. Un seul parcours de tous les canaux de la radio pour le bloc visible
+    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
+        ChannelInfo_t freqcmp = FetchChannelFrequency(ch);
+        if (freqcmp.frequency == 0 || freqcmp.frequency == 0xFFFFFFFF) continue;
+
+        for (uint8_t i = 0; i < 6; i++) {
+            uint16_t historyIdx = startScrollIndex + i;
+            if (historyIdx >= totalCount) break;
+
+            if (HFreqs[historyIdx] == freqcmp.frequency && cachedAbsoluteIdx[i] == 0xFFFF) {
+                cachedChannels[i] = ch;
+                cachedAbsoluteIdx[i] = historyIdx;
+            }
+        }
+    }
+}
+
+// === Récupère la ligne et gère le cache tournant si la ligne est hors-cache ===
 static void GetHistoryRow(uint16_t index, ListRow *row) {
     row->left[0]  = '\0';
     row->right[0] = '\0';
+    
     uint32_t f = HFreqs[index];
     if (!f) return;
 
@@ -3415,17 +3445,44 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
     snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
     RemoveTrailZeros(freqStr);
     char Name[12] = "";
-    if (inv) {
-        uint16_t ch = BOARD_gMR_fetchChannel(f);
+    
+    
+        uint16_t ch = 0xFFFF;
+        bool foundInCache = false;
+
+        // 1. Chercher d'abord si l'index est déjà présent dans le mini-cache
+        for (uint8_t i = 0; i < 6; i++) {
+            if (cachedAbsoluteIdx[i] == index) {
+                ch = cachedChannels[i];
+                foundInCache = true;
+                break;
+            }
+        }
+
+        // 2. Si non trouvé (hors-cadre suite au scroll rapide), chercher à la volée 
+        //    et l'insérer dans le cache circulaire
+        if (!foundInCache) {
+            ch = BOARD_gMR_fetchChannel(f); // Recherche unique
+            
+            // Écriture dans le cache circulaire
+            cachedAbsoluteIdx[cacheWriteHead] = index;
+            cachedChannels[cacheWriteHead] = ch;
+            cacheWriteHead = (cacheWriteHead + 1) % 6; // Avance la tête de 0 à 5
+        }
+
+        // 3. Récupérer le nom si le canal est valide
         if (ch != 0xFFFF) {
             SETTINGS_FetchChannelName(Name, ch);
             Name[10] = '\0';
         }
-    }
+    
+    
     const char *prefix = HBlacklisted[index] ? "#" : "";
     if (HTimeS[index] > 59)
         snprintf(timeStr, sizeof(timeStr), " %02d:%02d", HTimeS[index] / 60, HTimeS[index] % 60);
-    else snprintf(timeStr, sizeof(timeStr), " %02d", HTimeS[index]);
+    else 
+        snprintf(timeStr, sizeof(timeStr), " %02d", HTimeS[index]);
+        
     snprintf(row->right, sizeof(row->right), "%s", timeStr);
     snprintf(row->left, sizeof(row->left), "%s%s %s", prefix, freqStr, Name);
 }
@@ -3594,7 +3651,10 @@ static void RenderHistoryList() {
     uint16_t count = CountValidHistoryItems();
     char title[32];
     sprintf(title, "HISTORY: %d", count);
-    
-    RenderUnifiedList(title, true, count, historyListIndex,
+
+    // Préchargement initial des 6 lignes visibles
+    PreloadHistoryChannels(historyScrollOffset, count);
+
+    RenderUnifiedList(title, false, count, historyListIndex,
                       historyScrollOffset, true, GetHistoryRow);
 }
