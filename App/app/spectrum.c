@@ -201,8 +201,8 @@ static bool IsBlacklisted(uint32_t f);
 static void SetState(State state);
 
 typedef struct {
-    char left[17];
-    char right[22];
+    char left[20];
+    char right[20];
 } ListRow;
 
 typedef void (*GetListRowFn)(uint16_t index, ListRow *row);
@@ -3388,7 +3388,7 @@ static void RenderUnifiedList(
         for (uint16_t i = scrollOffset; i <= selectedIndex; i++) {
             ListRow tempRow;
             getRow(i, &tempRow);
-            uint8_t h = ((strlen(tempRow.left) + strlen(tempRow.right)) > 17) ? 2 : 1;
+            uint8_t h = ((strlen(tempRow.left) + strlen(tempRow.right)) > 19) ? 2 : 1;
             
             if (i < selectedIndex) {
                 occupiedLines += h;
@@ -3397,7 +3397,7 @@ static void RenderUnifiedList(
                     while (occupiedLines + h > MAX_LINES && scrollOffset < selectedIndex) {
                         ListRow firstRow;
                         getRow(scrollOffset, &firstRow);
-                        uint8_t hFirst = ((strlen(firstRow.left) + strlen(firstRow.right)) > 17) ? 2 : 1;
+                        uint8_t hFirst = ((strlen(firstRow.left) + strlen(firstRow.right)) > 19) ? 2 : 1;
                         occupiedLines -= hFirst;
                         scrollOffset++;
                     }
@@ -3417,17 +3417,27 @@ static void RenderUnifiedList(
     uint8_t currentLine = 1;
     for (uint16_t itemIndex = scrollOffset; itemIndex < numItems; itemIndex++) {
         ListRow row;
-        bool sel = (itemIndex == selectedIndex);
-        inv = sel && invertSelected;
         getRow(itemIndex, &row);
-        if (((strlen(row.left) + strlen(row.right)) > 19)) {
-            int maxLeftLen = 19 - strlen(row.right);
-            if (maxLeftLen < 0) maxLeftLen = 0; // Safety check
-            row.left[maxLeftLen] = '\0';
-        }
 
-        ListDrawRow(currentLine, row.left, row.right, inv);
-        currentLine++;
+        bool needsTwoLines = ((strlen(row.left) + strlen(row.right)) > 19);
+        uint8_t itemHeight = needsTwoLines ? 2 : 1;
+
+        if (currentLine + itemHeight > 7) break; // Sécurité limite physique LCD
+
+        bool sel = (itemIndex == selectedIndex);
+        bool inv = sel && invertSelected;
+
+        if (!needsTwoLines) {
+            ListDrawRow(currentLine, row.left, row.right, inv);
+        } else {
+            if (inv) {
+                ListDrawSelectedBg(currentLine);
+                ListDrawSelectedBg(currentLine + 1);
+            }
+            UI_PrintStringSmallbackground(row.left,  0, 0, currentLine, inv);
+            UI_PrintStringSmallbackground(row.right, 0, 0, currentLine + 1, inv);
+        }
+        currentLine += itemHeight;
     }
     ST7565_BlitFullScreen();
 }
