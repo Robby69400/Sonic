@@ -85,7 +85,7 @@ static uint32_t SpectrumRangeStop = 110000000;
 /////////////////////////////Parameters://///////////////////////////
 //SEE parametersSelectedIndex
 // see GetParametersText
-static uint8_t  DelayRssi = 2;               // case 0       
+static uint16_t DelayRssi = 2000;            // case 0       
 static uint16_t SpectrumDelay = 0;           // case 1      
 static uint16_t MaxListenTime = 0;           // case 2
 static uint32_t RangeStart = 1400000;        // case 3      
@@ -107,6 +107,10 @@ static bool     gMonitorScan = true;         // case 16
    
 #define PARAMETER_COUNT 18
 ////////////////////////////////////////////////////////////////////
+static uint8_t IndexDelayRssi = 3;
+static const char *DelayRssiText[] =       {".7",".8","1","2","4","6"};
+static const uint16_t DelayRssiValues[] =   {700,800,1000,2000,4000,6000}; //in ms
+
 static bool     Backlight_On = 1;
 uint8_t osdPopupIndex = 3;
 bool Cleared = 0;
@@ -270,7 +274,7 @@ static void UpdateDBMaxAuto() { //Zoom
         else if (rssiHistory[i] < scanInfo.rssiMin) {scanInfo.rssiMin = rssiHistory[i];}
     }
 
-  static uint8_t z = 10;
+  static uint8_t z = 5;
   int newDbMax;
     if (scanInfo.rssiMax > 0) {
         newDbMax = Rssi2DBm(scanInfo.rssiMax);
@@ -962,7 +966,7 @@ static void ExitAndCopyToVfo() {
 static uint16_t GetRssi(void) {
     uint16_t rssi;
     if (isListening) SYSTICK_DelayUs(12000);
-    else             SYSTICK_DelayUs(DelayRssi * 1000);
+    else             SYSTICK_DelayUs(DelayRssi);
     rssi = BK4819_GetRSSI();
     return rssi;
 }
@@ -1517,7 +1521,7 @@ switch(SpectrumMonitor) {
   } 
   
   
-  len = sprintf(&String[pos],"%dms %s BW%s ", DelayRssi, gModulationStr[settings.modulationType],bwNames[settings.listenBw]);
+  len = sprintf(&String[pos],"%sms %s BW%s ", DelayRssiText[IndexDelayRssi], gModulationStr[settings.modulationType],bwNames[settings.listenBw]);
   pos += len;
   int16_t afcVal = BK4819_GetAFCValue();
   if (afcVal) {
@@ -1981,10 +1985,12 @@ static void HandleKeyParameters(uint8_t key) {
                 bool isKey3 = (key == KEY_3);
                 switch (parametersSelectedIndex) {
                     case 0: /* RSSI Delay */
-                        DelayRssi = isKey3 ?
-                                     (DelayRssi >= 6 ? 1 : DelayRssi + 1) :
-                                     (DelayRssi <= 1 ? 6 : DelayRssi - 1);
-                          break;
+                        IndexDelayRssi = isKey3 ?
+                                     (IndexDelayRssi >= 5 ? 0 : IndexDelayRssi + 1) :
+                                     (IndexDelayRssi == 0 ? 5 : IndexDelayRssi - 1);
+                        DelayRssi = DelayRssiValues[IndexDelayRssi];
+
+                        break;
                     case 1: /* Spectrum Delay */
                         if (isKey3) {
                               if (SpectrumDelay < 61000)
@@ -3071,7 +3077,7 @@ bool IsVersionMatching(void) {
 
 typedef struct {
     int ShowLines;
-    uint8_t DelayRssi;
+    uint16_t DelayRssi;
     uint8_t PttEmission; 
     uint8_t listenBw;
 	uint64_t bandListFlags;            // Bits 0-63: bandEnabled[0..63]
@@ -3134,7 +3140,7 @@ void LoadSettings()
     settings.bandEnabled[i] = (eepromData.bandListFlags & ((uint64_t)1 << i)) != 0;
     }
   DelayRssi = eepromData.DelayRssi;
-  if (DelayRssi > 6) DelayRssi =6;
+  if (DelayRssi > 6000) DelayRssi = 6000;
   PttEmission = eepromData.PttEmission;
   validScanListCount = 0;
   ShowLines = eepromData.ShowLines;
@@ -3250,7 +3256,7 @@ void ClearSettings()
   settings.listenBw = 0;
   RangeStart = 43000000;
   RangeStop  = 44000000;
-  DelayRssi = 2;
+  DelayRssi = 2000;
   PttEmission = 2;
   settings.scanStepIndex = STEP_10kHz;
   ShowLines = 1;
@@ -3550,7 +3556,7 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
     switch (index) {
         case 0:
             snprintf(row->left,  sizeof(row->left),  "RSSI Delay:");
-            snprintf(row->right, sizeof(row->right), "%dms", DelayRssi);
+            snprintf(row->right, sizeof(row->right), "%sms", DelayRssiText[IndexDelayRssi]);
             break;
         case 1:
             snprintf(row->left, sizeof(row->left), "Spectrum Delay:");
