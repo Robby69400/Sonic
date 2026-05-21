@@ -373,12 +373,40 @@ ChannelInfo_t FetchChannelFrequency(const uint16_t Channel) {
     return info;
 }
 
+#define BLOCK_SIZE 16
+
+typedef struct {
+    uint32_t freq;       // 0x00
+    uint32_t offset;     // 0x04
+    uint8_t  rxcode;     // 0x08
+    uint8_t  txcode;     // 0x09
+    uint8_t  codeflags;  // 0x0A (regroupement des bitfields pour simplifier la lecture)
+    uint8_t  mod_dir;    // 0x0B
+    uint8_t  settings;   // 0x0C
+    uint8_t  dtmf;       // 0x0D
+    uint8_t  step;       // 0x0E
+    uint8_t  unused;     // 0x0F
+} __attribute__((packed)) FlashChannel_t;
+
 uint16_t BOARD_gMR_fetchChannel(const uint32_t freq) {
-		for (uint16_t i = MR_CHANNEL_FIRST; i <= MR_CHANNEL_LAST; i++) {
-            ChannelInfo_t freqcmp = FetchChannelFrequency(i);
-            if (freqcmp.frequency == freq) return i;
-		}
-		return 0xFFFF;
+    FlashChannel_t block[BLOCK_SIZE]; 
+    
+    for (uint16_t start_ch = MR_CHANNEL_FIRST; start_ch <= MR_CHANNEL_LAST; start_ch += BLOCK_SIZE) {
+        uint16_t remaining = MR_CHANNEL_LAST - start_ch + 1;
+        uint16_t chunk_size = (remaining > BLOCK_SIZE) ? BLOCK_SIZE : remaining;
+        
+        uint32_t physical_index = start_ch - MR_CHANNEL_FIRST;
+        uint32_t block_addr = (physical_index * sizeof(FlashChannel_t));
+        
+        PY25Q16_ReadBuffer(block_addr, (uint8_t*)block, chunk_size * sizeof(FlashChannel_t));
+        
+        for (uint16_t k = 0; k < chunk_size; k++) {
+            if (block[k].freq == freq) {
+                return start_ch + k;
+            }
+        }
+    }
+    return 0xFFFF;
 }
 
 uint16_t RADIO_ValidMemoryChannelsCount(bool bCheckScanList, uint8_t CurrentScanList)
