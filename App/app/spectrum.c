@@ -105,9 +105,16 @@ static bool     SoundBoost = 0;              // case 14
 static uint8_t  PttEmission = 0;             // case 15
 static bool     gMonitorScan = true;         // case 16
 //ClearSettings                              // case 17
-   
-#define PARAMETER_COUNT 18
+static bool     Light_Mode = true;           // case 18
+
+static const uint8_t lightModeMenuMapping[14] = {1,2,3,4,5,17,18};
+
+uint16_t GetMaxVisualRows(void) {
+    // 19 menus au total (0 à 18). En Light Mode, on en masque 5, il en reste donc 14.
+    return (Light_Mode) ? 7 : 19; 
+}
 ////////////////////////////////////////////////////////////////////
+
 static uint8_t IndexDelayRssi = 3;
 static const char *DelayRssiText[] =       {".7",".8","1","2","4","6"};
 static const uint16_t DelayRssiValues[] =   {700,800,1000,2000,4000,6000}; //in ms
@@ -1964,126 +1971,123 @@ static void HandleKeyScanList(uint8_t key) {
             break;
     }
 }
-      	  
+
 /* --- PARAMETERS_SELECT: navigate settings, edit values --- */
 static void HandleKeyParameters(uint8_t key) {
-      switch (key) {
-          case KEY_UP:
-                if (parametersSelectedIndex > 0) {
-                    parametersSelectedIndex--;
-                if (parametersSelectedIndex < parametersScrollOffset)
-                        parametersScrollOffset = parametersSelectedIndex;
-                } else {
-                parametersSelectedIndex = PARAMETER_COUNT - 1;
-                }
-                break;
-          case KEY_DOWN:
-                if (parametersSelectedIndex < PARAMETER_COUNT - 1) { 
-                    parametersSelectedIndex++;
-                if (parametersSelectedIndex >= parametersScrollOffset + MAX_VISIBLE_LINES)
-                        parametersScrollOffset = parametersSelectedIndex - MAX_VISIBLE_LINES + 1;
-            } else {
-                parametersSelectedIndex = 0;
+    uint16_t maxRows = GetMaxVisualRows();
+    switch (key) {
+        case KEY_UP:
+            parametersSelectedIndex = (parametersSelectedIndex - 1 + maxRows) % maxRows;
+            break;
+        case KEY_DOWN:
+            parametersSelectedIndex = (parametersSelectedIndex + 1) % maxRows;
+            break;
+        case KEY_1:
+        case KEY_3: {
+            bool isKey3 = (key == KEY_3);
+            uint16_t realIndex = parametersSelectedIndex;
+            if (Light_Mode) {
+                realIndex = lightModeMenuMapping[parametersSelectedIndex];
+            }
+            switch (realIndex) {
+                case 0: /* RSSI Delay */
+                    IndexDelayRssi = isKey3 ?
+                                 (IndexDelayRssi >= 5 ? 0 : IndexDelayRssi + 1) :
+                                 (IndexDelayRssi == 0 ? 5 : IndexDelayRssi - 1);
+                    DelayRssi = DelayRssiValues[IndexDelayRssi];
+                    break;
+                case 1: /* Spectrum Delay */
+                    if (isKey3) {
+                          if (SpectrumDelay < 61000)
+                              SpectrumDelay += (SpectrumDelay < 10000) ? 1000 : 5000;
+                      } else if (SpectrumDelay >= 1000) {
+                          SpectrumDelay -= (SpectrumDelay < 10000) ? 1000 : 5000;
+                      }
+                      break;
+                case 2: /* Max listen time */
+                    if (isKey3) {
+                          if (++IndexMaxLT > LISTEN_STEP_COUNT) IndexMaxLT = 0;
+                      } else {
+                          if (IndexMaxLT == 0) IndexMaxLT = LISTEN_STEP_COUNT;
+                          else IndexMaxLT--;
+                      }
+                      MaxListenTime = listenSteps[IndexMaxLT];
+                      break;
+                case 3: /* Scan range start */
+                case 4: /* Scan range stop  */
+                          appMode = SCAN_RANGE_MODE;
+                          FreqInput();
+                      break;
+                case 5: /* Scan step */
+                    UpdateScanStep(isKey3);
+                      break;
+                case 6: /* Listen BW */
+                case 7: /* Modulation */
+                    if (isKey3 || key == KEY_1) {
+                        if (parametersSelectedIndex == 6)
+                              ToggleListeningBW(isKey3 ? 0 : 1);
+                        else
+                              ToggleModulation();
+                      }
+                      break;
+                case 8: /* Power Save */
+                        if (isKey3) {
+                        if (++IndexPS > PS_STEP_COUNT) IndexPS = 0;
+                        } else {
+                          if (IndexPS == 0) IndexPS = PS_STEP_COUNT;
+                          else IndexPS--;
+                        }
+                        SpectrumSleepMs = PS_Steps[IndexPS];
+                      break;
+                case 9: /* Noise level OFF */
+                      Noislvl_OFF = isKey3 ? 
+                                  (Noislvl_OFF >= 80 ? 30  : Noislvl_OFF + 1) :
+                                  (Noislvl_OFF <= 30  ? 80 : Noislvl_OFF - 1);
+                      Noislvl_ON = NoisLvl - NoiseHysteresis;                      
+                      break;
+                case 10: /* OSD popup duration */
+                      static const int osdPopupTimes[] = {0, 200, 300, 500, 1000, 2000, 3000};
+                      osdPopupIndex = isKey3 ? 
+                                      (osdPopupIndex >= 6 ? 0 : osdPopupIndex + 1):
+                                      (osdPopupIndex <= 0 ? 6 : osdPopupIndex - 1);
+                      osdPopupSetting = osdPopupTimes[osdPopupIndex];
+                      break;
+                case 11: /* Record trigger */
+                      UOO_trigger = isKey3 ? 
+                                  (UOO_trigger >= 50 ? 0  : UOO_trigger + 1) :
+                                  (UOO_trigger <= 0  ? 50 : UOO_trigger - 1);
+                      break;
+                case 12: /* Auto keylock */
+                      AUTO_KEYLOCK = isKey3 ? 
+                                   (AUTO_KEYLOCK > 2  ? 0 : AUTO_KEYLOCK + 1) :
+                                 (AUTO_KEYLOCK <= 0 ? 3 : AUTO_KEYLOCK - 1);
+                      gKeylockCountdown = durations[AUTO_KEYLOCK];
+                      break;
+                case 13: /* Glitch max */
+                    if (isKey3) { if (GlitchMax < 75) GlitchMax += 5; }
+                    else        { if (GlitchMax > 5) GlitchMax -= 5; }
+                      break;
+                case 14: /* Sound boost */
+                      SoundBoost = !SoundBoost;
+                      break;
+                case 15: // PttEmission
+                      PttEmission = isKey3 ?
+                            (PttEmission >= 2 ? 0 : PttEmission + 1) :
+                            (PttEmission <= 0 ? 2 : PttEmission - 1);
+                      break;  
+                case 16: /* gMonitorScan */
+                    gMonitorScan = !gMonitorScan; 
+                    break;
+                case 17: /* Reset to defaults */
+                      if (isKey3) ClearSettings();
+                      break;
+                case 18: /* Light_Mode */
+                    Light_Mode = !Light_Mode;
+                    parametersSelectedIndex = 0;
+                    parametersScrollOffset = 0;
+                    break;
             }
             break;
-          case KEY_1:
-          case KEY_3: {
-                bool isKey3 = (key == KEY_3);
-                switch (parametersSelectedIndex) {
-                    case 0: /* RSSI Delay */
-                        IndexDelayRssi = isKey3 ?
-                                     (IndexDelayRssi >= 5 ? 0 : IndexDelayRssi + 1) :
-                                     (IndexDelayRssi == 0 ? 5 : IndexDelayRssi - 1);
-                        DelayRssi = DelayRssiValues[IndexDelayRssi];
-
-                        break;
-                    case 1: /* Spectrum Delay */
-                        if (isKey3) {
-                              if (SpectrumDelay < 61000)
-                                  SpectrumDelay += (SpectrumDelay < 10000) ? 1000 : 5000;
-                          } else if (SpectrumDelay >= 1000) {
-                              SpectrumDelay -= (SpectrumDelay < 10000) ? 1000 : 5000;
-                          }
-                          break;
-                    case 2: /* Max listen time */
-                        if (isKey3) {
-                              if (++IndexMaxLT > LISTEN_STEP_COUNT) IndexMaxLT = 0;
-                          } else {
-                              if (IndexMaxLT == 0) IndexMaxLT = LISTEN_STEP_COUNT;
-                              else IndexMaxLT--;
-                          }
-                          MaxListenTime = listenSteps[IndexMaxLT];
-                          break;
-                    case 3: /* Scan range start */
-                    case 4: /* Scan range stop  */
-                              appMode = SCAN_RANGE_MODE;
-                              FreqInput();
-                          break;
-                    case 5: /* Scan step */
-                        UpdateScanStep(isKey3);
-                          break;
-                    case 6: /* Listen BW */
-                    case 7: /* Modulation */
-                        if (isKey3 || key == KEY_1) {
-                            if (parametersSelectedIndex == 6)
-                                  ToggleListeningBW(isKey3 ? 0 : 1);
-                            else
-                                  ToggleModulation();
-                          }
-                          break;
-                    case 8: /* Power Save */
-                            if (isKey3) {
-                            if (++IndexPS > PS_STEP_COUNT) IndexPS = 0;
-                            } else {
-                              if (IndexPS == 0) IndexPS = PS_STEP_COUNT;
-                              else IndexPS--;
-                            }
-                            SpectrumSleepMs = PS_Steps[IndexPS];
-                          break;
-                    case 9: /* Noise level OFF */
-                          Noislvl_OFF = isKey3 ? 
-                                      (Noislvl_OFF >= 80 ? 30  : Noislvl_OFF + 1) :
-                                      (Noislvl_OFF <= 30  ? 80 : Noislvl_OFF - 1);
-                          Noislvl_ON = NoisLvl - NoiseHysteresis;                      
-                          break;
-                    case 10: /* OSD popup duration */
-                          static const int osdPopupTimes[] = {0, 200, 300, 500, 1000, 2000, 3000};
-                          osdPopupIndex = isKey3 ? 
-                                          (osdPopupIndex >= 6 ? 0 : osdPopupIndex + 1):
-                                          (osdPopupIndex <= 0 ? 6 : osdPopupIndex - 1);
-                          osdPopupSetting = osdPopupTimes[osdPopupIndex];
-                          break;
-                    case 11: /* Record trigger */
-                          UOO_trigger = isKey3 ? 
-                                      (UOO_trigger >= 50 ? 0  : UOO_trigger + 1) :
-                                      (UOO_trigger <= 0  ? 50 : UOO_trigger - 1);
-                          break;
-                    case 12: /* Auto keylock */
-                          AUTO_KEYLOCK = isKey3 ? 
-                                       (AUTO_KEYLOCK > 2  ? 0 : AUTO_KEYLOCK + 1) :
-                                     (AUTO_KEYLOCK <= 0 ? 3 : AUTO_KEYLOCK - 1);
-                          gKeylockCountdown = durations[AUTO_KEYLOCK];
-                          break;
-                    case 13: /* Glitch max */
-                        if (isKey3) { if (GlitchMax < 75) GlitchMax += 5; }
-                        else        { if (GlitchMax > 5) GlitchMax -= 5; }
-                          break;
-                    case 14: /* Sound boost */
-                          SoundBoost = !SoundBoost;
-                          break;
-                    case 15: // PttEmission
-                          PttEmission = isKey3 ?
-                                (PttEmission >= 2 ? 0 : PttEmission + 1) :
-                                (PttEmission <= 0 ? 2 : PttEmission - 1);
-                          break;  
-                    case 16: /* gMonitorScan */
-                        gMonitorScan = !gMonitorScan; 
-                        break;
-                    case 17: /* Reset to defaults */
-                          if (isKey3) ClearSettings();
-                          break;
-                }
-                break;
             }
         case KEY_7:
           SaveSettings(); 
@@ -3118,6 +3122,7 @@ typedef struct {
     bool Backlight_On;
     bool SoundBoost;  
     bool gMonitorScan;
+    bool Light_Mode;
 } SettingsEEPROM;
 
 
@@ -3167,6 +3172,7 @@ void LoadSettings()
   Spectrum_state = eepromData.Spectrum_state;    
   SoundBoost = eepromData.SoundBoost;
   gMonitorScan = eepromData.gMonitorScan;    
+  Light_Mode = eepromData.Light_Mode;    
   BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
   BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
   BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
@@ -3208,6 +3214,7 @@ static void SaveSettings()
   eepromData.Spectrum_state = Spectrum_state;    
   eepromData.SoundBoost = SoundBoost;
   eepromData.gMonitorScan = gMonitorScan;
+  eepromData.Light_Mode = Light_Mode;
   for (int i = 0; i < MAX_BANDS; i++) { 
     if (settings.bandEnabled[i]) {
         eepromData.bandListFlags |= ((uint64_t)1 << i);
@@ -3285,6 +3292,7 @@ void ClearSettings()
   Spectrum_state = 1; 
   SoundBoost = 0;
   gMonitorScan = false;
+  Light_Mode = true;
   settings.bandEnabled[0] = 1;
   for (int i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
   BK4819_WriteRegister(BK4819_REG_10, 0x0145);
@@ -3565,7 +3573,10 @@ static void GetBandRow(uint16_t index, ListRow *row) {
 
 static void GetParametersRow(uint16_t index, ListRow *row) {
     row->right[0] = '\0';
-    switch (index) {
+    uint16_t realIndex = index;
+    if (Light_Mode) {realIndex = lightModeMenuMapping[index];
+}
+    switch (realIndex) {
         case 0:
             snprintf(row->left,  sizeof(row->left),  "RSSI Delay:");
             snprintf(row->right, sizeof(row->right), "%sms", DelayRssiText[IndexDelayRssi]);
@@ -3667,6 +3678,9 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             snprintf(row->left, sizeof(row->left), "Reset Default");
             strncpy(row->right, ">", sizeof(row->right) - 1);
             break;
+        case 18:
+            strncpy(row->left, Light_Mode ? "Advanced Menu" : "Light Menu", sizeof(row->left) - 1);
+            break;
 
         default:
             row->left[0] = '\0';
@@ -3694,7 +3708,7 @@ static void RenderScanListSelect() {
 }
 
 static void RenderParametersSelect() {
-    RenderUnifiedList("PARAMETERS:", false, PARAMETER_COUNT, parametersSelectedIndex,
+    RenderUnifiedList("PARAMETERS:", false, GetMaxVisualRows(), parametersSelectedIndex,
                       parametersScrollOffset, true, GetParametersRow);
 }
 
