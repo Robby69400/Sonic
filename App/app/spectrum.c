@@ -1721,9 +1721,13 @@ static void DrawF(uint32_t f) {
                 if(isListening) DrawMeter(4);
                 UI_PrintStringSmallbackground(Text, 0, 127, 5, 0);
                 UI_PrintStringSmallbackground(line3, 0, 127, 6, 0);
+                ST7565_BlitLine(4); 
+                ST7565_BlitLine(5); 
+                ST7565_BlitLine(6);
                 break;
             }
     } 
+
 }
 
 static void LookupChannelModulation() {
@@ -2633,7 +2637,7 @@ static void RenderSpectrum()
         DrawSpectrum();
         }
 #ifdef ENABLE_SPECTRUM_LINES
-            MyDrawFrameLines();
+    MyDrawFrameLines();
 #endif
 }
 
