@@ -302,7 +302,7 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 
         case KEY_9:
 #ifdef ENABLE_SPECTRUM
-            APP_RunSpectrumMode(2); // F+9 = Range режим
+            APP_RunSpectrumMode(0); // F+9 = Range режим
             gRequestDisplayScreen = DISPLAY_MAIN;
 #endif
             break;

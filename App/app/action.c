@@ -116,10 +116,9 @@ static_assert(ARRAY_SIZE(action_opt_table) == ACTION_OPT_LEN);
 
 void ACTION_Power(void)
 {
-    // Cycle: S → L → M → H → S
     gTxVfo->OUTPUT_POWER++;
     if (gTxVfo->OUTPUT_POWER >= OUTPUT_POWER_LEN)
-        gTxVfo->OUTPUT_POWER = OUTPUT_POWER_LOW; // wrap: after U → back to S
+        gTxVfo->OUTPUT_POWER = OUTPUT_POWER_LOW;
 
     // Save immediately to flash
     SETTINGS_SaveChannel(gTxVfo->CHANNEL_SAVE, gEeprom.TX_VFO, gTxVfo, 2);

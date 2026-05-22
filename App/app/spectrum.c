@@ -74,6 +74,7 @@ static uint32_t CodeFreq = 0;
 static uint16_t cachedChannels[6];      // Stocke les numéros de canaux trouvés
 static uint16_t cachedAbsoluteIdx[6];   // Mémorise à quel index d'historique ils appartiennent
 static uint8_t  cacheWriteHead = 0;     // Tête d'écriture circulaire
+static int lastHistoryScrollOffset = -1;
 // ============================================================
 
 static uint16_t indexFs = 0;
@@ -393,7 +394,7 @@ typedef struct {
 } __attribute__((packed)) FlashChannel_t;
 
 uint16_t BOARD_gMR_fetchChannel(const uint32_t freq) {
-    FlashChannel_t block[BLOCK_SIZE]; 
+    static FlashChannel_t block[BLOCK_SIZE]; 
     
     for (uint16_t start_ch = MR_CHANNEL_FIRST; start_ch <= MR_CHANNEL_LAST; start_ch += BLOCK_SIZE) {
         uint16_t remaining = MR_CHANNEL_LAST - start_ch + 1;
@@ -983,7 +984,8 @@ static uint16_t CountValidHistoryItems() {
 }
 
 static void FillfreqHistory()
-{
+{   
+    lastHistoryScrollOffset = -1;
     uint32_t f = peak.f;
     if (f == 0 || f < 1400000 || f > 130000000) return;
 
@@ -2194,6 +2196,7 @@ static void HandleKeySpectrum(uint8_t key) {
             break;
         case KEY_UP:
             if (historyListActive) {
+                lastHistoryScrollOffset = -1;
                 uint16_t count = CountValidHistoryItems();
                 if (!count) return;
                 SpectrumMonitor = 1;
@@ -2236,6 +2239,7 @@ static void HandleKeySpectrum(uint8_t key) {
             break;
         case KEY_DOWN:
             if (historyListActive) {
+                lastHistoryScrollOffset = -1;
                 uint16_t count = CountValidHistoryItems();
                 if (!count) return;
                 SpectrumMonitor = 1;
@@ -2282,6 +2286,7 @@ static void HandleKeySpectrum(uint8_t key) {
                     historyListActive   = true;
                     historyListIndex    = 0;
                     historyScrollOffset = 0;
+                    lastHistoryScrollOffset = -1; // Force preload on initial history list activation
                     prevSpectrumMonitor = SpectrumMonitor;
                 }
                 break;
@@ -2758,7 +2763,7 @@ static void HandleUserInput(void) {
         kbd.counter++;
     } else kbd.counter =0;
 
-    if (kbd.counter == 2 || (kbd.counter > 50 && (kbd.counter % 20 == 0))) {
+    if (kbd.counter == 2 || (kbd.counter > 30 && (kbd.counter % 10 == 0))) {
         if(Backlight_On) BACKLIGHT_TurnOn();
         switch (currentState) {
             case SPECTRUM:
@@ -3077,7 +3082,7 @@ bool IsVersionMatching(void) {
 
 typedef struct {
     int ShowLines;
-    uint16_t DelayRssi;
+    uint8_t IndexDelayRssi;
     uint8_t PttEmission; 
     uint8_t listenBw;
 	uint64_t bandListFlags;            // Bits 0-63: bandEnabled[0..63]
@@ -3139,8 +3144,8 @@ void LoadSettings()
   for (int i = 0; i < MAX_BANDS; i++) {
     settings.bandEnabled[i] = (eepromData.bandListFlags & ((uint64_t)1 << i)) != 0;
     }
-  DelayRssi = eepromData.DelayRssi;
-  if (DelayRssi > 6000) DelayRssi = 6000;
+  IndexDelayRssi = eepromData.IndexDelayRssi;
+  DelayRssi = DelayRssiValues[eepromData.IndexDelayRssi];
   PttEmission = eepromData.PttEmission;
   validScanListCount = 0;
   ShowLines = eepromData.ShowLines;
@@ -3183,7 +3188,7 @@ static void SaveSettings()
   eepromData.listenBw = settings.listenBw;
   eepromData.RangeStart = RangeStart;
   eepromData.RangeStop =  RangeStop;
-  eepromData.DelayRssi = DelayRssi;
+  eepromData.IndexDelayRssi = IndexDelayRssi;
   eepromData.PttEmission = PttEmission;
   eepromData.scanStepIndex = settings.scanStepIndex;
   eepromData.ShowLines = ShowLines;
@@ -3245,6 +3250,8 @@ static void ClearHistory(uint8_t mode) {
             }
         }
     }
+    // Force a reload of the history cache after clearing items
+    lastHistoryScrollOffset = -1;
     CompactHistory();
 }
 
@@ -3257,6 +3264,7 @@ void ClearSettings()
   RangeStart = 43000000;
   RangeStop  = 44000000;
   DelayRssi = 2000;
+  IndexDelayRssi = 3;
   PttEmission = 2;
   settings.scanStepIndex = STEP_10kHz;
   ShowLines = 1;
@@ -3696,8 +3704,11 @@ static void RenderHistoryList() {
     char title[32];
     sprintf(title, "HISTORY: %d", count);
 
-    // Préchargement initial des 6 lignes visibles
-    PreloadHistoryChannels(historyScrollOffset, count);
+    // Only preload channels if the scroll offset has changed to optimize performance
+    if (historyScrollOffset != lastHistoryScrollOffset) {
+        PreloadHistoryChannels(historyScrollOffset, count);
+        lastHistoryScrollOffset = historyScrollOffset; // Update tracking variable
+    }
 
     RenderUnifiedList(title, false, count, historyListIndex,
                       historyScrollOffset, true, GetHistoryRow);
