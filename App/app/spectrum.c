@@ -122,11 +122,19 @@ static bool     interlacing = 0;
 #define PARAM_PTT_EMISSION     16
 #define PARAM_MONITOR_SCAN     17
 #define PARAM_RESET_DEFAULT    18
-static const uint8_t lightModeMenuMapping[] = {0,2,3,4,5,6};
+#define PARAM_INTERLACING      19
+
+static const uint8_t lightModeMenuMapping[] = {
+    PARAM_LIGHT_MODE,
+    PARAM_SPECTRUM_DELAY,
+    PARAM_MAX_LISTEN_TIME,
+    PARAM_RANGE_START,
+    PARAM_RANGE_STOP,
+    PARAM_SCAN_STEP
+};
 
 uint16_t GetMaxVisualRows(void) {
-    // 19 menus au total (0 à 18).
-    return (Light_Mode) ? 6 : 19; 
+    return (Light_Mode) ? 6 : 20; 
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -2137,6 +2145,9 @@ static void HandleKeyParameters(uint8_t key) {
                 case PARAM_MONITOR_SCAN:
                     gMonitorScan = !gMonitorScan; 
                     break;
+                case PARAM_INTERLACING:
+                    interlacing = !interlacing; 
+                    break;
                 case PARAM_RESET_DEFAULT:
                       if (isKey3) ClearSettings();
                       break;
@@ -3199,6 +3210,7 @@ typedef struct {
     bool SoundBoost;  
     bool gMonitorScan;
     bool Light_Mode;
+    bool interlacing;
 } SettingsEEPROM;
 
 
@@ -3249,6 +3261,7 @@ void LoadSettings()
   SoundBoost = eepromData.SoundBoost;
   gMonitorScan = eepromData.gMonitorScan;    
   Light_Mode = eepromData.Light_Mode;    
+  interlacing = eepromData.interlacing;    
   BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
   BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
   BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
@@ -3291,6 +3304,7 @@ static void SaveSettings()
   eepromData.SoundBoost = SoundBoost;
   eepromData.gMonitorScan = gMonitorScan;
   eepromData.Light_Mode = Light_Mode;
+  eepromData.interlacing = interlacing;
   for (int i = 0; i < MAX_BANDS; i++) { 
     if (settings.bandEnabled[i]) {
         eepromData.bandListFlags |= ((uint64_t)1 << i);
@@ -3369,6 +3383,7 @@ void ClearSettings()
   SoundBoost = 0;
   gMonitorScan = false;
   Light_Mode = true;
+  interlacing = false;
   settings.bandEnabled[0] = 1;
   for (int i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
   BK4819_WriteRegister(BK4819_REG_10, 0x0145);
@@ -3756,6 +3771,9 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             break;
         case PARAM_LIGHT_MODE:
             strncpy(row->left, Light_Mode ? "Advanced Menu" : "Light Menu", sizeof(row->left) - 1);
+            break;
+        case PARAM_INTERLACING:
+            strncpy(row->left, interlacing ? "Scan Interlaced" : "Scan Normal", sizeof(row->left) - 1);
             break;
 
         default:
