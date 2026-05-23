@@ -13,6 +13,7 @@
                 "ENABLE_FMRADIO": true,
                 "ENABLE_UART": false,
                 "ENABLE_USB": false,
+                "ENABLE_BENCH": true,
                 "ENABLE_VERSION": false,
                 "ENABLE_AIRCOPY": false,
                 "ENABLE_NOAA": false,
@@ -21,10 +22,6 @@
                 "ENABLE_FLASHLIGHT": true,
                 "ENABLE_SPECTRUM": true,
                 "ENABLE_SCAN_RANGES": true,
-                "ENABLE_FLASH_BAND": false,
-                "ENABLE_DEV": false,
-                "ENABLE_CPU_STATS": false,
-                "ENABLE_CPU_TEMP": true,
                 "ENABLE_BIG_FREQ": true,
                 "ENABLE_SMALL_BOLD": true,
                 "ENABLE_CUSTOM_MENU_LAYOUT": true,
@@ -70,7 +67,7 @@
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
                 "VERSION_STRING_1": "v0.22",
-                "VERSION_STRING_2": "V20" 
+                "VERSION_STRING_2": "V21" 
             }
         },
        
@@ -81,9 +78,8 @@
                 "ENABLE_DEV": true,
                 "ENABLE_USB": true,
                 "ENABLE_UART": true,
-                "ENABLE_CPU_STATS": false,
                 "EDITION_STRING": "Dev",
-                "TARGET": "SONIC.Dev.V20"
+                "TARGET": "SONIC.Dev.V21"
             }
         },
         {
@@ -93,7 +89,7 @@
                 "ENABLE_USB": true,
                 "ENABLE_UART": false,
                 "EDITION_STRING": "USB",
-                "TARGET": "SONIC.USB.V20"
+                "TARGET": "SONIC.USB.V21"
             }
         },
         {
@@ -103,7 +99,7 @@
                 "ENABLE_USB": false,
                 "ENABLE_UART": true,
                 "EDITION_STRING": "RS232",
-                "TARGET": "SONIC.RS232.V20"
+                "TARGET": "SONIC.RS232.V21"
             }
         }
     ],

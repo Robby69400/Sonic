@@ -121,12 +121,6 @@ typedef enum State {
   BAND_LIST_SELECT,
   SCANLIST_SELECT,
   PARAMETERS_SELECT,
-#ifdef ENABLE_CPU_STATS
-  RAM_VIEW,           // diagnostyczny widok pamięci RAM
-  MEM_BUFFERS,        // lista głównych buforów/tablic
-  MEM_VIEWER,         // podgląd hex+ascii/bin/info wybranego bufora
-  CPU_VIEW,           // informacje o CPU i bieżąca temperatura
-#endif
 } State;
 
 

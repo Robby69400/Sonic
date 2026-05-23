@@ -123,6 +123,7 @@ enable_feature(ENABLE_FMRADIO
     ui/fmradio.c
 )
 enable_feature(ENABLE_SCRAMBLER)
+enable_feature(ENABLE_BENCH)
 enable_feature(ENABLE_DTMF_CODES)
 enable_feature(ENABLE_DTMF_LIVE)
 enable_feature(ENABLE_DTMF_PRE)

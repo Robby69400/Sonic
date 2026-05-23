@@ -611,15 +611,6 @@ FMMIN = 76.0
 FMMAX = 108.0
 
 # bands supported by the UV-K5
-BANDS_STANDARD = {
-        0: [50.0, 76.0],
-        1: [108.0, 136.9999],
-        2: [137.0, 173.9999],
-        3: [174.0, 349.9999],
-        4: [350.0, 399.9999],
-        5: [400.0, 469.9999],
-        6: [470.0, 600.0]
-        }
 
 BANDS_WIDE = {
         0: [14.0, 108.0],
@@ -628,7 +619,7 @@ BANDS_WIDE = {
         3: [174.0, 349.9999],
         4: [350.0, 399.9999],
         5: [400.0, 469.9999],
-        6: [470.0, 2600.0]
+        6: [470.0, 2600.0] #2600 for band compatibility
         }
 
 SCANLIST_LIST = ["OFF"] + [f"{i}" for i in range(1, MR_CHANNELS_LIST)] + ["Monitor"]
@@ -985,9 +976,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
     upload_advanced = False
 
     def _get_bands(self):
-        is_wide = self._memobj.BUILD_OPTIONS.ENABLE_WIDE_RX \
-            if self._memobj is not None else True
-        bands = BANDS_WIDE if is_wide else BANDS_STANDARD
+        bands = BANDS_WIDE
         return bands
 
     def _find_band(self, hz):
