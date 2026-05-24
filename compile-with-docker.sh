@@ -13,18 +13,21 @@ set -euo pipefail
 # ---------------------------------------------
 
 IMAGE=uvk1-uvk5v3
-PRESET=${1:-USB}
 
-shift || true  # remove preset from arguments if present
-
-# Any remaining args will be treated as CMake cache variables
+# Initialisation des variables par défaut
 CLEAN_BUILD=false
 EXTRA_ARGS=()
+PRESET=""
 
+# Boucle pour analyser TOUS les arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -c|--clean)
       CLEAN_BUILD=true
+      shift
+      ;;
+    Dev|USB|RS232|All)
+      PRESET="$1"
       shift
       ;;
     *)
@@ -34,6 +37,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Si aucun preset n'a été détecté dans les arguments, on met la valeur par défaut
+PRESET=${PRESET:-USB}
 # ---------------------------------------------
 # Nettoyage si l'option est activée
 # ---------------------------------------------
