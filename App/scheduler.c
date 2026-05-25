@@ -53,7 +53,7 @@ void SysTick_Handler(void)
     gNextTimeslice_10ms = true;
     if ((gGlobalSysTickCounter % 50) == 0)  {gNextTimeslice_ShowNames = true;} 
     if ((gGlobalSysTickCounter % 20) == 0)  {gNextTimeslice_listening = true;} 
-    if ((gGlobalSysTickCounter % 10) == 0)  {gNextTimeslice_display = true;}
+    if ((gGlobalSysTickCounter % 15) == 0)  {gNextTimeslice_display = true;}
     if ((gGlobalSysTickCounter % 100) == 0) {gNextTimeslice_HTimeS = true;}
     if ((gGlobalSysTickCounter % 50) == 0)  {gNextTimeslice_history = true;}
     if ((gGlobalSysTickCounter % 6000) == 0){gNextTimeslice_60s = true;}
