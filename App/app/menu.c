@@ -20,7 +20,7 @@
 #if !defined(ENABLE_OVERLAY)
     #include "py32f0xx.h"
 #endif
-#include "app/dtmf.h"
+
 #include "app/generic.h"
 #include "app/menu.h"
 #include "audio.h"
@@ -231,16 +231,6 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
         case MENU_MIC:
             //*pMin = 0;
             *pMax = 4;
-            break;
-
-        case MENU_S_LIST:
-            //*pMin = 0;
-            *pMax = MR_CHANNELS_LIST + 1; // 0=off, 1-20=list, 21=monitor
-            break;
-
-        case MENU_PTT_ID:
-            //*pMin = 0;
-            *pMax = ARRAY_SIZE(gSubMenu_PTT_ID) - 1;
             break;
 
         case MENU_BAT_TXT:
@@ -501,12 +491,6 @@ void MENU_AcceptSetting(void)
             gKeyLockCountdown        = gEeprom.AUTO_KEYPAD_LOCK * 30; // 15 seconds step
             break;
 
-// removed KA52-only: case MENU_S_ADD1:
-
-// removed KA52-only: case MENU_S_ADD2:
-
-// removed KA52-only: case MENU_S_ADD3:
-
         case MENU_STE:
             gEeprom.TAIL_TONE_ELIMINATION = gSubMenuSelection;
             break;
@@ -533,20 +517,6 @@ void MENU_AcceptSetting(void)
             gEeprom.CHAN_1_CALL = gSubMenuSelection;
             break;
 
-        case MENU_S_LIST:
-            gEeprom.SCAN_LIST_DEFAULT = gSubMenuSelection;
-            break;
-
-
-        case MENU_D_ST:
-            gEeprom.DTMF_SIDE_TONE = gSubMenuSelection;
-            break;
-
-
-        case MENU_PTT_ID:
-            gTxVfo->DTMF_PTT_ID_TX_MODE = gSubMenuSelection;
-            gRequestSaveChannel         = 1;
-            return;
 
         case MENU_BAT_TXT:
             gSetting_battery_text = gSubMenuSelection;
@@ -827,15 +797,6 @@ void MENU_ShowCurrentSetting(void)
             gSubMenuSelection = gEeprom.AUTO_KEYPAD_LOCK;
             break;
 
-// removed KA52-only: case MENU_S_ADD1:
-            break;
-
-// removed KA52-only: case MENU_S_ADD2:
-            break;
-
-// removed KA52-only: case MENU_S_ADD3:
-            break;
-
         case MENU_STE:
             gSubMenuSelection = gEeprom.TAIL_TONE_ELIMINATION;
             break;
@@ -854,22 +815,6 @@ void MENU_ShowCurrentSetting(void)
 
         case MENU_1_CALL:
             gSubMenuSelection = gEeprom.CHAN_1_CALL;
-            break;
-
-        case MENU_S_LIST:
-            gSubMenuSelection = gEeprom.SCAN_LIST_DEFAULT;
-            break;
-
-// SLIST1/2/3 removed (KA52-only)
-
-
-        case MENU_D_ST:
-            gSubMenuSelection = gEeprom.DTMF_SIDE_TONE;
-            break;
-
-
-        case MENU_PTT_ID:
-            gSubMenuSelection = gTxVfo->DTMF_PTT_ID_TX_MODE;
             break;
 
         case MENU_BAT_TXT:

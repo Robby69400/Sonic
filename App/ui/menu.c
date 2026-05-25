@@ -16,8 +16,6 @@
 
 #include <string.h>
 #include <stdlib.h>
-
-#include "../app/dtmf.h"
 #include "../app/menu.h"
 #include "../bitmaps.h"
 #include "../board.h"
@@ -67,7 +65,6 @@ const t_menu_item MenuList[] =
     {"1 Call",      MENU_1_CALL        },
     {"STE",         MENU_STE           },
     {"RP STE",      MENU_RP_STE        },
-    {"ScList",      MENU_S_LIST        },
     {"ChName",      MENU_MEM_NAME      },
     {"ChDisp",      MENU_MDF           },
     {"F1Shrt",      MENU_F1SHRT        },
@@ -161,16 +158,6 @@ const char* const gSubMenu_MDF[] =
     "NAME\n+\nFREQ"
 };
 
-
-
-const char* const gSubMenu_PTT_ID[] =
-{
-    "OFF",
-    "UP CODE",
-    "DOWN CODE",
-    "UP+DOWN\nCODE",
-    "APOLLO\nQUINDAR"
-};
 
 const char gSubMenu_PONMSG[][8] =
 {
@@ -585,9 +572,6 @@ void UI_DisplayMenu(void)
             strcpy(String, gSubMenu_RX_TX[gSubMenuSelection]);
             break;
         case MENU_BEEP:
-        case MENU_S_ADD1:
-        case MENU_S_ADD2:
-        case MENU_S_ADD3:
         case MENU_STE:
         case MENU_D_ST:
 
@@ -709,28 +693,6 @@ void UI_DisplayMenu(void)
 
         case MENU_RP_STE:
             sprintf(String, gSubMenuSelection == 0 ? gSubMenu_OFF_ON[0] : "%u*100ms", gSubMenuSelection);
-            break;
-
-        case MENU_S_LIST:
-            if (gSubMenuSelection == 0) {
-                strcpy(String, "OFF");
-            } else if (gSubMenuSelection == MR_CHANNELS_LIST + 1) {
-                strcpy(String, "MONITOR");
-            } else {
-                // Show list name if set, otherwise show number
-                const char *lname = gListName[gSubMenuSelection - 1];
-                if (!IsEmptyName(lname, sizeof(gListName[0])))
-                    snprintf(String, sizeof(String), "%.3s\n[%02d]", lname, gSubMenuSelection);
-                else
-                    sprintf(String, "[%02d]", gSubMenuSelection);
-            }
-            break;
-
-
-
-
-        case MENU_PTT_ID:
-            strcpy(String, gSubMenu_PTT_ID[gSubMenuSelection]);
             break;
 
         case MENU_BAT_TXT:
@@ -918,30 +880,6 @@ case MENU_F_LOCK: // разрешить всё
                 y += 1;
             }
         }
-    }
-
-    if (UI_MENU_GetCurrentMenuId() == MENU_SLIST1 || UI_MENU_GetCurrentMenuId() == MENU_SLIST2 || UI_MENU_GetCurrentMenuId() == MENU_SLIST3)
-    {
-        i = UI_MENU_GetCurrentMenuId() - MENU_SLIST1;
-
-        char *pPrintStr = String;
-
-        if (gSubMenuSelection < 0) {
-            pPrintStr = "NULL";
-        } else {
-            UI_GenerateChannelStringEx(String, true, gSubMenuSelection);
-            pPrintStr = String;
-        }
-
-        // channel number
-        UI_PrintStringSmallBold(pPrintStr, menu_item_x1, menu_item_x2, 2);
-
-        SETTINGS_FetchChannelName(String, gSubMenuSelection);
-        pPrintStr = String[0] ? String : "--";
-
-        // channel name
-        // (scan list priority display removed - Robzyl uses single list system)
-        UI_PrintStringSmallBold(pPrintStr, menu_item_x1, menu_item_x2, 3);
     }
 
     if ((UI_MENU_GetCurrentMenuId() == MENU_R_CTCS || UI_MENU_GetCurrentMenuId() == MENU_R_DCS) && gCssBackgroundScan)

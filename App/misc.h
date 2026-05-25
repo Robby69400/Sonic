@@ -96,13 +96,10 @@ extern const uint16_t        fm_play_countdown_scan_10ms;
 extern const uint16_t        fm_play_countdown_noscan_10ms;
 extern const uint16_t        fm_restore_countdown_10ms;
 
-extern const uint8_t        vfo_state_resume_countdown_500ms;
+extern const uint8_t         vfo_state_resume_countdown_500ms;
 
 extern const uint8_t         menu_timeout_500ms;
 extern const uint16_t        menu_timeout_long_500ms;
-
-extern const uint8_t         DTMF_RX_live_timeout_500ms;
-
 extern const uint8_t         key_input_timeout_500ms;
 
 extern const uint16_t        key_repeat_delay_10ms;
@@ -192,7 +189,6 @@ extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 #ifdef ENABLE_AUDIO_BAR
     extern bool              gSetting_mic_bar;
 #endif
-extern bool                  gSetting_live_DTMF_decoder;
 extern uint8_t               gSetting_battery_text;
 
 extern bool                  gMonitor;

@@ -59,19 +59,11 @@ enum
     MENU_TDR,
     MENU_BEEP,
     MENU_AUTOLK,
-    MENU_S_ADD1,
-    MENU_S_ADD2,
-    MENU_S_ADD3,
     MENU_STE,
     MENU_RP_STE,
     MENU_MIC,
     MENU_COMPAND,
     MENU_1_CALL,
-    MENU_S_LIST,
-    MENU_SLIST1,
-    MENU_SLIST2,
-    MENU_SLIST3,
-    MENU_PTT_ID,
     MENU_D_ST,
     MENU_PONMSG,
     MENU_ROGER,
@@ -132,7 +124,6 @@ extern const char* const gSubMenu_MDF[4];
     #endif
 #endif
 
-extern const char* const gSubMenu_PTT_ID[5];
 extern const char        gSubMenu_PONMSG[3][8];
 extern const char        gSubMenu_ROGER[10][6];
 extern const char        gSubMenu_RESET[2][5];

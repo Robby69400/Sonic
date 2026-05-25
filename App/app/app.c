@@ -25,7 +25,7 @@
     #include "app/aircopy.h"
 #endif
 #include "app/app.h"
-#include "app/dtmf.h"
+
 #ifdef ENABLE_FLASHLIGHT
     #include "app/flashlight.h"
 #endif
@@ -51,7 +51,6 @@
 #include "driver/keyboard.h"
 #include "driver/st7565.h"
 #include "driver/system.h"
-#include "dtmf.h"
 #include "external/printf/printf.h"
 #include "frequencies.h"
 #include "functions.h"
@@ -487,7 +486,6 @@ static void CheckRadioInterrupts(void)
                 uint16_t cdcssLost : 1;
                 uint16_t cdcssFound : 1;
                 uint16_t cssTailFound : 1;
-                uint16_t dtmf5ToneFound : 1;
                 uint16_t fskFifoAlmostFull : 1;
                 uint16_t fskRxFinied : 1;
                 uint16_t fskFifoAlmostEmpty : 1;
@@ -497,34 +495,6 @@ static void CheckRadioInterrupts(void)
         } interrupts;
 
         interrupts.__raw = BK4819_ReadRegister(BK4819_REG_02);
-
-        // 0 = no phase shift
-        // 1 = 120deg phase shift
-        // 2 = 180deg phase shift
-        // 3 = 240deg phase shift
-//      const uint8_t ctcss_shift = BK4819_GetCTCShift();
-//      if (ctcss_shift > 0)
-//          g_CTCSS_Lost = true;
-
-        if (interrupts.dtmf5ToneFound) {    
-            const char c = DTMF_GetCharacter(BK4819_GetDTMF_5TONE_Code()); // save the RX'ed DTMF character
-            if (c != 0xff) {
-                if (gCurrentFunction != FUNCTION_TRANSMIT) {
-                    if (gSetting_live_DTMF_decoder) {
-                        size_t len = strlen(gDTMF_RX_live);
-                        if (len >= sizeof(gDTMF_RX_live) - 1) { // make room
-                            memmove(&gDTMF_RX_live[0], &gDTMF_RX_live[1], sizeof(gDTMF_RX_live) - 1);
-                            len--;
-                        }
-                        gDTMF_RX_live[len++]  = c;
-                        gDTMF_RX_live[len]    = 0;
-                        gDTMF_RX_live_timeout = DTMF_RX_live_timeout_500ms;  // time till we delete it
-                        gUpdateDisplay        = true;
-                    }
-
-                }
-            }
-        }
 
         if (interrupts.cssTailFound)
             g_CxCSS_TAIL_Found = true;
@@ -1060,13 +1030,6 @@ void APP_TimeSlice10ms(void)
 
 void cancelUserInputModes(void)
 {
-    if (gDTMF_InputMode || gDTMF_InputBox_Index > 0)
-    {
-        DTMF_clear_input_box();
-        gRequestDisplayScreen = DISPLAY_MAIN;
-        gUpdateDisplay        = true;
-    }
-
     if (gWasFKeyPressed || gKeyInputCountdown > 0 || gInputBoxIndex > 0)
     {
         HideFKeyIcon();
@@ -1105,18 +1068,6 @@ void APP_TimeSlice500ms(void)
 
             cancelUserInputModes();
             gHasVfoBackup = false;
-        }
-    }
-
-    if (gDTMF_RX_live_timeout > 0)
-    {
-        if (--gDTMF_RX_live_timeout == 0)
-        {
-            if (gDTMF_RX_live[0] != 0)
-            {
-                memset(gDTMF_RX_live, 0, sizeof(gDTMF_RX_live));
-                gUpdateDisplay = true;
-            }
         }
     }
 
@@ -1193,7 +1144,7 @@ void APP_TimeSlice500ms(void)
         && gScreenToDisplay != DISPLAY_AIRCOPY
 #endif
     ) {
-        if (gEeprom.AUTO_KEYPAD_LOCK && gKeyLockCountdown > 0 && !gDTMF_InputMode
+        if (gEeprom.AUTO_KEYPAD_LOCK && gKeyLockCountdown > 0
             && gScreenToDisplay != DISPLAY_MENU && --gKeyLockCountdown == 0)
         {
             gEeprom.KEY_LOCK = true;     // lock the keyboard
@@ -1209,11 +1160,9 @@ void APP_TimeSlice500ms(void)
                 BACKLIGHT_TurnOn();
             }
 
-            if (gInputBoxIndex > 0 || gDTMF_InputMode) {
+            if (gInputBoxIndex > 0) {
                 AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
             }
-
-            DTMF_clear_input_box();
 
             HideFKeyIcon();
             gInputBoxIndex   = 0;
@@ -1315,13 +1264,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         }
 
         if (Key == KEY_EXIT && bKeyHeld) { // exit key held pressed
-            // clear the live DTMF decoder
-            if (gDTMF_RX_live[0] != 0) {
-                memset(gDTMF_RX_live, 0, sizeof(gDTMF_RX_live));
-                gDTMF_RX_live_timeout = 0;
-                gUpdateDisplay        = true;
-            }
-
             // cancel user input
             cancelUserInputModes();
             gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
@@ -1430,7 +1372,7 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
     if (gCurrentFunction == FUNCTION_TRANSMIT) {
         {
-            // PTT key always handled; other keys during TX do nothing (DTMF disabled)
+            // PTT key always handled; other keys during TX do nothing
             if (Key == KEY_PTT) {
                 GENERIC_Key_PTT(bKeyPressed);
             }

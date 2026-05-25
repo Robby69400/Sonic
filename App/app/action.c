@@ -20,7 +20,7 @@
 #include "app/action.h"
 #include "app/app.h"
 #include "app/common.h"
-#include "app/dtmf.h"
+
 #ifdef ENABLE_FLASHLIGHT
     #include "app/flashlight.h"
 #endif
@@ -158,33 +158,6 @@ void ACTION_SwitchDemodul(void)
 void ACTION_Handle(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 {
     HideFKeyIcon();
-
-    if (gScreenToDisplay == DISPLAY_MAIN && gDTMF_InputMode){
-         // entering DTMF code
-
-        gPttWasReleased = true;
-
-        if (Key != KEY_SIDE1 || bKeyHeld || !bKeyPressed){
-            return;
-        }
-
-        // side1 btn pressed
-
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-        gRequestDisplayScreen = DISPLAY_MAIN;
-
-        if (gDTMF_InputBox_Index <= 0) {
-            // turn off DTMF input box if no codes left
-            gDTMF_InputMode = false;
-            return;
-        }
-
-        // DTMF codes are in the input box
-        gDTMF_InputBox[--gDTMF_InputBox_Index] = '-'; // delete one code
-
-        return;
-    }
-
     enum ACTION_OPT_t func = ACTION_OPT_NONE;
     switch(Key) {
         case KEY_SIDE1:

@@ -16,7 +16,7 @@
 
 #include <string.h>
 #include <stdlib.h>  // abs()
-#include "app/dtmf.h"
+
 #ifdef ENABLE_AM_FIX
     #include "am_fix.h"
 #endif
@@ -681,7 +681,7 @@ void UI_MAIN_TimeSlice500ms(void)
  * 
  * Layout (2 VFO mode):
  *  Line 0-1: VFO A frequency/channel + status
- *  Line 2-3: Center line (RSSI, DTMF, audio, etc.)
+ *  Line 2-3: Center line (RSSI, audio, etc.)
  *  Line 4-5: VFO B frequency/channel + status
  *  Line 6-7: Status bar (battery, lock, etc.)
  * 
@@ -1553,7 +1553,6 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
             UI_PrintStringSmallBold("N", LCD_WIDTH + 70, 0, line + 1);
 #endif
 
-        // [DTMF] — удалён, не используется
 
 #ifdef ENABLE_SCRAMBLER
         // [SCR скремблер] — фиксированные координаты в строке параметров

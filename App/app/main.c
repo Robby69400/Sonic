@@ -145,6 +145,31 @@ static void DeleteChannelWithConfirm(void)
     gUpdateDisplay = true;
 }
 
+// ── Scanlist toggle ──────────────────────────────────────────────────────────
+
+static void toggle_chan_scanlist(void)
+{
+    if (!IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
+        return;
+    }
+
+    ChannelAttributes_t *att = MR_GetChannelAttributes(gTxVfo->CHANNEL_SAVE);
+
+    if (att->exclude == true) {
+        att->exclude = false;
+        MR_SaveChannelAttributesToFlash(gTxVfo->CHANNEL_SAVE, att);
+    } else {
+        uint8_t scanlist = gTxVfo->SCANLIST_PARTICIPATION;
+        scanlist++;
+        if (scanlist > MR_CHANNELS_LIST + 1)
+            scanlist = 0;
+        gTxVfo->SCANLIST_PARTICIPATION = scanlist;
+        SETTINGS_UpdateChannel(gTxVfo->CHANNEL_SAVE, gTxVfo, true, true, true);
+    }
+
+    gVfoConfigureMode = VFO_CONFIGURE;
+    gFlagResetVfos    = true;
+}
 
 // ── F-key functions ──────────────────────────────────────────────────────────
 // KA50 назначения (beep=true = F+кнопка, beep=false = долгое нажатие):
@@ -246,7 +271,9 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             break;
 
         case KEY_4:
+            break;
         case KEY_5:
+            if (!beep) toggle_chan_scanlist();
             break;
 
         case KEY_7:
@@ -451,6 +478,7 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                 // Долгое 5: scanlist/шаг (KA50)
                 if (Key == KEY_5) {
                     if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
+                        toggle_chan_scanlist();
                         gRequestDisplayScreen = DISPLAY_MAIN;
                     } else {
                         uint8_t a = FREQUENCY_GetSortedIdxFromStepIdx(gTxVfo->STEP_SETTING);

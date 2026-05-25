@@ -428,7 +428,6 @@ typedef struct {
     uint8_t  codeflags;  // 0x0A (regroupement des bitfields pour simplifier la lecture)
     uint8_t  mod_dir;    // 0x0B
     uint8_t  settings;   // 0x0C
-    uint8_t  dtmf;       // 0x0D
     uint8_t  step;       // 0x0E
     uint8_t  unused;     // 0x0F
 } __attribute__((packed)) FlashChannel_t;

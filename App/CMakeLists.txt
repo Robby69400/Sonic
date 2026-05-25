@@ -19,7 +19,6 @@ target_sources(App INTERFACE
     app/action.c
     app/app.c
     app/common.c
-    app/dtmf.c
     app/generic.c
     app/main.c
     app/menu.c
@@ -75,7 +74,6 @@ endif()
 target_compile_definitions(App INTERFACE 
     "AUTHOR_STRING=\"${AUTHOR_STRING}\""
     "VERSION_STRING=\"${VERSION_STRING}\""
-    DISABLE_DTMF_STAR_INPUT
 )
 
 if(NOT SQL_TONE)
@@ -121,9 +119,6 @@ enable_feature(ENABLE_FMRADIO
 )
 enable_feature(ENABLE_SCRAMBLER)
 enable_feature(ENABLE_BENCH)
-enable_feature(ENABLE_DTMF_CODES)
-enable_feature(ENABLE_DTMF_LIVE)
-enable_feature(ENABLE_DTMF_PRE)
 enable_feature(ENABLE_SET_TOT_EOT)
 enable_feature(ENABLE_ALARM)
 enable_feature(ENABLE_FLASHLIGHT

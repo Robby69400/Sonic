@@ -16,7 +16,7 @@
  */
 
 #include <string.h>
-#include "app/dtmf.h"
+
 #include "frequencies.h"
 #include "radio.h"
 #ifdef ENABLE_FMRADIO
@@ -276,36 +276,9 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
     gEeprom.TX_VFO                         = (Data[3] <  2) ? Data[3] : 0;
     gEeprom.BATTERY_TYPE                   = (Data[4] < BATTERY_TYPE_UNKNOWN) ? Data[4] : BATTERY_TYPE_1600_MAH;
 
-    // 0ED0..0ED7
-    PY25Q16_ReadBuffer(0x00A0A8 + 0x40, Data, 8);
-    gEeprom.DTMF_SIDE_TONE               = (Data[0] <   2) ? Data[0] : true;
     gEeprom.FlashlightOnRX = false;
 
-    gEeprom.DTMF_PRELOAD_TIME            = (Data[5] < 101) ? Data[5] * 10 : 300;
-    gEeprom.DTMF_FIRST_CODE_PERSIST_TIME = (Data[6] < 101) ? Data[6] * 10 : 100;
-    gEeprom.DTMF_HASH_CODE_PERSIST_TIME  = (Data[7] < 101) ? Data[7] * 10 : 100;
-
-    // 0ED8..0EDF
-    PY25Q16_ReadBuffer(0x00A0A8 + 0x48, Data, 8);
-    gEeprom.DTMF_CODE_PERSIST_TIME  = (Data[0] < 101) ? Data[0] * 10 : 100;
-    gEeprom.DTMF_CODE_INTERVAL_TIME = (Data[1] < 101) ? Data[1] * 10 : 100;
-
-    // 0EF8..0F07
-    PY25Q16_ReadBuffer(0x00A0F8 + 0x18, Data, sizeof(gEeprom.DTMF_UP_CODE));
-    if (DTMF_ValidateCodes((char *)Data, sizeof(gEeprom.DTMF_UP_CODE))) {
-        memcpy(gEeprom.DTMF_UP_CODE, Data, sizeof(gEeprom.DTMF_UP_CODE));
-    } else {
-        strcpy(gEeprom.DTMF_UP_CODE, "12345");
-    }
-
-    // 0F08..0F17
-    PY25Q16_ReadBuffer(0x00A0F8 + 0x28, Data, sizeof(gEeprom.DTMF_DOWN_CODE));
-    if (DTMF_ValidateCodes((char *)Data, sizeof(gEeprom.DTMF_DOWN_CODE))) {
-        memcpy(gEeprom.DTMF_DOWN_CODE, Data, sizeof(gEeprom.DTMF_DOWN_CODE));
-    } else {
-        strcpy(gEeprom.DTMF_DOWN_CODE, "54321");
-    }
-
+    
     // 0F18..0F1F
     PY25Q16_ReadBuffer(0x00A130, Data, 8);
 
@@ -334,7 +307,6 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
     gSetting_ScrambleEnable    = (Data[6] < 2) ? Data[6] : true;
 
     //gSetting_TX_EN             = (Data[7] & (1u << 0)) ? true : false;
-    gSetting_live_DTMF_decoder = !!(Data[7] & (1u << 1));
     gSetting_battery_text      = (((Data[7] >> 2) & 3u) <= 2) ? (Data[7] >> 2) & 3 : 2; // default PERCENT
     #ifdef ENABLE_AUDIO_BAR
         gSetting_mic_bar       = !!(Data[7] & (1u << 4));
@@ -747,24 +719,11 @@ void SETTINGS_SaveSettings(void)
 
     // 0x0EA8
     State = SecBuf + 0x18;
-        State[0] = false;
+    State[0] = false;
     State[1] = gEeprom.ROGER;
     State[2] = gEeprom.REPEATER_TAIL_TONE_ELIMINATION;
     State[3] = gEeprom.TX_VFO;
     State[4] = gEeprom.BATTERY_TYPE;
-
-    // 0x0ED0
-    State = SecBuf + 0x40;
-    State[0] = gEeprom.DTMF_SIDE_TONE;
-    State[5] = gEeprom.DTMF_PRELOAD_TIME / 10U;
-    State[6] = gEeprom.DTMF_FIRST_CODE_PERSIST_TIME / 10U;
-    State[7] = gEeprom.DTMF_HASH_CODE_PERSIST_TIME / 10U;
-
-    // 0x0ED8
-    State = SecBuf + 0x48;
-    State[0] = gEeprom.DTMF_CODE_PERSIST_TIME / 10U;
-    State[1] = gEeprom.DTMF_CODE_INTERVAL_TIME / 10U;
-
     PY25Q16_WriteBuffer(0x00A0A8, SecBuf, 0x50, false);
 
     // -------------------------
@@ -801,8 +760,6 @@ void SETTINGS_SaveSettings(void)
     State[6]  = gSetting_ScrambleEnable;
 
 
-    //if (!gSetting_TX_EN)             State[7] &= ~(1u << 0);
-    if (!gSetting_live_DTMF_decoder) State[7] &= ~(1u << 1);
     State[7] = (State[7] & ~(3u << 2)) | ((gSetting_battery_text & 3u) << 2);
     #ifdef ENABLE_AUDIO_BAR
         if (!gSetting_mic_bar)           State[7] &= ~(1u << 4);
@@ -899,7 +856,6 @@ void SETTINGS_SaveChannel(uint16_t Channel, uint8_t VFO, const VFO_Info_t *pVFO,
             | (pVFO->OUTPUT_POWER      << 2)
             | (pVFO->CHANNEL_BANDWIDTH << 1)
             | (pVFO->FrequencyReverse  << 0);
-        State -> _8[5] = ((pVFO->DTMF_PTT_ID_TX_MODE & 7u) << 1)
         ;
         State -> _8[6] =  pVFO->STEP_SETTING;
         State -> _8[7] =  pVFO->SCRAMBLING_TYPE;

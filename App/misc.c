@@ -30,8 +30,6 @@ const uint8_t     vfo_state_resume_countdown_500ms =  1250 / 500;  // 1.25 secon
 const uint8_t     menu_timeout_500ms               =  20000 / 500;  // 20 seconds
 const uint16_t    menu_timeout_long_500ms          = 120000 / 500;  // 2 minutes
 
-const uint8_t     DTMF_RX_live_timeout_500ms       =  6000 / 500;  // 6 seconds live decoder on screen
-
 const uint8_t     key_input_timeout_500ms          =  8000 / 500;  // 8 seconds
 
 const uint16_t    key_repeat_delay_10ms            =   400 / 10;   // 400ms
@@ -128,7 +126,6 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 #ifdef ENABLE_AUDIO_BAR
     bool          gSetting_mic_bar;
 #endif
-bool              gSetting_live_DTMF_decoder;
 uint8_t           gSetting_battery_text;
 
 bool              gMonitor = false;           // true opens the squelch

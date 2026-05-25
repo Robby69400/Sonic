@@ -188,17 +188,8 @@ typedef struct {
     uint8_t               SCAN_LIST_DEFAULT;
     bool                  SCAN_LIST_ENABLED;
     uint16_t              SCANLIST_PRIORITY_CH[6];
-//#ifdef ENABLE_FEAT_F4HWN_RESUME_STATE // Fix me !!! What the hell is this?
     uint8_t               CURRENT_STATE;
     uint8_t               CURRENT_LIST;
-//#endif                                // Fix me !!! What the hell is this?
-
-    uint8_t               field29_0x26;
-    uint8_t               field30_0x27;
-    
-    uint8_t               field37_0x32;
-    uint8_t               field38_0x33;
-
     uint8_t               AUTO_KEYPAD_LOCK;
     POWER_OnDisplayMode_t POWER_ON_DISPLAY_MODE;
     ROGER_Mode_t          ROGER;
@@ -210,22 +201,8 @@ typedef struct {
     uint8_t               MIC_SENSITIVITY;
     uint8_t               MIC_SENSITIVITY_TUNING;
     uint16_t              CHAN_1_CALL;
-    char                  DTMF_UP_CODE[16];
+    
 
-    uint8_t               field57_0x6c;
-    uint8_t               field58_0x6d;
-
-    char                  DTMF_DOWN_CODE[16];
-
-    uint8_t               field60_0x7e;
-    uint8_t               field61_0x7f;
-
-    uint16_t              DTMF_PRELOAD_TIME;
-    uint16_t              DTMF_FIRST_CODE_PERSIST_TIME;
-    uint16_t              DTMF_HASH_CODE_PERSIST_TIME;
-    uint16_t              DTMF_CODE_PERSIST_TIME;
-    uint16_t              DTMF_CODE_INTERVAL_TIME;
-    bool                  DTMF_SIDE_TONE;
     int16_t               BK4819_XTAL_FREQ_LOW;
     uint8_t               VOLUME_GAIN;
     #ifdef ENABLE_FEAT_F4HWN
@@ -238,10 +215,7 @@ typedef struct {
     uint16_t              VOX1_THRESHOLD;
     uint16_t              VOX0_THRESHOLD;
 
-    uint8_t               field77_0x95;
-    uint8_t               field78_0x96;
-    uint8_t               field79_0x97;
-
+    
     uint8_t               KEY_M_LONG_PRESS_ACTION;
     uint8_t               BACKLIGHT_MIN;
     uint8_t               BACKLIGHT_MAX;

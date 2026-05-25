@@ -40,7 +40,7 @@
 #endif
 
 #include "app/app.h"
-#include "app/dtmf.h"
+
 
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
@@ -90,11 +90,6 @@ void Main(void)
     UART_Init();
     UART_Send(UART_Version, strlen(UART_Version));
 #endif
-
-    // Not implementing authentic device checks
-
-    memset(gDTMF_String, '-', sizeof(gDTMF_String));
-    gDTMF_String[sizeof(gDTMF_String) - 1] = 0;
 
     BK4819_Init();
 

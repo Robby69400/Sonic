@@ -33,15 +33,6 @@ enum {
     BANDWIDTH_NARROW
 };
 
-enum PTT_ID_t {
-    PTT_ID_OFF = 0,    // OFF
-    PTT_ID_TX_UP,      // BEGIN OF TX
-    PTT_ID_TX_DOWN,    // END OF TX
-    PTT_ID_BOTH,       // BOTH
-    PTT_ID_APOLLO      // Apolo quindar tones
-};
-typedef enum PTT_ID_t PTT_ID_t;
-
 enum VfoState_t
 {
     VFO_STATE_NORMAL = 0,
@@ -113,8 +104,6 @@ typedef struct VFO_Info_t
     uint8_t        SCANLIST_PARTICIPATION;
 
     uint16_t        Band;
-    PTT_ID_t       DTMF_PTT_ID_TX_MODE;
-
     uint8_t        BUSY_CHANNEL_LOCK;
 
     ModulationMode_t    Modulation;

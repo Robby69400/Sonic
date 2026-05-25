@@ -27,7 +27,6 @@
 #include "app/menu.h"
 #include "audio.h"
 #include "driver/keyboard.h"
-#include "dtmf.h"
 #include "external/printf/printf.h"
 #include "functions.h"
 #include "misc.h"
@@ -144,27 +143,6 @@ void GENERIC_Key_PTT(bool bKeyPressed)
 
     if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
         gRequestDisplayScreen = DISPLAY_MAIN;
-
-
-    if (!gDTMF_InputMode && gDTMF_InputBox_Index == 0)
-        goto start_tx;  // wasn't entering a DTMF code .. start TX'ing (maybe)
-
-    // was entering a DTMF string
-
-    if (gDTMF_InputBox_Index > 0 || gDTMF_PreviousIndex > 0) { // going to transmit a DTMF string
-        if (gDTMF_InputBox_Index == 0 && gDTMF_PreviousIndex > 0)
-            gDTMF_InputBox_Index = gDTMF_PreviousIndex;           // use the previous DTMF string
-
-        if (gDTMF_InputBox_Index < sizeof(gDTMF_InputBox))
-            gDTMF_InputBox[gDTMF_InputBox_Index] = 0;             // NULL term the string
-
-        // remember the DTMF string
-        gDTMF_PreviousIndex = gDTMF_InputBox_Index;
-        strcpy(gDTMF_String, gDTMF_InputBox);
-        gDTMF_ReplyState = DTMF_REPLY_ANI;
-    }
-
-    DTMF_clear_input_box();
 
 start_tx:
     // request start TX (X power checked in RADIO_PrepareTX → VFO_STATE_TX_DISABLE)

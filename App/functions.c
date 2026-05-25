@@ -16,7 +16,7 @@
 
 #include <string.h>
 
-#include "app/dtmf.h"
+
 #if defined(ENABLE_FMRADIO)
     #include "app/fm.h"
 #endif
@@ -114,14 +114,6 @@ void FUNCTION_PowerSave() {
 
 void FUNCTION_Transmit()
 {
-    // if DTMF is enabled when TX'ing, it changes the TX audio filtering !! .. 1of11
-    BK4819_DisableDTMF();
-
-
-    // clear the DTMF RX live decoder buffer
-    gDTMF_RX_live_timeout = 0;
-    memset(gDTMF_RX_live, 0, sizeof(gDTMF_RX_live));
-
 #if defined(ENABLE_FMRADIO)
     if (gFmRadioMode)
         BK1080_Init0();
@@ -136,12 +128,6 @@ void FUNCTION_Transmit()
 
     // turn the RED LED on
     BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, true);
-
-    DTMF_Reply();
-
-    if (gCurrentVfo->DTMF_PTT_ID_TX_MODE == PTT_ID_APOLLO)
-        BK4819_PlaySingleTone(2525, 250, 0, gEeprom.DTMF_SIDE_TONE);
-
 
     if (gCurrentVfo->SCRAMBLING_TYPE > 0 && gSetting_ScrambleEnable)
         BK4819_EnableScramble(gCurrentVfo->SCRAMBLING_TYPE - 1);
