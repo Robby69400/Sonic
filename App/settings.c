@@ -174,7 +174,6 @@ void SETTINGS_InitEEPROM(void)
     #else
         gEeprom.KEY_LOCK             = (Data[4] <  2) ? Data[4] : false;
     #endif
-    // FlashlightOnRX stored in Data[5] bit 1 (VOX disabled)
     gEeprom.FlashlightOnRX = (Data[5] & 0x02) ? true : false;
     gEeprom.MIC_SENSITIVITY      = (Data[7] <  9) ? Data[7] : 4;
 
@@ -637,7 +636,6 @@ void SETTINGS_SaveSettings(void)
         State[4] = gEeprom.KEY_LOCK;
     #endif
 
-    // State[5] bit 1 = FlashlightOnRX (VOX disabled)
     State[5] = (gEeprom.FlashlightOnRX ? 0x02 : 0x00);
     State[6] = 0;
     State[7] = gEeprom.MIC_SENSITIVITY;

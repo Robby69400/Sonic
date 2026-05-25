@@ -100,7 +100,6 @@ void     BK4819_PickRXFilterPathBasedOnFrequency(uint32_t Frequency);
 bool     BK4819_CompanderEnabled(void);
 void     BK4819_SetCompander(const unsigned int mode);
 
-void     BK4819_DisableVox(void);
 void     BK4819_PlayTone(uint16_t Frequency, bool bTuningGainSwitch);
 void     BK4819_PlaySingleTone(const unsigned int tone_Hz, const unsigned int delay, const unsigned int level, const bool play_speaker);
 void     BK4819_EnterTxMute(void);
@@ -149,5 +148,4 @@ void     BK4819_PlayRoger(uint8_t song);
 
 void     BK4819_Enable_AfDac_DiscMode_TxDsp(void);
 
-void     BK4819_GetVoxAmp(uint16_t *pResult);
 #endif

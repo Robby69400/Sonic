@@ -479,8 +479,6 @@ static void CheckRadioInterrupts(void)
                 uint16_t fskRxSync : 1;
                 uint16_t sqlLost : 1;
                 uint16_t sqlFound : 1;
-                uint16_t voxLost : 1;
-                uint16_t voxFound : 1;
                 uint16_t ctcssLost : 1;
                 uint16_t ctcssFound : 1;
                 uint16_t cdcssLost : 1;
@@ -740,8 +738,6 @@ void APP_Update(void)
             gPowerSave_10ms = gEeprom.BATTERY_SAVE * 10;
             gRxIdleMode     = true;
             goToSleep = false;
-
-            BK4819_DisableVox();
             BK4819_Sleep();
             BK4819_ToggleGpioOut(BK4819_GPIO0_PIN28_RX_ENABLE, false);
 

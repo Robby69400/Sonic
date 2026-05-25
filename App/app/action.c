@@ -58,8 +58,6 @@ void (*action_opt_table[])(void) = {
     [ACTION_OPT_FLASHLIGHT] = &FUNCTION_NOP,
 #endif
 
-    [ACTION_OPT_VOX] = &FUNCTION_NOP,
-
 #ifdef ENABLE_FMRADIO
     [ACTION_OPT_FM] = &ACTION_FM,
 #else

@@ -96,16 +96,10 @@ void FUNCTION_Foreground(const FUNCTION_Type_t PreviousFunction)
 void FUNCTION_PowerSave() {
         gPowerSave_10ms = gEeprom.BATTERY_SAVE * 10;
     gPowerSaveCountdownExpired = false;
-
     gRxIdleMode = true;
-
     gMonitor = false;
-
-    BK4819_DisableVox();
     BK4819_Sleep();
-
     BK4819_ToggleGpioOut(BK4819_GPIO0_PIN28_RX_ENABLE, false);
-
     gUpdateStatus = true;
 
     if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu

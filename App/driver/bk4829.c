@@ -876,12 +876,6 @@ void BK4819_SetCompander(const unsigned int mode)
     BK4819_WriteRegister(BK4819_REG_31, r31 | (1u << 3));
 }
 
-void BK4819_DisableVox(void)
-{
-    const uint16_t Value = BK4819_ReadRegister(BK4819_REG_31);
-    BK4819_WriteRegister(BK4819_REG_31, Value & 0xFFFB);
-}
-
 void BK4819_PlayTone(uint16_t Frequency, bool bTuningGainSwitch)
 {
     uint16_t ToneConfig = BK4819_REG_70_ENABLE_TONE1;
@@ -1534,9 +1528,3 @@ void BK4819_Enable_AfDac_DiscMode_TxDsp(void)
     BK4819_WriteRegister(BK4819_REG_30, 0x0000);
     BK4819_WriteRegister(BK4819_REG_30, 0x0302);
 }
-
-void BK4819_GetVoxAmp(uint16_t *pResult)
-{
-    *pResult = BK4819_ReadRegister(BK4819_REG_64) & 0x7FFF;
-}
-

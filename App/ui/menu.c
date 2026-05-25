@@ -464,10 +464,6 @@ void UI_DisplayMenu(void)
             strcpy(String, gSubMenu_W_N[gSubMenuSelection]);
             break;
 
-        case MENU_VOX:
-                strcpy(String, gSubMenu_NA);
-            break;
-
         case MENU_ABR:
             if(gSubMenuSelection == 0)
             {

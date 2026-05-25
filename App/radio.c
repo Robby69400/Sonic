@@ -713,10 +713,6 @@ void RADIO_SetupRegisters(bool switchToForeground)
         }
     }
 
-    {
-        BK4819_DisableVox();
-    }
-
     // RX expander
     BK4819_SetCompander((gRxVfo->Modulation == MODULATION_FM && gRxVfo->Compander >= 2) ? gRxVfo->Compander : 0);
     //RADIO_SetupAGC(gRxVfo->Modulation == MODULATION_AM, false);

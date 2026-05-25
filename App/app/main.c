@@ -172,19 +172,6 @@ static void toggle_chan_scanlist(void)
 }
 
 // ── F-key functions ──────────────────────────────────────────────────────────
-// KA50 назначения (beep=true = F+кнопка, beep=false = долгое нажатие):
-// KEY_0        : FM радио
-// KEY_1 !beep  : смена диапазона   / beep: 1Call
-// KEY_2 !beep  : VFO A/B           / beep: —
-// KEY_3 !beep  : VFO/MR            / beep: —
-// KEY_4        : —
-// KEY_5 !beep  : toggle scanlist   / beep: —
-// KEY_6        : Power (и долгое и F+)
-// KEY_7        : VOX (F+7)  — долгое 7 перехватывается в DIGITS
-// KEY_8        : — (не используется)
-// KEY_9        : Spectrum (F+9)  — долгое 9 перехватывается в DIGITS
-// KEY_UP/DOWN  : squelch (F+)
-// KEY_SIDE1/2  : step (F+)
 
 static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 {

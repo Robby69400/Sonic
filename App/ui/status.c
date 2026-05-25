@@ -154,8 +154,6 @@ void UI_DisplayStatus()
     }
 #endif
 
-    // 4. VOX - В СТОЛБИК
-
     // 6. ФОНАРИК (FlashlightOnRX) - мигание при RX включено
     if (gEeprom.FlashlightOnRX) {
         POS_MOD += 3;

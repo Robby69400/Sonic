@@ -79,7 +79,6 @@ enum ACTION_OPT_t {
     ACTION_OPT_POWER,
     ACTION_OPT_MONITOR,
     ACTION_OPT_SCAN,
-    ACTION_OPT_VOX,
     ACTION_OPT_ALARM,
     ACTION_OPT_FM,
     ACTION_OPT_1750,
@@ -174,8 +173,6 @@ typedef struct {
     bool                  MENU_LOCK;
     uint8_t               SET_KEY;
 #endif
-    bool                  VOX_SWITCH;
-    uint8_t               VOX_LEVEL;
     bool                  BEEP_CONTROL;
     uint8_t               CHANNEL_DISPLAY_MODE;
     bool                  TAIL_TONE_ELIMINATION;
@@ -211,11 +208,7 @@ typedef struct {
     uint8_t               DAC_GAIN;
 
     VFO_Info_t            VfoInfo[2];
-    uint32_t              POWER_ON_PASSWORD;
-    uint16_t              VOX1_THRESHOLD;
-    uint16_t              VOX0_THRESHOLD;
-
-    
+   
     uint8_t               KEY_M_LONG_PRESS_ACTION;
     uint8_t               BACKLIGHT_MIN;
     uint8_t               BACKLIGHT_MAX;
