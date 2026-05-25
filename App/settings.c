@@ -304,8 +304,6 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
     PY25Q16_ReadBuffer(0x00A150, Data, 8);
     gSetting_F_LOCK            = (Data[0] < F_LOCK_LEN) ? Data[0] : F_LOCK_136_500;
 
-    gSetting_ScrambleEnable    = (Data[6] < 2) ? Data[6] : true;
-
     //gSetting_TX_EN             = (Data[7] & (1u << 0)) ? true : false;
     gSetting_battery_text      = (((Data[7] >> 2) & 3u) <= 2) ? (Data[7] >> 2) & 3 : 2; // default PERCENT
     #ifdef ENABLE_AUDIO_BAR
@@ -757,9 +755,6 @@ void SETTINGS_SaveSettings(void)
     State = SecBuf;
     State[0]  = gSetting_F_LOCK;
 
-    State[6]  = gSetting_ScrambleEnable;
-
-
     State[7] = (State[7] & ~(3u << 2)) | ((gSetting_battery_text & 3u) << 2);
     #ifdef ENABLE_AUDIO_BAR
         if (!gSetting_mic_bar)           State[7] &= ~(1u << 4);
@@ -858,7 +853,6 @@ void SETTINGS_SaveChannel(uint16_t Channel, uint8_t VFO, const VFO_Info_t *pVFO,
             | (pVFO->FrequencyReverse  << 0);
         ;
         State -> _8[6] =  pVFO->STEP_SETTING;
-        State -> _8[7] =  pVFO->SCRAMBLING_TYPE;
 
         PY25Q16_WriteBuffer(OffsetVFO, Buf, 0x10, false);
 

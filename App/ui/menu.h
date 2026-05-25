@@ -40,12 +40,6 @@ enum
     MENU_OFFSET,
     MENU_TOT,
     MENU_W_N,
-#ifdef ENABLE_SCRAMBLER
-    MENU_SCR,
-#endif
-//#ifdef ENABLE_FEAT_F4HWN
-//    MENU_TX_LOCK, 
-//#endif
     MENU_MEM_CH,
     MENU_DEL_CH,
     MENU_MEM_NAME,
@@ -75,9 +69,6 @@ enum
 #endif
     MENU_RESET,
     MENU_F_LOCK,
-#ifdef ENABLE_SCRAMBLER
-    MENU_SCREN,
-#endif
 #ifdef ENABLE_F_CAL_MENU
     MENU_F_CALI,  
 #endif
@@ -131,10 +122,6 @@ extern const char* const gSubMenu_F_LOCK[F_LOCK_LEN];
 extern const char        gSubMenu_RX_TX[4][6];
 extern const char        gSubMenu_BAT_TXT[3][8];
 extern const char* const         gSubMenu_BATTYP[];
-#ifdef ENABLE_SCRAMBLER
-extern const char        gSubMenu_SCRAMBLER[11][7];
-#endif
-
 typedef struct {char* name; uint8_t id;} t_sidefunction;
 extern const uint8_t         gSubMenu_SIDEFUNCTIONS_size;
 extern const t_sidefunction gSubMenu_SIDEFUNCTIONS[];

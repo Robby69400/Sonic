@@ -141,7 +141,6 @@ extern const uint8_t         gMicGain_dB2[9];
 
 
 extern uint8_t               gSetting_F_LOCK;
-extern bool                  gSetting_ScrambleEnable;
 
 extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 

@@ -604,7 +604,6 @@ void APP_Update(void)
 
             if(gSetting_set_tot == 1 || gSetting_set_tot == 3)
             {
-                BK4819_DisableScramble();
                 BK4819_PlaySingleTone(gTxTimeoutToneAlert, 30, 1, true);
                 gTxTimeoutToneAlert += 100;
             }

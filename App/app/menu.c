@@ -174,10 +174,6 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
         #endif
         case MENU_BEEP:
 
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCREN:
-#endif
-
 #ifdef ENABLE_FEAT_F4HWN
         #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER    // calypso
         case MENU_SET_TMR:
@@ -190,15 +186,6 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             //*pMin = 0;
             *pMax = ARRAY_SIZE(gModulationStr) - 1;
             break;
-
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCR:
-            //*pMin = 0;
-            *pMax = ARRAY_SIZE(gSubMenu_SCRAMBLER) - 1;
-            break;
-#endif
-
 
         case MENU_AUTOLK:
             *pMax = 40;
@@ -392,23 +379,6 @@ void MENU_AcceptSetting(void)
             gRequestSaveChannel       = 1;
             return;
 
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCR:
-            gTxVfo->SCRAMBLING_TYPE = gSubMenuSelection;
-                if (gSubMenuSelection > 0 && gSetting_ScrambleEnable)
-                    BK4819_EnableScramble(gSubMenuSelection - 1);
-                else
-                    BK4819_DisableScramble();
-                                       
-                //if (gRxVfo->Modulation == MODULATION_AM)
-                //    BK4819_SetFilterBandwidth(BK4819_FILTER_BW_AM, true);
-
-            gRequestSaveChannel = IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE) ? 2 : 1;
-            return;
-#endif
-
-
         case MENU_MEM_NAME:
             for (int i = 9; i >= 0; i--) {
                 if (edit[i] != ' ' && edit[i] != '_' && edit[i] != 0x00 && edit[i] != 0xff)
@@ -549,13 +519,6 @@ void MENU_AcceptSetting(void)
             gUnlockAllTxConfCnt = 0;   // сбрасываем счётчик
             break;
         }
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCREN:
-            gSetting_ScrambleEnable = gSubMenuSelection;
-            gFlagReconfigureVfos    = true;
-            break;
-#endif
 
         #ifdef ENABLE_F_CAL_MENU
             case MENU_F_CALI:
@@ -725,14 +688,6 @@ void MENU_ShowCurrentSetting(void)
             gSubMenuSelection = gTxVfo->CHANNEL_BANDWIDTH;
             break;
 
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCR:
-            gSubMenuSelection = gTxVfo->SCRAMBLING_TYPE;
-            break;
-#endif
-
-
         case MENU_MEM_NAME:
             gSubMenuSelection = gEeprom.MrChannel[gEeprom.TX_VFO];
             break;
@@ -837,13 +792,6 @@ void MENU_ShowCurrentSetting(void)
         case MENU_F_LOCK:
             gSubMenuSelection = gSetting_F_LOCK;
             break;
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCREN:
-            gSubMenuSelection = gSetting_ScrambleEnable;
-            break;
-#endif
-
 
         #ifdef ENABLE_F_CAL_MENU
             case MENU_F_CALI:

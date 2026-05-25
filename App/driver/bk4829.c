@@ -534,28 +534,6 @@ void BK4819_SetTailDetection(const uint32_t freq_10Hz)
     BK4819_WriteRegister(BK4819_REG_07, BK4819_REG_07_MODE_CTC2 | ((253910 + (freq_10Hz / 2)) / freq_10Hz));  // with rounding
 }
 
-void BK4819_EnableVox(uint16_t VoxEnableThreshold, uint16_t VoxDisableThreshold)
-{
-    //VOX Algorithm
-    //if (voxamp>VoxEnableThreshold)                VOX = 1;
-    //else
-    //if (voxamp<VoxDisableThreshold) (After Delay) VOX = 0;
-
-    const uint16_t REG_31_Value = BK4819_ReadRegister(BK4819_REG_31);
-
-    // 0xA000 is undocumented?
-    BK4819_WriteRegister(BK4819_REG_46, 0xA000 | (VoxEnableThreshold & 0x07FF));
-
-    // 0x1800 is undocumented?
-    BK4819_WriteRegister(BK4819_REG_79, 0x1800 | (VoxDisableThreshold & 0x07FF));
-
-    // Bottom 12 bits are undocumented, 15:12 vox disable delay *128ms
-    BK4819_WriteRegister(BK4819_REG_7A, 0x289A); // vox disable delay = 128*5 = 640ms
-
-    // Enable VOX
-    BK4819_WriteRegister(BK4819_REG_31, REG_31_Value | (1u << 2));    // VOX Enable
-}
-
 void BK4819_SetFilterBandwidth(const BK4819_FilterBandwidth_t Bandwidth, const bool weak_no_different)
 {
     (void)weak_no_different;
@@ -830,20 +808,6 @@ void BK4819_PickRXFilterPathBasedOnFrequency(uint32_t Frequency)
         BK4819_ToggleGpioOut(BK4819_GPIO4_PIN32_VHF_LNA, false);
         BK4819_ToggleGpioOut(BK4819_GPIO3_PIN31_UHF_LNA, true);
     }
-}
-
-void BK4819_DisableScramble(void)
-{
-    const uint16_t Value = BK4819_ReadRegister(BK4819_REG_31);
-    BK4819_WriteRegister(BK4819_REG_31, Value & ~(1u << 1));
-}
-
-void BK4819_EnableScramble(uint8_t Type)
-{
-    uint16_t Value = BK4819_ReadRegister(BK4819_REG_31);
-    BK4819_WriteRegister(BK4819_REG_31, Value | (1u << 1));
-
-    BK4819_WriteRegister(BK4819_REG_71, 0x68DC + (Type * 1032));   // 0110 1000 1101 1100
 }
 
 bool BK4819_CompanderEnabled(void)
@@ -1127,41 +1091,6 @@ void BK4819_EnableTXLink(void)
         BK4819_REG_30_DISABLE_RX_DSP);
 }
 
-void BK4819_TransmitTone(bool bLocalLoopback, uint32_t Frequency)
-{
-    BK4819_EnterTxMute();
-
-    // REG_70
-    //
-    // <15>   0 Enable TONE1
-    //        1 = Enable
-    //        0 = Disable
-    //
-    // <14:8> 0 TONE1 tuning gain
-    //        0 ~ 127
-    //
-    // <7>    0 Enable TONE2
-    //        1 = Enable
-    //        0 = Disable
-    //
-    // <6:0>  0 TONE2/FSK amplitude
-    //        0 ~ 127
-    //
-    // set the tone amplitude
-    //
-    BK4819_WriteRegister(BK4819_REG_70, BK4819_REG_70_MASK_ENABLE_TONE1 | (66u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
-
-    BK4819_WriteRegister(BK4819_REG_71, scale_freq(Frequency));
-
-    BK4819_SetAF(bLocalLoopback ? BK4819_AF_BEEP : BK4819_AF_MUTE);
-
-    BK4819_EnableTXLink();
-
-    SYSTEM_DelayMs(50);
-
-    BK4819_ExitTxMute();
-}
-
 void BK4819_GenTail(uint8_t Tail)
 {
     // REG_52
@@ -1434,13 +1363,6 @@ void BK4819_Disable(void)
     BK4819_WriteRegister(BK4819_REG_30, 0);
 }
 
-void BK4819_StopScan(void)
-{
-    BK4819_DisableFrequencyScan();
-    BK4819_WriteRegister(BK4819_REG_02, 0); // очистить накопленные IRQ флаги до отключения чипа
-    BK4819_Disable();
-}
-
 uint8_t BK4819_GetCDCSSCodeType(void)
 {
     return (BK4819_ReadRegister(BK4819_REG_0C) >> 14) & 3u;
@@ -1454,54 +1376,6 @@ uint8_t BK4819_GetCTCShift(void)
 uint8_t BK4819_GetCTCType(void)
 {
     return (BK4819_ReadRegister(BK4819_REG_0C) >> 10) & 3u;
-}
-
-void BK4819_SendFSKData(uint16_t *pData)
-{
-    unsigned int i;
-    uint8_t Timeout = 200;
-
-    SYSTEM_DelayMs(30);
-
-    BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED);
-    BK4819_WriteRegister(BK4819_REG_59, 0x8068);
-    BK4819_WriteRegister(BK4819_REG_59, 0x0068);
-
-    for (i = 0; i < 36; i++)
-        BK4819_WriteRegister(BK4819_REG_5F, pData[i]);
-
-    SYSTEM_DelayMs(20);
-
-    BK4819_WriteRegister(BK4819_REG_59, 0x2868);
-
-    while (Timeout-- && (BK4819_ReadRegister(BK4819_REG_0C) & 1u) == 0)
-        SYSTEM_DelayMs(5);
-
-    BK4819_WriteRegister(BK4819_REG_02, 0);
-
-    SYSTEM_DelayMs(30);
-
-    BK4819_ResetFSK();
-}
-
-void BK4819_PrepareFSKReceive(void)
-{
-    BK4819_ResetFSK();
-    BK4819_WriteRegister(BK4819_REG_02, 0);
-    BK4819_WriteRegister(BK4819_REG_3F, 0);
-    BK4819_RX_TurnOn();
-    BK4819_WriteRegister(BK4819_REG_3F, 0 | BK4819_REG_3F_FSK_RX_FINISHED | BK4819_REG_3F_FSK_FIFO_ALMOST_FULL);
-
-    // Clear RX FIFO
-    // FSK Preamble Length 7 bytes
-    // FSK SyncLength Selection
-    BK4819_WriteRegister(BK4819_REG_59, 0x4068);
-
-    // Enable FSK Scramble
-    // Enable FSK RX
-    // FSK Preamble Length 7 bytes
-    // FSK SyncLength Selection
-    BK4819_WriteRegister(BK4819_REG_59, 0x3068);
 }
 
 //###########################################################################################
@@ -1664,10 +1538,5 @@ void BK4819_Enable_AfDac_DiscMode_TxDsp(void)
 void BK4819_GetVoxAmp(uint16_t *pResult)
 {
     *pResult = BK4819_ReadRegister(BK4819_REG_64) & 0x7FFF;
-}
-
-void BK4819_SetScrambleFrequencyControlWord(uint32_t Frequency)
-{
-    BK4819_WriteRegister(BK4819_REG_71, scale_freq(Frequency));
 }
 

@@ -117,7 +117,6 @@ enable_feature(ENABLE_FMRADIO
     app/fm.c 
     ui/fmradio.c
 )
-enable_feature(ENABLE_SCRAMBLER)
 enable_feature(ENABLE_BENCH)
 enable_feature(ENABLE_SET_TOT_EOT)
 enable_feature(ENABLE_ALARM)

@@ -976,17 +976,6 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold(bw, LCD_WIDTH + x - (uint8_t)(strlen(bw) * 3), 0, y);
         }
 
-        // ── СКРЕМБЛЕР ─────────────────────────────────────────────────
-#ifdef ENABLE_SCRAMBLER
-        if (vfoInfo->SCRAMBLING_TYPE > 0 && gSetting_ScrambleEnable) {
-            uint8_t x_mr = 35, y_mr = 25;
-            uint8_t x_vfo = 20, y_vfo = 32;
-            uint8_t x = isMR ? x_mr : x_vfo;
-            uint8_t y = isMR ? y_mr : y_vfo;
-            GUI_DisplaySmallest("SC", x, y, false, true);
-        }
-#endif
-
         // ── СОСТОЯНИЕ VFO (TIMEOUT/ALARM/etc) ────────────────────────
         {
             enum VfoState_t state = VfoState[vfo_num];
@@ -1553,12 +1542,6 @@ if (IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]))
             UI_PrintStringSmallBold("N", LCD_WIDTH + 70, 0, line + 1);
 #endif
 
-
-#ifdef ENABLE_SCRAMBLER
-        // [SCR скремблер] — фиксированные координаты в строке параметров
-        if (vfoInfo->SCRAMBLING_TYPE > 0 && gSetting_ScrambleEnable)
-            GUI_DisplaySmallest("SCR", 56, line == 0 ? 17 : 49, false, true); // [SCR] x=56 (меняй только здесь)
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
         /*

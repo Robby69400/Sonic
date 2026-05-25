@@ -58,9 +58,6 @@ const t_menu_item MenuList[] =
     {"SetNFM",      MENU_SET_NFM       },
     #endif
     {"Compnd",      MENU_COMPAND       },
-#ifdef ENABLE_SCRAMBLER
-    {"Scramb",      MENU_SCR           },
-#endif
     {"Roger",       MENU_ROGER         },
     {"1 Call",      MENU_1_CALL        },
     {"STE",         MENU_STE           },
@@ -93,9 +90,6 @@ const t_menu_item MenuList[] =
 #endif
     // hidden menu items (PTT + upper side button at power-on)
     {"F Lock",      MENU_F_LOCK        },
-#ifdef ENABLE_SCRAMBLER
-    {"ScraEn",      MENU_SCREN         },
-#endif
 #ifdef ENABLE_F_CAL_MENU
     {"FrCali",      MENU_F_CALI        },
 #endif
@@ -218,24 +212,6 @@ const char * const gSubMenu_BATTYP[] =
     "2200mAh\nUV-R5+",
     "3500mAh\nUV-K5"
 };
-
-#ifdef ENABLE_SCRAMBLER
-const char gSubMenu_SCRAMBLER[][7] =
-{
-    "OFF",
-    "2600Hz",
-    "2700Hz",
-    "2800Hz",
-    "2900Hz",
-    "3000Hz",
-    "3100Hz",
-    "3200Hz",
-    "3300Hz",
-    "3400Hz",
-    "3500Hz"
-};
-#endif
-
 
 #ifdef ENABLE_FEAT_F4HWN
 
@@ -488,27 +464,6 @@ void UI_DisplayMenu(void)
             strcpy(String, gSubMenu_W_N[gSubMenuSelection]);
             break;
 
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCR:
-            strcpy(String, gSubMenu_SCRAMBLER[gSubMenuSelection]);
-            
-            if(gRxVfo->Modulation == MODULATION_FM){
-                if (gSubMenuSelection > 0 && gSetting_ScrambleEnable)
-                {
-                    BK4819_EnableScramble(gSubMenuSelection - 1);
-                }
-                else
-                {
-                    BK4819_DisableScramble();
-                }
-        }
-            //if (gRxVfo->Modulation == MODULATION_AM)
-            //    BK4819_SetFilterBandwidth(BK4819_FILTER_BW_AM, true);
-            break;
-#endif
-
-
         case MENU_VOX:
                 strcpy(String, gSubMenu_NA);
             break;
@@ -574,10 +529,6 @@ void UI_DisplayMenu(void)
         case MENU_BEEP:
         case MENU_STE:
         case MENU_D_ST:
-
-#ifdef ENABLE_SCRAMBLER
-        case MENU_SCREN:
-#endif
 
 #ifdef ENABLE_FEAT_F4HWN
         #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER //calypso

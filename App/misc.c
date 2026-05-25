@@ -78,7 +78,6 @@ const uint8_t     gMicGain_dB2[9]                  = {3, 8, 16, 24, 32, 40, 48, 
 
 
 uint8_t           gSetting_F_LOCK;
-bool              gSetting_ScrambleEnable;
 
 enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 
