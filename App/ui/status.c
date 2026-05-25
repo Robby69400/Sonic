@@ -18,12 +18,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
-
-#include "app/chFrScanner.h"
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
-#include "app/scanner.h"
 #include "bitmaps.h"
 #include "driver/keyboard.h"
 #include "driver/st7565.h"
@@ -72,8 +69,7 @@ void UI_DisplayStatus()
 
    
 
-    // 2. РЕЖИМЫ (DW, DWR, HL, MO)
-    if (!SCANNER_IsScanning()) {
+    
         uint8_t dw = (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF) + (gEeprom.CROSS_BAND_RX_TX != CROSS_BAND_OFF) * 2;
         if (dw == 1 || dw == 3) {
             if (gDualWatchActive) {
@@ -124,46 +120,8 @@ void UI_DisplayStatus()
                 gStatusLine[POS_MOD++] = 0x7F;
             }
         }
-    }
+    
 
-
-         // 1. СКАНЕР И СПИСКИ
-    if (gScanStateDir != SCAN_OFF || SCANNER_IsScanning()) {
-        POS_MOD += 3;
-        if (IS_MR_CHANNEL(gNextMrChannel) && !SCANNER_IsScanning()) {
-            {
-                char sl_str[4] = {0};
-                uint8_t sl = gEeprom.SCAN_LIST_DEFAULT;
-                if (sl == 0 || sl > MR_CHANNELS_LIST + 1) {
-                    // неверное значение — показываем 0
-                    sl_str[0] = '0'; sl_str[1] = 0;
-                    GUI_DisplaySmallestDark(sl_str, POS_MOD, 1, true, false); POS_MOD += 5;
-                } else if (sl == MR_CHANNELS_LIST + 1) {
-                    // ALL — показываем A
-                    sl_str[0] = 'A'; sl_str[1] = 0;
-                    GUI_DisplaySmallestDark(sl_str, POS_MOD, 1, true, false); POS_MOD += 5;
-                } else if (sl >= 10) {
-                    sl_str[0] = '0' + sl/10; sl_str[1] = '0' + sl%10; sl_str[2] = 0;
-                    GUI_DisplaySmallestDark(sl_str, POS_MOD, 1, true, false); POS_MOD += 9;
-                } else {
-                    sl_str[0] = '0' + sl; sl_str[1] = 0;
-                    GUI_DisplaySmallestDark(sl_str, POS_MOD, 1, true, false); POS_MOD += 5;
-                }
-            }
-        } else {
-            //memcpy(gStatusLine + POS_MOD, gFontS, sizeof(gFontS));
-                gStatusLine[POS_MOD ++] |= 0x41;
-                gStatusLine[POS_MOD ++] |= 0x63;
-                gStatusLine[POS_MOD ++] |= 0x36;
-                gStatusLine[POS_MOD ++] |= 0x1C;
-                gStatusLine[POS_MOD ++] |= 0x08;
-                gStatusLine[POS_MOD ++] |= 0x41;
-                gStatusLine[POS_MOD ++] |= 0x63;
-                gStatusLine[POS_MOD ++] |= 0x36;
-                gStatusLine[POS_MOD ++] |= 0x1C;
-                gStatusLine[POS_MOD ++] |= 0x08;
-        }
-    }
 
 
     // 3. ТАЙМЕР + S-МЕТР (всегда через 3px после таймера)

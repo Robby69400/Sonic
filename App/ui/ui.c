@@ -16,8 +16,6 @@
 
 #include <assert.h>
 #include <string.h>
-
-#include "app/chFrScanner.h"
 #include "app/dtmf.h"
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
@@ -36,7 +34,6 @@
 #include "ui/inputbox.h"
 #include "ui/main.h"
 #include "ui/menu.h"
-#include "ui/scanner.h"
 #include "ui/ui.h"
 #include "../misc.h"
 
@@ -51,7 +48,6 @@ bool              gAskToDelete;
 void (*UI_DisplayFunctions[])(void) = {
     [DISPLAY_MAIN] = &UI_DisplayMain,
     [DISPLAY_MENU] = &UI_DisplayMenu,
-    [DISPLAY_SCANNER] = &UI_DisplayScanner,
 
 #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &UI_DisplayFM,
@@ -87,7 +83,6 @@ void GUI_SelectNextDisplay(GUI_DisplayType_t Display)
         gInputBoxIndex       = 0;
         gIsInSubMenu         = false;
         gCssBackgroundScan   = false;
-        gScanStateDir        = SCAN_OFF;
         #ifdef ENABLE_FMRADIO
             gFM_ScanState    = FM_SCAN_OFF;
         #endif

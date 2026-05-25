@@ -17,7 +17,6 @@
 #include <string.h>
 
 #include "app/app.h"
-#include "app/chFrScanner.h"
 #include "app/common.h"
 
 #ifdef ENABLE_FMRADIO
@@ -26,7 +25,6 @@
 
 #include "app/generic.h"
 #include "app/menu.h"
-#include "app/scanner.h"
 #include "audio.h"
 #include "driver/keyboard.h"
 #include "dtmf.h"
@@ -123,17 +121,6 @@ void GENERIC_Key_PTT(bool bKeyPressed)
     }
 
     // PTT pressed
-
-
-    if (SCANNER_IsScanning()) { 
-        SCANNER_Stop(); // CTCSS/CDCSS scanning .. stop
-        goto cancel_tx;
-    }
-
-    if (gScanStateDir != SCAN_OFF) {    
-        CHFRSCANNER_Stop(); // frequency/channel scanning . .stop
-        goto cancel_tx;
-    }
 
 
 

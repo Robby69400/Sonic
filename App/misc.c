@@ -207,9 +207,6 @@ uint8_t           gReducedService;
 uint8_t           gBatteryVoltageIndex;
 bool              gCssBackgroundScan;
 
-volatile bool     gScheduleScanListen = true;
-volatile uint16_t gScanPauseDelayIn_10ms;
-
 uint16_t          gMenuCountdown;
 bool              gPttWasReleased;
 bool              gPttWasPressed;

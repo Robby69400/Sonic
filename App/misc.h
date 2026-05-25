@@ -335,9 +335,6 @@ enum
     SCAN_FWD = +1
 };
 
-extern volatile bool     gScheduleScanListen;
-extern volatile uint16_t gScanPauseDelayIn_10ms;
-
 extern AlarmState_t          gAlarmState;
 extern uint16_t              gMenuCountdown;
 extern bool                  gPttWasReleased;

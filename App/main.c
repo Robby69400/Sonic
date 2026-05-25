@@ -37,7 +37,6 @@
     #ifdef ENABLE_SPECTRUM
         #include "app/spectrum.h"
     #endif
-    #include "app/chFrScanner.h"
 #endif
 
 #include "app/app.h"
@@ -214,17 +213,14 @@ void Main(void)
     }
 
     #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-        if (gEeprom.CURRENT_STATE == 2 || gEeprom.CURRENT_STATE == 5)
-            CHFRSCANNER_ScanRange();
+        
 
         switch (gEeprom.CURRENT_STATE) {
             case 1:
                 gEeprom.SCAN_LIST_DEFAULT = gEeprom.CURRENT_LIST;
-                CHFRSCANNER_Start(true, SCAN_FWD);
                 break;
 
             case 2:
-                CHFRSCANNER_Start(true, SCAN_FWD);
                 break;
 
             #ifdef ENABLE_FMRADIO

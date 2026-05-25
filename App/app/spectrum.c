@@ -19,7 +19,6 @@
 // ============================================================
 #include "app/spectrum.h"
 #include "nav_invert.h"
-#include "scanner.h"
 #include "driver/backlight.h"
 #include "driver/eeprom.h"
 #include "ui/helper.h"

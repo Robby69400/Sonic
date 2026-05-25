@@ -15,11 +15,9 @@
  */
 
 #include "scheduler.h"
-#include "app/chFrScanner.h"
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
-#include "app/scanner.h"
 #include "audio.h"
 #include "functions.h"
 #include "helper/battery.h"
@@ -86,15 +84,12 @@ void SysTick_Handler(void)
     if (gCurrentFunction == FUNCTION_POWER_SAVE)
         DECREMENT_AND_TRIGGER(gPowerSave_10ms, gPowerSaveCountdownExpired);
 
-    if (gScanStateDir == SCAN_OFF && !gCssBackgroundScan && gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
+    if (!gCssBackgroundScan && gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
         if (gCurrentFunction != FUNCTION_MONITOR && gCurrentFunction != FUNCTION_TRANSMIT && gCurrentFunction != FUNCTION_RECEIVE)
             DECREMENT_AND_TRIGGER(gDualWatchCountdown_10ms, gScheduleDualWatch);
 
 
-    if (gScanStateDir != SCAN_OFF)
-        if (gCurrentFunction != FUNCTION_MONITOR && gCurrentFunction != FUNCTION_TRANSMIT)
-            DECREMENT_AND_TRIGGER(gScanPauseDelayIn_10ms, gScheduleScanListen);
-
+    
     DECREMENT_AND_TRIGGER(gTailNoteEliminationCountdown_10ms, gFlagTailNoteEliminationComplete);
 
 

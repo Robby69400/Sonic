@@ -23,7 +23,6 @@
 #include "app/dtmf.h"
 #include "app/generic.h"
 #include "app/menu.h"
-#include "app/scanner.h"
 #include "audio.h"
 #include "board.h"
 #include "driver/backlight.h"
@@ -77,37 +76,6 @@ uint8_t gUnlockAllTxConfCnt;
     }
 #endif
 
-void MENU_StartCssScan(void)
-{
-    SCANNER_Start(true);
-    gUpdateStatus = true;
-    gCssBackgroundScan = true;
-
-    gRequestDisplayScreen = DISPLAY_MENU;
-}
-
-void MENU_CssScanFound(void)
-{
-    if(gScanCssResultType == CODE_TYPE_DIGITAL || gScanCssResultType == CODE_TYPE_REVERSE_DIGITAL) {
-        gMenuCursor = UI_MENU_GetMenuIdx(MENU_R_DCS);
-    }
-    else if(gScanCssResultType == CODE_TYPE_CONTINUOUS_TONE) {
-        gMenuCursor = UI_MENU_GetMenuIdx(MENU_R_CTCS);
-    }
-
-    MENU_ShowCurrentSetting();
-
-    gUpdateStatus = true;
-    gUpdateDisplay = true;
-}
-
-void MENU_StopCssScan(void)
-{
-    gCssBackgroundScan = false;
-
-    gUpdateDisplay = true;
-    gUpdateStatus = true;
-}
 
 int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
 {
@@ -736,11 +704,6 @@ void MENU_ShowCurrentSetting(void)
             uint8_t code = gTxVfo->freq_config_RX.Code;
             int menuid = UI_MENU_GetCurrentMenuId();
 
-            if(gScanUseCssResult) {
-                gScanUseCssResult = false;
-                type = gScanCssResultType;
-                code = gScanCssResultCode;
-            }
             if((menuid==MENU_R_CTCS) ^ (type==CODE_TYPE_CONTINUOUS_TONE)) { //not the same type
                 gSubMenuSelection = 0;
                 break;
@@ -1213,9 +1176,6 @@ static void MENU_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
     }
     else
     {
-        MENU_StopCssScan();
-
-
         gRequestDisplayScreen = DISPLAY_MENU;
     }
 
@@ -1333,56 +1293,7 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
             gIsInSubMenu       = false;
         }
     }
-
-    SCANNER_Stop();
-
-
     gInputBoxIndex = 0;
-}
-
-static void MENU_Key_STAR(const bool bKeyPressed, const bool bKeyHeld)
-{
-    if (bKeyHeld || !bKeyPressed)
-        return;
-
-    gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-
-    if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && edit_index >= 0)
-    {   // currently editing the channel name
-
-        if (edit_index < 10)
-        {
-            edit[edit_index] = '-';
-
-            if (++edit_index >= 10)
-            {   // exit edit
-                gFlagAcceptSetting  = false;
-                gAskForConfirmation = 1;
-            }
-
-            gRequestDisplayScreen = DISPLAY_MENU;
-        }
-
-        return;
-    }
-
-    RADIO_SelectVfos();
-
-        if (gRxVfo->Modulation ==  MODULATION_FM)
-    {
-        if ((UI_MENU_GetCurrentMenuId() == MENU_R_CTCS || UI_MENU_GetCurrentMenuId() == MENU_R_DCS) && gIsInSubMenu)
-        {   // scan CTCSS or DCS to find the tone/code of the incoming signal
-            if (!SCANNER_IsScanning())
-                MENU_StartCssScan();
-            else
-                MENU_StopCssScan();
-        }
-
-        gPttWasReleased = true;
-        return;
-    }
-
-    gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
 }
 
 static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
@@ -1426,9 +1337,6 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
     if (!bKeyPressed)
         return;
 
-    if (SCANNER_IsScanning()) {
-        return;
-    }
 
     if (!gIsInSubMenu)
     {
@@ -1536,7 +1444,6 @@ void MENU_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             MENU_Key_EXIT(bKeyPressed, bKeyHeld);
             break;
         case KEY_STAR:
-            MENU_Key_STAR(bKeyPressed, bKeyHeld);
             break;
         case KEY_F:
             if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && edit_index >= 0)

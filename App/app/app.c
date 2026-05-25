@@ -25,7 +25,6 @@
     #include "app/aircopy.h"
 #endif
 #include "app/app.h"
-#include "app/chFrScanner.h"
 #include "app/dtmf.h"
 #ifdef ENABLE_FLASHLIGHT
     #include "app/flashlight.h"
@@ -36,7 +35,6 @@
 #include "app/generic.h"
 #include "app/main.h"
 #include "app/menu.h"
-#include "app/scanner.h"
 #if defined(ENABLE_UART) || defined(ENABLE_USB)
     #include "app/uart.h"
     #include "scheduler.h"
@@ -83,7 +81,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld);
 void (*ProcessKeysFunctions[])(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld) = {
     [DISPLAY_MAIN] = &MAIN_ProcessKeys,
     [DISPLAY_MENU] = &MENU_ProcessKeys,
-    [DISPLAY_SCANNER] = &SCANNER_ProcessKeys,
 
 #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &FM_ProcessKeys,
@@ -113,8 +110,7 @@ static void CheckForIncoming(void)
 
     // squelch is open
 
-    if (gScanStateDir == SCAN_OFF)
-    {   // not RF scanning
+  // not RF scanning
         if (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF)
         {   // dual watch is disabled
 
@@ -145,22 +141,8 @@ static void CheckForIncoming(void)
         // let the user see DW is not active
         gDualWatchActive = false;
         gUpdateStatus    = true;
-    }
-    else
-    {   // RF scanning
-        if (gRxReceptionMode != RX_MODE_NONE)
-        {
-            if (gCurrentFunction != FUNCTION_INCOMING)
-            {
-                FUNCTION_Select(FUNCTION_INCOMING);
-                //gUpdateDisplay = true;
-            }
-            return;
-        }
 
-        gScanPauseDelayIn_10ms = scan_pause_delay_in_3_10ms;
-        gScheduleScanListen    = false;
-    }
+
 
     gRxReceptionMode = RX_MODE_DETECTED;
 
@@ -181,7 +163,7 @@ static void HandleIncoming(void)
         return;
     }
 
-    bool bFlag = (gScanStateDir == SCAN_OFF && gCurrentCodeType == CODE_TYPE_OFF);
+    bool bFlag = (gCurrentCodeType == CODE_TYPE_OFF);
 
     if (g_CTCSS_Lost && gCurrentCodeType == CODE_TYPE_CONTINUOUS_TONE) {
         bFlag       = true;
@@ -213,15 +195,7 @@ static void HandleReceive(void)
         goto Skip;
     }
 
-    if (gScanStateDir != SCAN_OFF && IS_FREQ_CHANNEL(gNextMrChannel))
-    { // we are scanning in the frequency mode
-        if (g_SquelchLost)
-            return;
-
-        Mode = END_OF_RX_MODE_END;
-        goto Skip;
-    }
-
+    
     switch (gCurrentCodeType)
     {
         default:
@@ -326,77 +300,7 @@ Skip:
 
             gUpdateDisplay = true;
 
-            if (gScanStateDir != SCAN_OFF)
-            {
-
-                /*
-                switch (gEeprom.SCAN_RESUME_MODE)
-                {
-                    case SCAN_RESUME_TO:
-                        break;
-
-                    case SCAN_RESUME_CO:
-                        gScanPauseDelayIn_10ms = scan_pause_delay_in_7_10ms;
-                        gScheduleScanListen    = false;
-                        break;
-
-                    case SCAN_RESUME_SE:
-                        CHFRSCANNER_Stop();
-                        break;
-                }
-                */
-
-                if(gEeprom.SCAN_RESUME_MODE < 81)
-                {
-                    if(gEeprom.SCAN_RESUME_MODE == 0)
-                    {
-                        CHFRSCANNER_Stop();
-                    }
-                    else
-                    {
-                        gScanPauseDelayIn_10ms = gEeprom.SCAN_RESUME_MODE * (250 / 10); // 250ms
-                        gScheduleScanListen    = false;
-                    }
-                }
-
-                /*
-                if(gEeprom.SCAN_RESUME_MODE < 2)
-                {
-                    gScanPauseDelayIn_10ms = scan_pause_delay_in_6_10ms + (scan_pause_delay_in_6_10ms * 24 * gEeprom.SCAN_RESUME_MODE);
-                    gScheduleScanListen    = false;
-
-                }
-                else if(gEeprom.SCAN_RESUME_MODE == 2)
-                {
-                    CHFRSCANNER_Stop();
-                }
-                */
-
-                /*
-                switch (gEeprom.SCAN_RESUME_MODE)
-                {
-                    case 0:
-                        gScanPauseDelayIn_10ms = scan_pause_delay_in_6_10ms;
-                        gScheduleScanListen    = false;
-                        break;
-
-                    case 1:
-                        gScanPauseDelayIn_10ms = scan_pause_delay_in_2_10ms * 5;
-                        gScheduleScanListen    = false;
-                        break;
-
-                    case 26:
-                        CHFRSCANNER_Stop();
-                        break;
-
-                    //default:
-                    //    gScanPauseDelayIn_10ms = scan_pause_delay_in_5_10ms * (gEeprom.SCAN_RESUME_MODE - 1) * 5;
-                    //    break;
-                }
-                */
-            }
-
-            break;
+             break;
 
         case END_OF_RX_MODE_TTE:
             if (gEeprom.TAIL_TONE_ELIMINATION) {
@@ -474,11 +378,9 @@ void APP_StartListening(FUNCTION_Type_t function)
     }
 #endif
 
-    if (gScanStateDir != SCAN_OFF)
-        CHFRSCANNER_Found();
 
-    if (gScanStateDir == SCAN_OFF &&
-        gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
+
+    if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
     {   // not scanning, dual watch is enabled
 
         //gDualWatchCountdown_10ms = dual_watch_count_after_2_10ms;
@@ -566,8 +468,6 @@ static void DualwatchAlternate(void)
 
 static void CheckRadioInterrupts(void)
 {
-    if (SCANNER_IsScanning())
-        return;
 
     while (BK4819_ReadRegister(BK4819_REG_0C) & 1u) { // BK chip interrupt request
         // clear interrupts
@@ -798,16 +698,9 @@ void APP_Update(void)
         return;
 #endif
 
-    if (!SCANNER_IsScanning() && gScanStateDir != SCAN_OFF && gScheduleScanListen && !gPttIsPressed)
-    {   // scanning
-        CHFRSCANNER_ContinueScanning();
-    }
-
     // toggle between the VFO's if dual watch is enabled
-    if (!SCANNER_IsScanning()
-        && gEeprom.DUAL_WATCH != DUAL_WATCH_OFF
+    if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF
         && gScheduleDualWatch
-        && gScanStateDir == SCAN_OFF
         && !gPttIsPressed
         && gCurrentFunction != FUNCTION_POWER_SAVE
 #ifdef ENABLE_FMRADIO
@@ -821,7 +714,6 @@ void APP_Update(void)
         }
 
         gRxVfoIsActive     = false;
-        gScanPauseMode     = false;
         gRxReceptionMode   = RX_MODE_NONE;
         gScheduleDualWatch = false;
     }
@@ -838,7 +730,6 @@ void APP_Update(void)
         if (gPttIsPressed
             || gKeyBeingHeld
             || gEeprom.BATTERY_SAVE == 0
-            || gScanStateDir != SCAN_OFF
             || gCssBackgroundScan
             || gScreenToDisplay != DISPLAY_MAIN
 #ifdef ENABLE_FMRADIO
@@ -862,7 +753,6 @@ void APP_Update(void)
             BK4819_Conditional_RX_TurnOn_and_GPIO6_Enable();
 
             if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF &&
-                gScanStateDir == SCAN_OFF &&
                 !gCssBackgroundScan)
             {   // dual watch mode, toggle between the two VFO's
                 DualwatchAlternate();
@@ -874,7 +764,7 @@ void APP_Update(void)
             gPowerSave_10ms = power_save1_10ms; // come back here in a bit
             gRxIdleMode     = false;            // RX is awake
         }
-        else if (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF || gScanStateDir != SCAN_OFF || gCssBackgroundScan || goToSleep)
+        else if (gEeprom.DUAL_WATCH == DUAL_WATCH_OFF || gCssBackgroundScan || goToSleep)
         {   // dual watch mode off or scanning or rssi update request
             // go back to sleep
 
@@ -1156,7 +1046,6 @@ void APP_TimeSlice10ms(void)
     }
 #endif
 
-    SCANNER_TimeSlice10ms();
 
 #ifdef ENABLE_AIRCOPY
     if (gScreenToDisplay == DISPLAY_AIRCOPY && gAircopyState == AIRCOPY_TRANSFER && gAirCopyIsSendMode == 1) {
@@ -1296,7 +1185,7 @@ void APP_TimeSlice500ms(void)
             gUpdateStatus = true;
     }
 
-    if (!gCssBackgroundScan && gScanStateDir == SCAN_OFF && !SCANNER_IsScanning()
+    if (!gCssBackgroundScan
 #ifdef ENABLE_FMRADIO
         && (gFM_ScanState == FM_SCAN_OFF || gAskToSave)
 #endif
@@ -1323,16 +1212,7 @@ void APP_TimeSlice500ms(void)
             if (gInputBoxIndex > 0 || gDTMF_InputMode) {
                 AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
             }
-/*
-            if (SCANNER_IsScanning()) {
-                BK4819_StopScan();
 
-                RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
-                RADIO_ConfigureChannel(1, VFO_CONFIGURE_RELOAD);
-
-                RADIO_SetupRegisters(true);
-            }
-*/
             DTMF_clear_input_box();
 
             HideFKeyIcon();
@@ -1352,9 +1232,6 @@ void APP_TimeSlice500ms(void)
 #endif
 
             if (disp == DISPLAY_INVALID
-#ifdef ENABLE_NO_CODE_SCAN_TIMEOUT
-                && !SCANNER_IsScanning()
-#endif
             ) {
                 disp = DISPLAY_MAIN;
             }
@@ -1377,7 +1254,6 @@ void APP_TimeSlice500ms(void)
     }
 
     BATTERY_TimeSlice500ms();
-    SCANNER_TimeSlice500ms();
     UI_MAIN_TimeSlice500ms();
 
 }
@@ -1422,7 +1298,7 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             SETTINGS_SaveChannel(gTxVfo->CHANNEL_SAVE, gEeprom.TX_VFO, gTxVfo, flagSaveChannel);
             flagSaveChannel = false;
 
-            if (!SCANNER_IsScanning() && gVfoConfigureMode == VFO_CONFIGURE_NONE)
+            if (gVfoConfigureMode == VFO_CONFIGURE_NONE)
                 // gVfoConfigureMode is so as we don't wipe out previously setting this variable elsewhere
                 gVfoConfigureMode = VFO_CONFIGURE;
         }
@@ -1452,9 +1328,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
             if (gMonitor)
                 ACTION_Monitor(); //turn off the monitor
-#ifdef ENABLE_SCAN_RANGES
-            gScanRangeStart = 0;
-#endif
         }
 
         if (gScreenToDisplay == DISPLAY_MENU)       // 1of11
@@ -1516,7 +1389,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     }
 
     if (Key <= KEY_9 || Key == KEY_F) {
-        //if (gScanStateDir != SCAN_OFF || gCssBackgroundScan) { // FREQ/CTCSS/DCS scanning
         if (gCssBackgroundScan) { // FREQ/CTCSS/DCS scanning
             if (bKeyPressed && !bKeyHeld)
                 AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
@@ -1571,24 +1443,15 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             || (gWasFKeyPressed && (Key == KEY_SIDE1 || Key == KEY_SIDE2))
 #endif
     )) {
-        // Force scanner EXIT regardless of internal state
-        if (Key == KEY_EXIT && !bKeyHeld && bKeyPressed && SCANNER_IsScanning()) {
-            SCANNER_Stop();
+        if (Key == KEY_EXIT && !bKeyHeld && bKeyPressed ) {
             gRequestDisplayScreen = DISPLAY_MAIN;
         } else {
             ProcessKeysFunctions[gScreenToDisplay](Key, bKeyPressed, bKeyHeld);
         }
     }
-    else if (!SCANNER_IsScanning()
-#ifdef ENABLE_AIRCOPY
-            && gScreenToDisplay != DISPLAY_AIRCOPY
-#endif
-    ) {
-        ACTION_Handle(Key, bKeyPressed, bKeyHeld);
-    }
-    else if (!bKeyHeld && bKeyPressed) {
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-    }
+    else ACTION_Handle(Key, bKeyPressed, bKeyHeld);
+   
+
 
 Skip:
     if (gBeepToPlay != BEEP_NONE) {
@@ -1633,11 +1496,11 @@ Skip:
     }
 
     if (gRequestSaveChannel > 0) { // TODO: remove the gRequestSaveChannel, why use global variable for that??
-        if ((!bKeyHeld && !bKeyPressed) || (UI_MENU_GetCurrentMenuId() != 0 && gScreenToDisplay == DISPLAY_MENU) || gScreenToDisplay == DISPLAY_SCANNER)
+        if ((!bKeyHeld && !bKeyPressed) || (UI_MENU_GetCurrentMenuId() != 0 && gScreenToDisplay == DISPLAY_MENU) )
         {
             SETTINGS_SaveChannel(gTxVfo->CHANNEL_SAVE, gEeprom.TX_VFO, gTxVfo, gRequestSaveChannel);
 
-            if (!SCANNER_IsScanning() && gVfoConfigureMode == VFO_CONFIGURE_NONE)
+            if (gVfoConfigureMode == VFO_CONFIGURE_NONE)
                 // gVfoConfigureMode is so as we don't wipe out previously setting this variable elsewhere
                 gVfoConfigureMode = VFO_CONFIGURE;
         }

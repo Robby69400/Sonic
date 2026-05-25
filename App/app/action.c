@@ -19,7 +19,6 @@
 
 #include "app/action.h"
 #include "app/app.h"
-#include "app/chFrScanner.h"
 #include "app/common.h"
 #include "app/dtmf.h"
 #ifdef ENABLE_FLASHLIGHT
@@ -28,7 +27,6 @@
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
-#include "app/scanner.h"
 #include "audio.h"
 #ifdef ENABLE_FMRADIO
     #include "driver/bk1080.h"
@@ -45,18 +43,10 @@
     #include "app/rega.h"
 #endif
 
-#if defined(ENABLE_FMRADIO)
-static void ACTION_Scan_FM(bool bRestart);
-#endif
-
-
-inline static void ACTION_ScanRestart() { ACTION_Scan(true); };
-
 void (*action_opt_table[])(void) = {
     [ACTION_OPT_NONE] = &FUNCTION_NOP,
     [ACTION_OPT_POWER] = &ACTION_Power,
     [ACTION_OPT_MONITOR] = &ACTION_Monitor,
-    [ACTION_OPT_SCAN] = &ACTION_ScanRestart,
     [ACTION_OPT_KEYLOCK] = &COMMON_KeypadLockToggle,
     [ACTION_OPT_A_B] = &COMMON_SwitchVFOs,
     [ACTION_OPT_VFO_MR] = &COMMON_SwitchVFOMode,
@@ -142,13 +132,6 @@ void ACTION_Monitor(void)
 
     gMonitor = false;
 
-    if (gScanStateDir != SCAN_OFF) {
-        gScanPauseDelayIn_10ms = scan_pause_delay_in_1_10ms;
-        gScheduleScanListen    = false;
-        gScanPauseMode         = true;
-    }
-
-
     RADIO_SetupRegisters(true);
 
 #ifdef ENABLE_FMRADIO
@@ -160,78 +143,6 @@ void ACTION_Monitor(void)
 #endif
         gRequestDisplayScreen = gScreenToDisplay;
 }
-
-void ACTION_Scan(bool bRestart)
-{
-    (void)bRestart;
-
-#ifdef ENABLE_FMRADIO
-    if (gFmRadioMode) {
-        ACTION_Scan_FM(bRestart);
-        return;
-    }
-#endif
-
-    if (SCANNER_IsScanning()) {
-        return;
-    }
-
-    // not scanning
-    gMonitor = false;
-
-    gDTMF_RX_live_timeout = 0;
-    memset(gDTMF_RX_live, 0, sizeof(gDTMF_RX_live));
-
-    RADIO_SelectVfos();
-
-
-    GUI_SelectNextDisplay(DISPLAY_MAIN);
-
-    if (gScanStateDir != SCAN_OFF) {
-        // already scanning
-
-        if (!IS_MR_CHANNEL(gNextMrChannel)) {
-            CHFRSCANNER_Stop();
-            return;
-        }
-
-        // channel mode. Keep scanning but toggle between scan lists
-        RADIO_NextValidList(1);
-
-        #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-            SETTINGS_WriteCurrentState();
-        #endif
-
-        // jump to the next channel
-        CHFRSCANNER_Start(false, gScanStateDir);
-        gScanPauseDelayIn_10ms = 1;
-        gScheduleScanListen    = false;
-    } else {
-        #ifdef ENABLE_SCAN_RANGES
-        if(gScanRangeStart == 0) // No ScanRange
-        {
-            gEeprom.CURRENT_STATE = 1;
-        }
-        else // ScanRange
-        {
-            gEeprom.CURRENT_STATE = 2;
-        }
-        SETTINGS_WriteCurrentState();
-        #endif
-        // start scanning
-        CHFRSCANNER_Start(true, SCAN_FWD);
-
-
-        // clear the other vfo's rssi level (to hide the antenna symbol)
-        gVFO_RSSI_bar_level[(gEeprom.RX_VFO + 1) & 1U] = 0;
-
-        // let the user see DW is not active
-        gDualWatchActive = false;
-    }
-
-    gUpdateStatus = true;
-}
-
 
 void ACTION_SwitchDemodul(void)
 {
@@ -370,40 +281,6 @@ void ACTION_FM(void)
 
         gRequestDisplayScreen = DISPLAY_FM;
     }
-}
-
-static void ACTION_Scan_FM(bool bRestart)
-{
-    if (FUNCTION_IsRx())
-        return;
-
-    GUI_SelectNextDisplay(DISPLAY_FM);
-
-    gMonitor = false;
-
-    if (gFM_ScanState != FM_SCAN_OFF) {
-        FM_PlayAndUpdate();
-
-        return;
-    }
-
-    uint16_t freq;
-
-    if (bRestart) {
-        gFM_AutoScan = true;
-        gFM_ChannelPosition = 0;
-        FM_EraseChannels();
-        freq = BK1080_GetFreqLoLimit(gEeprom.FM_Band);
-    } else {
-        gFM_AutoScan = false;
-        gFM_ChannelPosition = 0;
-        freq = gEeprom.FM_FrequencyPlaying;
-    }
-
-    BK1080_GetFrequencyDeviation(freq);
-    FM_Tune(freq, 1, bRestart);
-
-
 }
 
 #endif

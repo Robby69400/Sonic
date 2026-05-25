@@ -7,14 +7,12 @@
 
 #include "app/action.h"
 #include "app/app.h"
-#include "app/chFrScanner.h"
 #include "app/common.h"
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
 #include "app/generic.h"
 #include "app/main.h"
-#include "app/scanner.h"
 
 #ifdef ENABLE_SPECTRUM
 #include "app/spectrum.h"
@@ -147,37 +145,6 @@ static void DeleteChannelWithConfirm(void)
     gUpdateDisplay = true;
 }
 
-// ── Scanlist toggle ──────────────────────────────────────────────────────────
-
-static void toggle_chan_scanlist(void)
-{
-    if (SCANNER_IsScanning())
-        return;
-
-    if (!IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-#ifdef ENABLE_SCAN_RANGES
-        CHFRSCANNER_ScanRange();
-#endif
-        return;
-    }
-
-    ChannelAttributes_t *att = MR_GetChannelAttributes(gTxVfo->CHANNEL_SAVE);
-
-    if (att->exclude == true) {
-        att->exclude = false;
-        MR_SaveChannelAttributesToFlash(gTxVfo->CHANNEL_SAVE, att);
-    } else {
-        uint8_t scanlist = gTxVfo->SCANLIST_PARTICIPATION;
-        scanlist++;
-        if (scanlist > MR_CHANNELS_LIST + 1)
-            scanlist = 0;
-        gTxVfo->SCANLIST_PARTICIPATION = scanlist;
-        SETTINGS_UpdateChannel(gTxVfo->CHANNEL_SAVE, gTxVfo, true, true, true);
-    }
-
-    gVfoConfigureMode = VFO_CONFIGURE;
-    gFlagResetVfos    = true;
-}
 
 // ── F-key functions ──────────────────────────────────────────────────────────
 // KA50 назначения (beep=true = F+кнопка, beep=false = долгое нажатие):
@@ -279,11 +246,7 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             break;
 
         case KEY_4:
-            break;
-
         case KEY_5:
-            if (!beep)
-                toggle_chan_scanlist();
             break;
 
         case KEY_7:
@@ -488,7 +451,6 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                 // Долгое 5: scanlist/шаг (KA50)
                 if (Key == KEY_5) {
                     if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-                        toggle_chan_scanlist();
                         gRequestDisplayScreen = DISPLAY_MAIN;
                     } else {
                         uint8_t a = FREQUENCY_GetSortedIdxFromStepIdx(gTxVfo->STEP_SETTING);
@@ -539,32 +501,6 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     }
 
     if (!gWasFKeyPressed) {
-        // Во время скана: двухцифровой ввод номера списка (оригинальная логика KA52)
-        if (gScanStateDir != SCAN_OFF) {
-            INPUTBOX_Append(Key);
-            if (gInputBoxIndex < 2)
-                return;
-
-            gInputBoxIndex = 0;
-            uint8_t value  = (uint8_t)((gInputBox[0] * 10) + gInputBox[1]);
-
-            if (value == 0) {
-                gEeprom.SCAN_LIST_DEFAULT = MR_CHANNELS_LIST + 1;
-                gScanListChanged = true;
-            } else if (value <= MR_CHANNELS_LIST) {
-                gEeprom.SCAN_LIST_DEFAULT = value;
-                gScanListChanged = true;
-                if (!RADIO_CheckValidList(value)) {
-                    gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-                    RADIO_NextValidList(1);
-                }
-            }
-#ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-            SETTINGS_WriteCurrentState();
-#endif
-            return;
-        }
-
         const uint8_t Vfo = gEeprom.TX_VFO;
         INPUTBOX_Append(Key);
         gKeyInputCountdown = key_input_timeout_500ms;
@@ -663,16 +599,11 @@ static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
     if (!gFmRadioMode)
 #endif
     {
-        if (gScanStateDir == SCAN_OFF) {
             if (gInputBoxIndex == 0)
                 return;
             gInputBox[--gInputBoxIndex] = 10;
             gKeyInputCountdown = key_input_timeout_500ms;
-        } else {
-            gScanKeepResult = false;
-            gInputBoxIndex  = 0;
-            CHFRSCANNER_Stop();
-        }
+
         gRequestDisplayScreen = DISPLAY_MAIN;
         return;
     }
@@ -691,20 +622,6 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
 
     if (bKeyHeld) {
         if (bKeyPressed) {
-#ifdef ENABLE_FEAT_F4HWN
-            if (gScanStateDir != SCAN_OFF) {
-                if (FUNCTION_IsRx() || gScanPauseDelayIn_10ms > 9) {
-                    ChannelAttributes_t *att = MR_GetChannelAttributes(lastFoundFrqOrChan);
-                    att->exclude = true;
-                    MR_SaveChannelAttributesToFlash(lastFoundFrqOrChan, att);
-                    gVfoConfigureMode  = VFO_CONFIGURE;
-                    gFlagResetVfos     = true;
-                    lastFoundFrqOrChan = lastFoundFrqOrChanOld;
-                    CHFRSCANNER_ContinueScanning();
-                }
-                return;
-            }
-#endif
             gWasFKeyPressed = false;
             if (gScreenToDisplay == DISPLAY_MAIN) {
                 if (gInputBoxIndex > 0) {
@@ -725,10 +642,6 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
         gInputBoxIndex   = 0;
 
         if (bFlag) {
-            if (gScanStateDir != SCAN_OFF) {
-                CHFRSCANNER_Stop();
-                return;
-            }
             gFlagRefreshSetting   = true;
             gRequestDisplayScreen = DISPLAY_MENU;
         } else {
@@ -737,61 +650,6 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
     }
 }
 
-// ── STAR key ─────────────────────────────────────────────────────────────────
-// КА50: короткое * = ACTION_Scan (сканирование по спискам)
-//        долгое * = SCANNER_Start(false) (сканер частот/тонов)
-//        F+*      = SCANNER_Start(true)  (сканер CTCSS/DCS)
-
-static void MAIN_Key_STAR(bool bKeyPressed, bool bKeyHeld)
-{
-    if (gCurrentFunction == FUNCTION_TRANSMIT)
-        return;
-
-    if (gInputBoxIndex) {
-        if (!bKeyHeld && bKeyPressed)
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-        return;
-    }
-
-    if (!bKeyHeld && bKeyPressed) {
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-        return;
-    }
-
-    if (bKeyHeld && !gWasFKeyPressed) {
-        if (!bKeyPressed)
-            return;
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-        gBackup_CROSS_BAND_RX_TX  = gEeprom.CROSS_BAND_RX_TX;
-        gEeprom.CROSS_BAND_RX_TX = CROSS_BAND_OFF;
-        gWasFKeyPressed = false;
-        gUpdateStatus   = true;
-        SCANNER_Start(false);
-        gRequestDisplayScreen = DISPLAY_SCANNER;
-        return;
-    }
-
-    // guard: ignore key-release that follows a long hold
-    // (long hold already handled above; without this, release falls through
-    //  and incorrectly calls ACTION_Scan, starting CHFRSCANNER on top of SCANNER)
-    if (bKeyPressed)
-        return;
-
-    if (!gWasFKeyPressed) {
-        // Короткое * = сканирование по спискам
-        ACTION_Scan(false);
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-    } else {
-        // F+* = сканер тонов
-        gWasFKeyPressed = false;
-        gBackup_CROSS_BAND_RX_TX  = gEeprom.CROSS_BAND_RX_TX;
-        gEeprom.CROSS_BAND_RX_TX = CROSS_BAND_OFF;
-        SCANNER_Start(true);
-        gRequestDisplayScreen = DISPLAY_SCANNER;
-    }
-
-    gUpdateStatus = true;
-}
 
 // ── UP/DOWN keys ─────────────────────────────────────────────────────────────
 
@@ -824,8 +682,6 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         }
         gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
     }
-
-    if (gScanStateDir == SCAN_OFF) {
         {
             if (IS_FREQ_CHANNEL(Channel)) {
                 const uint32_t frequency = APP_SetFrequencyByStep(gTxVfo, Direction);
@@ -853,11 +709,7 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         gRequestSaveVFO   = true;
         gVfoConfigureMode = VFO_CONFIGURE_RELOAD;
         return;
-    }
-
-    CHFRSCANNER_Start(false, Direction);
-    gScanPauseDelayIn_10ms = 1;
-    gScheduleScanListen    = false;
+    
     gPttWasReleased        = true;
 }
 
@@ -892,7 +744,6 @@ void MAIN_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             MAIN_Key_EXIT(bKeyPressed, bKeyHeld);
             break;
         case KEY_STAR:
-            MAIN_Key_STAR(bKeyPressed, bKeyHeld);
             break;
         case KEY_F:
             GENERIC_Key_F(bKeyPressed, bKeyHeld);

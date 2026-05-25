@@ -18,13 +18,11 @@ target_sources(App INTERFACE
     # Main
     app/action.c
     app/app.c
-    app/chFrScanner.c
     app/common.c
     app/dtmf.c
     app/generic.c
     app/main.c
     app/menu.c
-    app/scanner.c
     audio.c
     bitmaps.c
     board.c
@@ -43,7 +41,6 @@ target_sources(App INTERFACE
     ui/inputbox.c
     ui/main.c
     ui/menu.c
-    ui/scanner.c
     ui/status.c
     ui/ui.c
     ui/welcome.c
@@ -166,7 +163,6 @@ enable_feature(ENABLE_COPY_CHAN_TO_VFO)
 enable_feature(ENABLE_REDUCE_LOW_MID_TX_POWER)
 enable_feature(ENABLE_BYP_RAW_DEMODULATORS)
 enable_feature(ENABLE_BLMIN_TMP_OFF)
-enable_feature(ENABLE_SCAN_RANGES)
 enable_feature(ENABLE_NAVIG_LEFT_RIGHT)
 enable_feature(ENABLE_INVERT_NAV)
 # Robzyl scan list display features

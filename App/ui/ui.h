@@ -24,8 +24,6 @@ enum GUI_DisplayType_t
 {
     DISPLAY_MAIN = 0,
     DISPLAY_MENU,
-    DISPLAY_SCANNER,
-
 #ifdef ENABLE_FMRADIO
     DISPLAY_FM,
 #endif
