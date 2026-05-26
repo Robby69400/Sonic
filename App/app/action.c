@@ -27,7 +27,7 @@
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
-#include "audio.h"
+
 #ifdef ENABLE_FMRADIO
     #include "driver/bk1080.h"
 #endif
@@ -185,9 +185,6 @@ void ACTION_Handle(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
     // held or released beyond this point
 
-    if(!(bKeyHeld && !bKeyPressed)) // don't beep on released after hold
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-
     if (bKeyHeld && !bKeyPressed) // button released after hold
     {
         return;
@@ -215,7 +212,6 @@ void ACTION_Handle(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             case ACTION_OPT_REMOVE_OFFSET:
         #endif
     #endif
-                gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
                 return;
 
             default:

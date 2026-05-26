@@ -27,7 +27,7 @@
 
 #ifdef ENABLE_FEAT_F4HWN
     #include "driver/system.h"
-    #include "audio.h"
+    
     #include "misc.h"
 #endif
 

@@ -36,7 +36,7 @@
 #include "ui/inputbox.h"
 #include "ui/main.h"
 #include "ui/ui.h"
-#include "audio.h"
+
 
 #ifdef ENABLE_FEAT_F4HWN
     #include "driver/system.h"
@@ -629,28 +629,6 @@ void UI_MAIN_TimeSlice500ms(void)
                     if(gSetting_set_eot > 1 )
                     {
                         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, true);
-                    }
-
-                    if(gSetting_set_eot == 1 || gSetting_set_eot == 3)
-                    {
-                        switch(RxBlinkLedCounter)
-                        {
-                            case 1:
-                            AUDIO_PlayBeep(BEEP_400HZ_30MS);
-                            break;
-
-                            case 3:
-                            AUDIO_PlayBeep(BEEP_400HZ_30MS);
-                            break;
-
-                            case 5:
-                            AUDIO_PlayBeep(BEEP_500HZ_30MS);
-                            break;
-
-                            case 7:
-                            AUDIO_PlayBeep(BEEP_600HZ_30MS);
-                            break;
-                        }
                     }
                 }
                 RxBlinkLedCounter += 1;

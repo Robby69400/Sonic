@@ -20,7 +20,7 @@
 #if defined(ENABLE_FMRADIO)
     #include "app/fm.h"
 #endif
-#include "audio.h"
+
 #include "dcs.h"
 #include "driver/backlight.h"
 #if defined(ENABLE_FMRADIO)

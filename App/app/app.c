@@ -40,7 +40,7 @@
     #include "scheduler.h"
 #endif
 #include "py32f0xx.h"
-#include "audio.h"
+
 #include "board.h"
 #include "driver/backlight.h"
 #ifdef ENABLE_FMRADIO
@@ -303,7 +303,7 @@ Skip:
 
         case END_OF_RX_MODE_TTE:
             if (gEeprom.TAIL_TONE_ELIMINATION) {
-                AUDIO_AudioPathOff();
+                GPIO_DisableAudioPath();
 
                 gTailNoteEliminationCountdown_10ms = 20;
                 gFlagTailNoteEliminationComplete   = false;
@@ -357,7 +357,7 @@ void APP_StartListening(FUNCTION_Type_t function)
     // clear the other vfo's rssi level (to hide the antenna symbol)
     gVFO_RSSI_bar_level[!vfo] = 0;
 
-    AUDIO_AudioPathOn();
+    GPIO_EnableAudioPath();
     gEnableSpeaker = true;
 
     if (gSetting_backlight_on_tx_rx & BACKLIGHT_ON_TR_RX) {
@@ -645,9 +645,6 @@ void APP_Update(void)
 #endif
 
         APP_EndTransmission();
-
-        AUDIO_PlayBeep(BEEP_880HZ_60MS_DOUBLE_BEEP);
-
         RADIO_SetVfoState(VFO_STATE_TIMEOUT);
 
         GUI_DisplayScreen();
@@ -1055,10 +1052,6 @@ void APP_TimeSlice500ms(void)
             if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE) && (gInputBoxIndex > 0 && gInputBoxIndex < 4) && (!gFmRadioMode))
             {
                 channelMoveSwitch();
-
-                if (gBeepToPlay == BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL) {
-                    AUDIO_PlayBeep(gBeepToPlay);
-                }
             }
 
             cancelUserInputModes();
@@ -1154,11 +1147,6 @@ void APP_TimeSlice500ms(void)
             if (gScreenToDisplay == DISPLAY_MENU && (m == MENU_ABR || m == MENU_ABR_MAX || m == MENU_ABR_MIN)) {
                 BACKLIGHT_TurnOn();
             }
-
-            if (gInputBoxIndex > 0) {
-                AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
-            }
-
             HideFKeyIcon();
             gInputBoxIndex   = 0;
 
@@ -1208,7 +1196,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     if (Key == KEY_EXIT && !BACKLIGHT_IsOn() && gEeprom.BACKLIGHT_TIME > 0)
     {   // just turn the light on for now so the user can see what's what
         BACKLIGHT_TurnOn();
-        gBeepToPlay = BEEP_NONE;
         return;
     }
 
@@ -1261,7 +1248,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         if (Key == KEY_EXIT && bKeyHeld) { // exit key held pressed
             // cancel user input
             cancelUserInputModes();
-            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
 
             if (gMonitor)
                 ACTION_Monitor(); //turn off the monitor
@@ -1292,7 +1278,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         if(Key == KEY_EXIT && bKeyPressed && lowBatPopup) {
             gLowBatteryConfirmed = true;
             gUpdateDisplay = true;
-            AUDIO_PlayBeep(BEEP_1KHZ_60MS_OPTIONAL);
             return;
         }
 
@@ -1301,7 +1286,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                 return;
 
             if (!bKeyHeld) { // keypad is locked, tell the user
-                AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
                 gKeypadLocked  = 4;      // 2 seconds
                 gUpdateDisplay = true;
                 return;
@@ -1318,17 +1302,8 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                 return;
 
             // keypad is locked, tell the user
-            AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
             gKeypadLocked  = 4;          // 2 seconds
             gUpdateDisplay = true;
-            return;
-        }
-    }
-
-    if (Key <= KEY_9 || Key == KEY_F) {
-        if (gCssBackgroundScan) { // FREQ/CTCSS/DCS scanning
-            if (bKeyPressed && !bKeyHeld)
-                AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
             return;
         }
     }
@@ -1391,11 +1366,6 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
 
 Skip:
-    if (gBeepToPlay != BEEP_NONE) {
-        AUDIO_PlayBeep(gBeepToPlay);
-        gBeepToPlay = BEEP_NONE;
-    }
-
     if (gFlagAcceptSetting) {
         gMenuCountdown = menu_timeout_500ms;
 

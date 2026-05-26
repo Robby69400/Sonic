@@ -18,12 +18,13 @@
 #include "app/action.h"
 #include "app/fm.h"
 #include "app/generic.h"
-#include "audio.h"
+
 #include "driver/bk1080.h"
 #include "driver/bk4819.h"
 #include "driver/eeprom.h"
 #include "driver/py25q16.h"
 #include "driver/system.h"
+#include "driver/gpio.h"
 #include "functions.h"
 #include "misc.h"
 #include "settings.h"
@@ -138,7 +139,7 @@ void FM_Tune(uint16_t Frequency, int8_t Step, bool bFlag)
 void FM_PlayAndUpdate(void)
 {
     gFM_ScanState = FM_SCAN_OFF;
-    AUDIO_AudioPathOn();
+    GPIO_EnableAudioPath();
     gEnableSpeaker = true;
 }
 
@@ -200,7 +201,7 @@ static void FM_SeekNext(int8_t direction)
     const uint16_t start = freq;
 
     // Mute audio while seeking
-    AUDIO_AudioPathOff();
+    GPIO_DisableAudioPath();
     gEnableSpeaker = false;
 
     do {
@@ -217,7 +218,7 @@ static void FM_SeekNext(int8_t direction)
             gEeprom.FM_SelectedFrequency = freq;
             gRequestSaveFM = true;
             gRequestDisplayScreen = DISPLAY_FM;
-            AUDIO_AudioPathOn();
+            GPIO_EnableAudioPath();
             gEnableSpeaker = true;
             return;
         }
@@ -227,7 +228,7 @@ static void FM_SeekNext(int8_t direction)
 
     // No station found — restore frequency, keep muted
     BK1080_SetFrequency(gEeprom.FM_FrequencyPlaying, FM_BAND);
-    AUDIO_AudioPathOn();
+    GPIO_EnableAudioPath();
     gEnableSpeaker = true;
 }
 
@@ -339,8 +340,6 @@ void FM_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             GENERIC_Key_PTT(bKeyPressed);
             break;
         default:
-            if (!bKeyHeld && bKeyPressed)
-                gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
             break;
     }
 }
@@ -358,7 +357,7 @@ void FM_TurnOff(void)
     BK1080_Init0();
     BK4819_PickRXFilterPathBasedOnFrequency(gRxVfo->freq_config_RX.Frequency);
 
-    AUDIO_AudioPathOn();
+    GPIO_EnableAudioPath();
     gEnableSpeaker = true;
 
     gUpdateStatus = true;
@@ -401,7 +400,7 @@ void FM_Start(void)
 
     FM_Memory_Load();   // загрузить ячейки памяти из EEPROM
 
-    AUDIO_AudioPathOn();
+    GPIO_EnableAudioPath();
     gEnableSpeaker = true;
     gUpdateStatus  = true;
 

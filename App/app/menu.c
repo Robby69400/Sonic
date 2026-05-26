@@ -23,7 +23,7 @@
 
 #include "app/generic.h"
 #include "app/menu.h"
-#include "audio.h"
+
 #include "board.h"
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
@@ -168,11 +168,6 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             //*pMin = 0;
             *pMax = ARRAY_SIZE(gSubMenu_RX_TX) - 1;
             break;
-
-        #ifndef ENABLE_FEAT_F4HWN
-
-        #endif
-        case MENU_BEEP:
 
 #ifdef ENABLE_FEAT_F4HWN
         #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER    // calypso
@@ -441,10 +436,6 @@ void MENU_AcceptSetting(void)
             #endif
             gFlagReconfigureVfos = true;
             gUpdateStatus        = true;
-            break;
-
-        case MENU_BEEP:
-            gEeprom.BEEP_CONTROL = gSubMenuSelection;
             break;
 
         case MENU_TOT:
@@ -735,10 +726,6 @@ void MENU_ShowCurrentSetting(void)
             }
             break;
 
-        case MENU_BEEP:
-            gSubMenuSelection = gEeprom.BEEP_CONTROL;
-            break;
-
         case MENU_TOT:
             gSubMenuSelection = gEeprom.TX_TIMEOUT_TIMER;
             break;
@@ -879,8 +866,6 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     if (bKeyHeld || !bKeyPressed)
         return;
 
-    gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && edit_index >= 0)
     {   // currently editing the channel name
 
@@ -941,8 +926,6 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         }
 
         gInputBoxIndex = 0;
-
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
 
@@ -983,14 +966,12 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             return;
         }
 
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
 
     if (MENU_GetLimits(UI_MENU_GetCurrentMenuId(), &Min, &Max))
     {
         gInputBoxIndex = 0;
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
 
@@ -1023,16 +1004,12 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         gSubMenuSelection = Value;
         return;
     }
-
-    gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
 }
 
 static void MENU_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 {
     if (bKeyHeld || !bKeyPressed)
         return;
-
-    gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
 
     if (!gCssBackgroundScan)
     {
@@ -1080,7 +1057,6 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
     if (bKeyHeld || !bKeyPressed)
         return;
 
-    gBeepToPlay           = BEEP_1KHZ_60MS_OPTIONAL;
     gRequestDisplayScreen = DISPLAY_MENU;
 
     if (!gIsInSubMenu)
@@ -1222,8 +1198,6 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         if (!bKeyPressed)
             return;
 
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-
         gInputBoxIndex = 0;
     }
     else
@@ -1343,7 +1317,6 @@ void MENU_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             {   // currently editing the channel name
                 if (!bKeyHeld && bKeyPressed)
                 {
-                    gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
                     if (edit_index < 10)
                     {
                         edit[edit_index] = ' ';
@@ -1364,8 +1337,6 @@ void MENU_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             GENERIC_Key_PTT(bKeyPressed);
             break;
         default:
-            if (!bKeyHeld && bKeyPressed)
-                gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
             break;
     }
 

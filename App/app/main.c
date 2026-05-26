@@ -18,7 +18,7 @@
 #include "app/spectrum.h"
 #endif
 
-#include "audio.h"
+
 #include "board.h"
 #include "driver/bk4819.h"
 #include "frequencies.h"
@@ -44,7 +44,6 @@ static void SaveFreqToFreeChannel(void)
     for (uint16_t i = MR_CHANNEL_FIRST; i <= MR_CHANNEL_LAST; i++) {
         uint32_t chf = SETTINGS_FetchChannelFrequency(i);
         if (chf == f) {
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
             gRequestDisplayScreen = DISPLAY_MAIN;
             return;
         }
@@ -64,7 +63,6 @@ static void SaveFreqToFreeChannel(void)
     if (freeCh >= 0) {
         SETTINGS_SaveChannel((uint16_t)freeCh, gEeprom.TX_VFO, gTxVfo, 2);
         MR_InvalidateChannelAttributesCache();
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
         char chStr[16];
         sprintf(chStr, "SAVE CH:%d", freeCh + 1);
         UI_DisplayPopup(chStr);
@@ -72,7 +70,6 @@ static void SaveFreqToFreeChannel(void)
         ST7565_BlitLine(3);
         SYSTEM_DelayMs(800);
     } else {
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         UI_DisplayPopup("MEM FULL");
         ST7565_BlitLine(2);
         ST7565_BlitLine(3);
@@ -133,14 +130,11 @@ static void DeleteChannelWithConfirm(void)
         MR_InvalidateChannelAttributesCache();
         gVfoConfigureMode = VFO_CONFIGURE_RELOAD;
         gFlagResetVfos    = true;
-        gBeepToPlay       = BEEP_1KHZ_60MS_OPTIONAL;
         UI_DisplayPopup("DELETED");
         ST7565_BlitLine(2);
         ST7565_BlitLine(3);
         SYSTEM_DelayMs(600);
-    } else {
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
-    }
+    } 
     gRequestDisplayScreen = DISPLAY_MAIN;
     gUpdateDisplay = true;
 }
@@ -176,12 +170,8 @@ static void toggle_chan_scanlist(void)
 static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 {
     if (gScreenToDisplay == DISPLAY_MENU) {
-        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
-
-    gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-
     switch (Key) {
         case KEY_0:
 #ifdef ENABLE_FMRADIO
@@ -321,8 +311,6 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
         default:
             gUpdateStatus   = true;
             gWasFKeyPressed = false;
-            if (beep)
-                gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
             break;
     }
 }
@@ -334,12 +322,8 @@ void channelMove(uint16_t Channel)
     const uint8_t Vfo = gEeprom.TX_VFO;
 
     if (!RADIO_CheckValidChannel(Channel, false, 0)) {
-        if (gKeyInputCountdown <= 1)
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
-
-    gBeepToPlay = BEEP_NONE;
 
     gEeprom.MrChannel[Vfo]     = (uint16_t)Channel;
     gEeprom.ScreenChannel[Vfo] = (uint16_t)Channel;
@@ -503,7 +487,6 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     }
 
     if (bKeyPressed) {
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
         return;
     }
 
@@ -583,7 +566,6 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         }
 
         gRequestDisplayScreen = DISPLAY_MAIN;
-        gBeepToPlay           = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
 
@@ -597,7 +579,6 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 {
     if (!bKeyHeld && bKeyPressed) {
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
         return;
     }
 
@@ -632,9 +613,6 @@ static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 
 static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
 {
-    if (bKeyPressed && !bKeyHeld)
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
-
     if (bKeyHeld) {
         if (bKeyPressed) {
             gWasFKeyPressed = false;
@@ -692,16 +670,13 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         }
     } else {
         if (gInputBoxIndex > 0) {
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
             return;
         }
-        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
     }
         {
             if (IS_FREQ_CHANNEL(Channel)) {
                 const uint32_t frequency = APP_SetFrequencyByStep(gTxVfo, Direction);
                 if (RX_freq_check(frequency) < 0) {
-                    gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
                     return;
                 }
                 gTxVfo->freq_config_RX.Frequency = frequency;
@@ -735,7 +710,6 @@ void MAIN_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 #ifdef ENABLE_FMRADIO
     if (gFmRadioMode && Key != KEY_PTT && Key != KEY_EXIT) {
         if (!bKeyHeld && bKeyPressed)
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
 #endif
@@ -767,8 +741,6 @@ void MAIN_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             GENERIC_Key_PTT(bKeyPressed);
             break;
         default:
-            if (!bKeyHeld && bKeyPressed)
-                gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
             break;
     }
 }

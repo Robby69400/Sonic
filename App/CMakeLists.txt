@@ -22,7 +22,6 @@ target_sources(App INTERFACE
     app/generic.c
     app/main.c
     app/menu.c
-    audio.c
     bitmaps.c
     board.c
     dcs.c

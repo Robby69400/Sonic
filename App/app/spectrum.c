@@ -26,7 +26,7 @@
 #include "action.h"
 #include "ui/main.h"
 #include "scheduler.h"
-#include "audio.h"
+
 #include "misc.h"
 #include "driver/py25q16.h"
 #include "version.h"
@@ -1015,8 +1015,8 @@ static uint16_t GetRssi(void) {
 static void ToggleAudio(bool on) {
     if (on == audioState) { return; }
     audioState = on;
-    if (on) {AUDIO_AudioPathOn();}
-    else {AUDIO_AudioPathOff();}
+    if (on) {GPIO_EnableAudioPath();}
+    else {GPIO_DisableAudioPath();}
 }
 
 static uint16_t CountValidHistoryItems() {

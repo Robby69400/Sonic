@@ -246,7 +246,6 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
 
     // 0E90..0E97
     PY25Q16_ReadBuffer(0x00A0A8, Data, 8);
-    gEeprom.BEEP_CONTROL                 = 0;  // Звук клавишь отключён (нет пункта в меню)
     gEeprom.KEY_M_LONG_PRESS_ACTION      = ((Data[0] >> 1) < ACTION_OPT_LEN) ? (Data[0] >> 1) : ACTION_OPT_FLASHLIGHT;
     gEeprom.KEY_1_SHORT_PRESS_ACTION     = (Data[1] < ACTION_OPT_LEN) ? Data[1] : ACTION_OPT_MONITOR;
     gEeprom.KEY_1_LONG_PRESS_ACTION      = (Data[2] < ACTION_OPT_LEN) ? Data[2] : ACTION_OPT_NONE;
@@ -694,7 +693,6 @@ void SETTINGS_SaveSettings(void)
 
     // 0x0E90
     State = SecBuf;
-    State[0] = gEeprom.BEEP_CONTROL;
     State[0] |= gEeprom.KEY_M_LONG_PRESS_ACTION << 1;
     State[1] = gEeprom.KEY_1_SHORT_PRESS_ACTION;
     State[2] = gEeprom.KEY_1_LONG_PRESS_ACTION;

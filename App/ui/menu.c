@@ -522,7 +522,6 @@ void UI_DisplayMenu(void)
         case MENU_ABR_ON_TX_RX:
             strcpy(String, gSubMenu_RX_TX[gSubMenuSelection]);
             break;
-        case MENU_BEEP:
         case MENU_STE:
         case MENU_D_ST:
 

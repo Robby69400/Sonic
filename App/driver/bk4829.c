@@ -21,7 +21,7 @@
 #include "settings.h"
 #include "misc.h"
 
-#include "audio.h"
+
 
 #include "driver/bk4819.h"
 #include "driver/gpio.h"
@@ -868,7 +868,7 @@ void BK4819_PlaySingleTone(const unsigned int tone_Hz, const unsigned int delay,
 
     if (play_speaker)
     {
-        AUDIO_AudioPathOn();
+        GPIO_EnableAudioPath();
         BK4819_SetAF(BK4819_AF_BEEP);
     }
     else
@@ -888,7 +888,7 @@ void BK4819_PlaySingleTone(const unsigned int tone_Hz, const unsigned int delay,
 
     if (play_speaker)
     {
-        AUDIO_AudioPathOff();
+        GPIO_DisableAudioPath();
         BK4819_SetAF(BK4819_AF_MUTE);
     }
 

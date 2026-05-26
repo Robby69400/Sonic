@@ -173,7 +173,6 @@ typedef struct {
     bool                  MENU_LOCK;
     uint8_t               SET_KEY;
 #endif
-    bool                  BEEP_CONTROL;
     uint8_t               CHANNEL_DISPLAY_MODE;
     bool                  TAIL_TONE_ELIMINATION;
     bool                  VFO_OPEN;

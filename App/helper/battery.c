@@ -226,22 +226,10 @@ void BATTERY_TimeSlice500ms(void)
 
     // not transmitting
 
-    if (lowBatteryCountdown < lowBatteryPeriod) {
-        if (lowBatteryCountdown == lowBatteryPeriod-1 && !gChargingWithTypeC && !gLowBatteryConfirmed) {
-            AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP);
-        }
-        return;
-    }
-
     lowBatteryCountdown = 0;
 
     if (gChargingWithTypeC) {
         return;
-    }
-
-    // not on charge
-    if (!gLowBatteryConfirmed) {
-        AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP);
     }
 
     if (gBatteryDisplayLevel != 0) {

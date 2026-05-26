@@ -16,7 +16,7 @@
 
 #ifndef FUNCTIONS_H
 #define FUNCTIONS_H
-
+#include <stdbool.h>
 #include <stdint.h>
 
 enum FUNCTION_Type_t

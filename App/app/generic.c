@@ -25,7 +25,7 @@
 
 #include "app/generic.h"
 #include "app/menu.h"
-#include "audio.h"
+
 #include "driver/keyboard.h"
 #include "external/printf/printf.h"
 #include "functions.h"
@@ -37,8 +37,6 @@
 void GENERIC_Key_F(bool bKeyPressed, bool bKeyHeld)
 {
     if (gInputBoxIndex > 0 || gScreenToDisplay == DISPLAY_MENU) {
-        if (!bKeyHeld && bKeyPressed) // short pressed
-            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
         return;
     }
 
@@ -70,21 +68,14 @@ void GENERIC_Key_F(bool bKeyPressed, bool bKeyHeld)
         }
     }
     else { // short pressed
-#ifdef ENABLE_FMRADIO
         if (gScreenToDisplay != DISPLAY_FM)
-#endif
         {
-            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
             return;
         }
 
-#ifdef ENABLE_FMRADIO
         if (gFM_ScanState == FM_SCAN_OFF) { // not scanning
-            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
             return;
         }
-#endif
-        gBeepToPlay     = BEEP_440HZ_500MS;
         gPttWasReleased = true;
     }
 }

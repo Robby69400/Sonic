@@ -10,7 +10,7 @@
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
-#include "audio.h"
+
 #include "dcs.h"
 #include "driver/bk4819.h"
 #include "driver/py25q16.h"
@@ -593,7 +593,7 @@ void RADIO_SetupRegisters(bool switchToForeground)
         }
     #endif
 
-    AUDIO_AudioPathOff();
+    GPIO_DisableAudioPath();
 
     gEnableSpeaker = false;
 
@@ -738,7 +738,7 @@ void RADIO_SetTxParameters(void)
         }
     #endif
 
-    AUDIO_AudioPathOff();
+    GPIO_DisableAudioPath();
 
     gEnableSpeaker = false;
 
@@ -988,8 +988,6 @@ void RADIO_PrepareTX(void)
     if (State != VFO_STATE_NORMAL) {
         // TX not allowed
         RADIO_SetVfoState(State);
-
-        AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
         return;
     }
 
