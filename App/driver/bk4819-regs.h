@@ -87,6 +87,7 @@ enum BK4819_REGISTER_t {
     // REG_49<13:7> 0x50; RF AGC high threshold, 1 dB/LSB
     // REG_49<6:0> 0x30; RF AGC low threshold, 1 dB/LSB
     BK4819_REG_49 = 0x49U,
+    BK4819_REG_4A = 0x4AU,
     BK4819_REG_4D = 0x4DU,
     BK4819_REG_4E = 0x4EU,
     BK4819_REG_4F = 0x4FU,

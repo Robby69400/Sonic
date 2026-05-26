@@ -219,7 +219,11 @@ static void BK4819_WriteU16(uint16_t Data)
 }
 
 
-uint16_t regs_cache[128] = {[0 ... 127] = 0xFFFF};
+//uint16_t regs_cache[128] = {[0 ... 127] = 0xFFFF};
+uint16_t reg_30_cache = 0xFFFF;
+uint16_t reg_47_cache = 0xFFFF;
+uint16_t reg_4A_cache = 0xFFFF;
+uint16_t reg_7E_cache = 0xFFFF;
 
 uint16_t BK4819_ReadRegister(BK4819_REGISTER_t Register)
 {
@@ -234,14 +238,36 @@ uint16_t BK4819_ReadRegister(BK4819_REGISTER_t Register)
     SYSTICK_DelayUs(1);
     SCL_Set();
     SDA_Set();
-	regs_cache[Register] = Value;
+	//regs_cache[Register] = Value;
+    if (Register == BK4819_REG_30) reg_30_cache = Value;
+    if (Register == BK4819_REG_47) reg_47_cache = Value;
+    if (Register == BK4819_REG_4A) reg_4A_cache = Value;
+    if (Register == BK4819_REG_7E) reg_7E_cache = Value;
     return Value;
 }
 
 void BK4819_WriteRegister(BK4819_REGISTER_t Register, uint16_t Data)
 {
-    if(Data == regs_cache[Register])return;
-    regs_cache[Register] = Data;
+    //if(Data == regs_cache[Register])return;
+    //regs_cache[Register] = Data;
+
+    if (Register == BK4819_REG_30) {
+        if(Data == reg_30_cache) return;
+        reg_30_cache = Data;
+    }
+    if (Register == BK4819_REG_47) {
+        if(Data == reg_47_cache) return;
+        reg_47_cache = Data;
+    }
+    if (Register == BK4819_REG_4A) {
+        if(Data == reg_4A_cache) return;
+        reg_4A_cache = Data;
+    }
+    if (Register == BK4819_REG_7E) {
+        if(Data == reg_7E_cache) return;
+        reg_7E_cache = Data;
+    }
+
     CS_Release();
     SCL_Reset();
     SYSTICK_DelayUs(1);
@@ -259,7 +285,7 @@ void BK4819_WriteRegister(BK4819_REGISTER_t Register, uint16_t Data)
 
 void BK4819_SetAGC(bool enable)
 {
-    uint16_t regVal = BK4819_ReadRegister(BK4819_REG_7E);
+    uint16_t regVal = reg_7E_cache; 
     if(!(regVal & (1 << 15)) == enable)
         return;
 
