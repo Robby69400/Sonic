@@ -877,7 +877,7 @@ void RADIO_SetModulation(ModulationMode_t modulation)
             BK4819_WriteRegister(0x31, uVar1 & 0xfffe); // AM Demodulation Disable
             BK4819_WriteRegister(0x28, 1536);   // 0x0600 — noise gate FM
             BK4819_WriteRegister(0x2C, 26210);  // 0x6662 — de-emph / tx gain FM
-            BK4819_WriteRegister(0x4A, (BK4819_ReadRegister(0x4A) & ~127U) | 40); // AF volume
+            BK4819_WriteRegister(0x4A, (regs_cache[0x4A] & ~127U) | 40); // AF volume
             BK4819_WriteRegister(0x42, 0x6b5a);
             BK4819_WriteRegister(0x2a, 0x7400);
             BK4819_WriteRegister(0x2b, 0x0000);

@@ -180,24 +180,58 @@ static uint16_t BK4819_ReadU16(void)
     return Value;
 }
 
+static void BK4819_WriteU8(uint8_t Data)
+{
+    unsigned int i;
+    SCL_Reset();
+    for (i = 0; i < 8; i++)
+    {
+        if ((Data & 0x80) == 0)
+            SDA_Reset();
+        else
+            SDA_Set();
+        SYSTICK_DelayUs(1);
+        SCL_Set();
+        SYSTICK_DelayUs(1);
+        Data <<= 1;
+        SCL_Reset();
+        SYSTICK_DelayUs(1);
+    }
+}
+
+static void BK4819_WriteU16(uint16_t Data)
+{
+    unsigned int i;
+    SCL_Reset();
+    for (i = 0; i < 16; i++)
+    {
+        if ((Data & 0x8000) == 0)
+            SDA_Reset();
+        else
+            SDA_Set();
+        SYSTICK_DelayUs(1);
+        SCL_Set();
+        Data <<= 1;
+        SYSTICK_DelayUs(1);
+        SCL_Reset();
+        SYSTICK_DelayUs(1);
+    }
+}
+
+
 uint16_t regs_cache[128] = {[0 ... 127] = 0xFFFF};
 
 uint16_t BK4819_ReadRegister(BK4819_REGISTER_t Register)
 {
     uint16_t Value;
-
     CS_Release();
     SCL_Reset();
-
     SYSTICK_DelayUs(1);
-
     CS_Assert();
     BK4819_WriteU8(Register | 0x80);
     Value = BK4819_ReadU16();
     CS_Release();
-
     SYSTICK_DelayUs(1);
-
     SCL_Set();
     SDA_Set();
 	regs_cache[Register] = Value;
@@ -207,74 +241,21 @@ uint16_t BK4819_ReadRegister(BK4819_REGISTER_t Register)
 void BK4819_WriteRegister(BK4819_REGISTER_t Register, uint16_t Data)
 {
     if(Data == regs_cache[Register])return;
-	regs_cache[Register] = Data;
+    regs_cache[Register] = Data;
     CS_Release();
     SCL_Reset();
-
     SYSTICK_DelayUs(1);
-
     CS_Assert();
     BK4819_WriteU8(Register);
-
     SYSTICK_DelayUs(1);
-
     BK4819_WriteU16(Data);
-
     SYSTICK_DelayUs(1);
-
     CS_Release();
-
     SYSTICK_DelayUs(1);
-
     SCL_Set();
     SDA_Set();
 }
 
-void BK4819_WriteU8(uint8_t Data)
-{
-    unsigned int i;
-
-    SCL_Reset();
-    for (i = 0; i < 8; i++)
-    {
-        if ((Data & 0x80) == 0)
-            SDA_Reset();
-        else
-            SDA_Set();
-
-        SYSTICK_DelayUs(1);
-        SCL_Set();
-        SYSTICK_DelayUs(1);
-
-        Data <<= 1;
-
-        SCL_Reset();
-        SYSTICK_DelayUs(1);
-    }
-}
-
-void BK4819_WriteU16(uint16_t Data)
-{
-    unsigned int i;
-
-    SCL_Reset();
-    for (i = 0; i < 16; i++)
-    {
-        if ((Data & 0x8000) == 0)
-            SDA_Reset();
-        else
-            SDA_Set();
-
-        SYSTICK_DelayUs(1);
-        SCL_Set();
-
-        Data <<= 1;
-
-        SYSTICK_DelayUs(1);
-        SCL_Reset();
-        SYSTICK_DelayUs(1);
-    }
-}
 
 void BK4819_SetAGC(bool enable)
 {
@@ -286,21 +267,6 @@ void BK4819_SetAGC(bool enable)
         | (!enable << 15)   // 0  AGC fix mode
         | (3u << 12)       // 3  AGC fix index
     );
-
-    // if(enable) {
-    //  BK4819_WriteRegister(BK4819_REG_7B, 0x8420);
-    // }
-    // else {
-    //  BK4819_WriteRegister(BK4819_REG_7B, 0x318C);
-
-    //  BK4819_WriteRegister(BK4819_REG_7C, 0x595E);
-    //  BK4819_WriteRegister(BK4819_REG_20, 0x8DEF);
-
-    //  for (uint8_t i = 0; i < 8; i++) {
-    //      //BK4819_WriteRegister(BK4819_REG_06, ((i << 13) | 0x2500u) + 0x036u);
-    //      BK4819_WriteRegister(BK4819_REG_06, (i & 7) << 13 | 0x4A << 7 | 0x36);
-    //  }
-    // }
 }
 
 void BK4819_InitAGC(ModulationMode_t modulation)
