@@ -277,6 +277,12 @@ SpectrumSettings settings = {stepsCount: STEPS_128,
 
 static uint32_t currentFreq, tempFreq;
 static uint8_t rssiHistory[128];
+#ifdef ENABLE_PERSIST
+static uint8_t  peakHoldY[128];       // Peak Y value per display column (0=top)
+static uint8_t  peakHoldAge[64];      // Shared decay timer (1 per 2 columns)
+#define PEAK_HOLD_DELAY  15           // Sweeps before decay starts
+#define PEAK_HOLD_INIT   0xFF         // "no peak" sentinel (same as SPECTRUM_TOPY_SKIP)
+#endif
 static int ShowLines = 1;
 static uint8_t freqInputIndex = 0;
 static uint8_t freqInputDotIndex = 0;
@@ -594,7 +600,7 @@ const RegisterSpec allRegisterSpecs[] = {
     {"13_PGA",   0x13, 0, 0b111, 1},
     {"13_MIX",   0x13, 3, 0b11,  1},
     {"XTAL F Mode Select", 0x3C, 6, 0b11, 1},
-// {"--DEV & MIC--",},
+// {"-- MIC--",},
     {"RF Tx Deviation", 0x40, 0, 0xFFF, 10},
     {"Compress AF Tx Ratio", 0x29, 14, 0b11, 1},
     {"Compress AF Tx 0 dB", 0x29, 7, 0x7F, 1},
@@ -1464,6 +1470,35 @@ static void Blacklist() {
 // SECTION: Display / rendering helpers
 // ============================================================
 
+#ifdef ENABLE_PERSIST
+static uint8_t iSqrt(uint16_t n)
+{
+    if (n == 0) return 0;
+    uint16_t x = n;
+    uint16_t y = (x + 1) >> 1;
+    while (y < x) { x = y; y = (x + n / x) >> 1; }
+    return (uint8_t)x;
+}
+
+uint8_t Rssi2PX(uint16_t rssi, uint8_t pxMin, uint8_t pxMax)
+{
+    const int DB_MIN = settings.dbMin << 1;
+    const int DB_MAX = settings.dbMax << 1;
+    const int DB_RANGE = DB_MAX - DB_MIN;
+    const uint8_t PX_RANGE = pxMax - pxMin;
+    int dbm = clamp(Rssi2DBm(rssi) << 1, DB_MIN, DB_MAX);
+    uint8_t linear = (uint8_t)(((dbm - DB_MIN) * PX_RANGE + DB_RANGE / 2) / DB_RANGE);
+    uint8_t compressed = iSqrt((uint16_t)linear * PX_RANGE);
+    return ((uint16_t)linear + compressed) / 2 + pxMin;
+}
+
+uint8_t Rssi2Y(uint16_t rssi)
+{
+  int delta = ArrowLine*8;
+  return DrawingEndY + delta -Rssi2PX(rssi, delta, DrawingEndY);
+}
+#else
+
 static uint16_t Rssi2PX(uint16_t rssi, uint16_t pxMin, uint16_t pxMax) {
   const int16_t DB_MIN = settings.dbMin << 1;
   const int16_t DB_MAX = settings.dbMax << 1;
@@ -1477,16 +1512,6 @@ static int16_t Rssi2Y(uint16_t rssi) {
   int delta = ArrowLine*8;
   return DrawingEndY + delta -Rssi2PX(rssi, delta, DrawingEndY);
 }
-
-/* static void DrawSpectrum(void) {
-    int16_t y_baseline = Rssi2Y(0); 
-    for (uint8_t i = 0; i < 128; i++) {
-        int16_t y_curr = Rssi2Y(rssiHistory[i]);
-        for (int16_t y = y_curr; y <= y_baseline; y++) {
-                gFrameBuffer[y >> 3][i] |= (1 << (y & 7));
-            }
-        }
-} */
 
 static void DrawSpectrum(void) {
     // Build topY[] with rssi → Y-coordinate conversion
@@ -1534,6 +1559,10 @@ static void DrawSpectrum(void) {
                 gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
     }
 }
+
+#endif
+
+
 
 static void RemoveTrailZeros(char *s) {
     char *p;
@@ -2696,6 +2725,225 @@ static void MyDrawFrameLines(void)
 }
 #endif
 
+#ifdef ENABLE_PERSIST
+static bool IsRssiHistoryInvalid(uint16_t rssi)
+{
+    // rssiHistory is cleared to 0 on (re)entry; treat it as "not measured yet"
+    // so the renderer does not draw an artificial horizontal baseline.
+    return rssi == 0 || rssi == RSSI_MAX_VALUE;
+}
+
+
+
+// Resolve the RSSI value at fractional sample index (Q8 fixed-point) using
+// linear interpolation. Blacklisted samples (RSSI_MAX_VALUE) are skipped by
+// falling back to the other neighbour; if both are blacklisted, returns
+// RSSI_MAX_VALUE so the caller can skip the column.
+static uint16_t InterpolateRssi(uint8_t bars, uint16_t pos256)
+{
+    uint8_t i = pos256 >> 8;
+    uint8_t frac = pos256 & 0xFF;
+
+    if (i >= bars - 1)
+    {
+        i = bars - 1;
+        frac = 0;
+    }
+
+    uint16_t rssiA = rssiHistory[i];
+    uint16_t rssiB = rssiHistory[(i + 1 < bars) ? (i + 1) : i];
+
+    if (IsRssiHistoryInvalid(rssiA) && IsRssiHistoryInvalid(rssiB))
+        return RSSI_MAX_VALUE;
+    if (IsRssiHistoryInvalid(rssiA))
+        return rssiB;
+    if (IsRssiHistoryInvalid(rssiB))
+        return rssiA;
+
+    return ((uint32_t)rssiA * (256 - frac) + (uint32_t)rssiB * frac) >> 8;
+}
+
+// Sentinel value in topY[] to mark a column that should not be drawn
+// (blacklisted RSSI sample on both neighbours).
+#define SPECTRUM_TOPY_SKIP 0xFF
+
+// Half-step bridging helper: compute crestTop/crestBot for column x
+// from a topY-like array.
+static void CalcCrest(const uint8_t *yArr, uint8_t x,
+                      uint8_t *crestTop, uint8_t *crestBot)
+{
+    uint8_t y0 = yArr[x];
+    *crestTop = y0;
+    *crestBot = y0;
+
+    bool goBack = true;
+    uint8_t n = 0;
+
+    if (x > 0) {
+        n = yArr[x - 1];
+        goto Start;
+    }
+
+Back:
+    goBack = false;
+
+    if (x + 1 < 128) {
+        n = yArr[x + 1];
+        goto Start;
+    }
+
+    return;
+
+Start:
+    if (n != SPECTRUM_TOPY_SKIP && n <= DrawingEndY) {
+        uint8_t mid = (y0 + n + 1) >> 1;
+        if (mid < *crestTop) *crestTop = mid;
+        if (mid > *crestBot) *crestBot = mid;
+    }
+
+    if (goBack)
+        goto Back;
+}
+
+// Draw the spectrum curve (solid crest + checkerboard body) and the peak hold
+// dotted trace.  Both use the same half-step bridging so the peak hold crest
+// shape mirrors the live crest exactly, just rendered with a dotted pattern.
+static void DrawSpectrumCurve(const uint8_t *topY)
+{
+    // Pass 1: update peakHoldY[] from topY[] before rendering so that the
+    // bridging in Pass 2 already sees fully-updated neighbour values.
+    for (uint8_t x = 0; x < 128; x++)
+    {
+        uint8_t y0 = topY[x];
+        if (y0 == SPECTRUM_TOPY_SKIP || y0 > DrawingEndY) {
+            peakHoldY[x] = PEAK_HOLD_INIT;
+            continue;
+        }
+
+        uint8_t ph = peakHoldY[x];
+        if (ph == PEAK_HOLD_INIT || y0 <= ph)
+        {
+            peakHoldY[x]        = y0;
+            peakHoldAge[x >> 1] = 0;
+        }
+        else
+        {
+            if (peakHoldAge[x >> 1] < PEAK_HOLD_DELAY) {
+                if (!(x & 1)) peakHoldAge[x >> 1]++;
+            } else {
+                ph += 2;
+                peakHoldY[x] = (ph <= DrawingEndY) ? ph : PEAK_HOLD_INIT;
+            }
+        }
+    }
+
+    // Pass 2: draw live curve (solid) then peak hold (dotted).
+    for (uint8_t x = 0; x < 128; x++)
+    {
+        // --- Live spectrum crest + body ---
+        uint8_t y0 = topY[x];
+        if (y0 != SPECTRUM_TOPY_SKIP && y0 <= DrawingEndY)
+        {
+            uint8_t crestTop, crestBot;
+            CalcCrest(topY, x, &crestTop, &crestBot);
+
+            // Solid crest contour.
+            for (uint8_t y = crestTop; y <= crestBot; y++)
+                PutPixel(x, y, true);
+
+            // Checkerboard body below the crest.
+            for (uint8_t y = crestBot + 1; y <= DrawingEndY; y++)
+                if (((x + y) & 1) == 0)
+                    PutPixel(x, y, true);
+        }
+
+        // --- Peak hold dotted crest ---
+        uint8_t ph = peakHoldY[x];
+        if (ph != PEAK_HOLD_INIT && ph <= DrawingEndY)
+        {
+            uint8_t phTop, phBot;
+            CalcCrest(peakHoldY, x, &phTop, &phBot);
+
+            // Dotted crest: checkerboard pattern over the full crest range.
+            for (uint8_t y = phTop; y <= phBot; y++)
+                if (((x + y) & 1) == 0)
+                    PutPixel(x, y, true);
+        }
+    }
+}
+
+// Spatial smoothing: 3-bin moving average on topY for a cleaner curve.
+// Only averages valid (non-SKIP) neighbours.
+static void SmoothTopY(uint8_t *topY)
+{
+    uint8_t prev = topY[0];
+    for (uint8_t x = 1; x < 127; x++)
+    {
+        uint8_t cur = topY[x];
+        uint8_t next = topY[x + 1];
+        if (cur == SPECTRUM_TOPY_SKIP) {
+            prev = cur;
+            continue;
+        }
+        uint16_t sum = cur;
+        uint8_t n = 1;
+        if (prev != SPECTRUM_TOPY_SKIP) { sum += prev; n++; }
+        if (next != SPECTRUM_TOPY_SKIP) { sum += next; n++; }
+        prev = cur;                       // save unsmoothed value for next iteration
+        topY[x] = (sum + n / 2) / n;     // rounded average
+    }
+}
+
+// Fill topY[0..127] by linear interpolation of `bars` RSSI samples across the
+// 128 display columns. Invalid (blacklisted) samples become SPECTRUM_TOPY_SKIP.
+static void BuildSpectrumTopY(uint8_t *topY, uint8_t bars)
+{
+    if (bars == 0)
+    {
+        for (uint8_t x = 0; x < 128; x++)
+            topY[x] = SPECTRUM_TOPY_SKIP;
+        return;
+    }
+
+    if (bars == 1)
+    {
+        uint16_t rssi = rssiHistory[0];
+        uint8_t y = IsRssiHistoryInvalid(rssi) ? SPECTRUM_TOPY_SKIP : Rssi2Y(rssi);
+        for (uint8_t x = 0; x < 128; x++)
+            topY[x] = y;
+        return;
+    }
+
+    // Q8 fixed-point: step256 / 256 advances one sample, multiplied by x.
+    uint16_t step256 = ((uint16_t)(bars - 1) << 8) / 127;
+
+    for (uint8_t x = 0; x < 128; x++)
+    {
+        uint16_t rssi = InterpolateRssi(bars, (uint16_t)x * step256);
+        topY[x] = (rssi == RSSI_MAX_VALUE) ? SPECTRUM_TOPY_SKIP : Rssi2Y(rssi);
+    }
+}
+
+static void BuildCurrentSpectrumTopY(uint8_t *topY)
+{
+#ifdef ENABLE_FEAT_F4HWN
+    uint16_t steps = GetStepsCount();
+    // max bars at 128 to correctly draw larger numbers of samples
+    uint8_t bars = (steps > 128) ? 128 : steps;
+#else
+    uint8_t bars = 128 >> settings.stepsCount;
+    if (bars == 0)
+        bars = 1;
+#endif
+
+    BuildSpectrumTopY(topY, bars);
+    // Skip cosmetic smoothing in manual mode so the rendered curve matches
+    // the raw RSSI used by the squelch detector — narrow peaks must visibly
+    // cross the trigger line when the radio opens the squelch.
+    SmoothTopY(topY);
+}
+#endif
+
 static void RenderSpectrum()
 {
     if(isListening) { DrawF(peak.f);}
@@ -2704,13 +2952,21 @@ static void RenderSpectrum()
       else DrawF(scanInfo.f);
     }
     if (ShowLines < 2) {
+#ifdef ENABLE_PERSIST
+        uint8_t topY[128];
+        BuildCurrentSpectrumTopY(topY);
+        DrawNums();
+        UpdateDBMaxAuto();
+        DrawSpectrumCurve(topY);
+        #else
         DrawNums();
         UpdateDBMaxAuto();
         DrawSpectrum();
-        }
+        #endif
 #ifdef ENABLE_SPECTRUM_LINES
-    MyDrawFrameLines();
+            MyDrawFrameLines();
 #endif
+        }
 }
 
 static void DrawMeter(int line) {

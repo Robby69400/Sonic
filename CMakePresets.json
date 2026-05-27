@@ -13,6 +13,7 @@
                 "ENABLE_FMRADIO": true,
                 "ENABLE_UART": false,
                 "ENABLE_USB": false,
+                "ENABLE_PERSIST": false,
                 "ENABLE_BENCH": true,
                 "ENABLE_VERSION": false,
                 "ENABLE_AIRCOPY": false,
@@ -69,50 +70,25 @@
             }
         },
        
-        {
-            "name": "Dev",
-            "inherits": "default",
-            "cacheVariables": {
-                "ENABLE_DEV": true,
-                "ENABLE_USB": true,
-                "ENABLE_UART": true,
-                "EDITION_STRING": "Dev",
-                "TARGET": "SONIC.Dev.V21"
-            }
-        },
-        {
-            "name": "USB",
-            "inherits": "default",
-            "cacheVariables": {
-                "ENABLE_USB": true,
-                "ENABLE_UART": false,
-                "EDITION_STRING": "USB",
-                "TARGET": "SONIC.USB.V21"
-            }
-        },
-        {
-            "name": "RS232",
-            "inherits": "default",
-            "cacheVariables": {
-                "ENABLE_USB": false,
-                "ENABLE_UART": true,
-                "EDITION_STRING": "RS232",
-                "TARGET": "SONIC.RS232.V21"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "Dev",
-            "configurePreset": "Dev"
-        },
-        {
-            "name": "USB",
-            "configurePreset": "USB"
-        },
-        {
-            "name": "RS232",
-            "configurePreset": "RS232"
-        }
-    ]
+{
+    "name": "USB","inherits": "default","cacheVariables": {
+        "ENABLE_USB": true,
+        "ENABLE_PERSIST": true,
+        "EDITION_STRING": "USB",
+        "TARGET": "SONIC.USB.V21"
+    }
+},
+{
+    "name": "RS232","inherits": "default","cacheVariables": {
+        "ENABLE_UART": true,
+        "ENABLE_PERSIST": false,
+        "EDITION_STRING": "RS232",
+        "TARGET": "SONIC.RS232.V21"
+    }
+}
+],
+"buildPresets": [
+    {"name": "USB","configurePreset": "USB"},
+    {"name": "RS232","configurePreset": "RS232"}
+]
 }

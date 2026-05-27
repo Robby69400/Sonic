@@ -160,6 +160,7 @@ enable_feature(ENABLE_NAVIG_LEFT_RIGHT)
 enable_feature(ENABLE_INVERT_NAV)
 # Robzyl scan list display features
 enable_feature(ENABLE_SPECTRUM_LINES)
+enable_feature(ENABLE_PERSIST)
 
 # ---- CONTRIB MODS ----
 
@@ -170,9 +171,6 @@ enable_feature(ENABLE_EXTRA_UART_CMD)
 
 enable_feature(ENABLE_FEAT_F4HWN)
 enable_feature(ENABLE_FEAT_F4HWN_AUDIO_SCOPE)
-enable_feature(ENABLE_FEAT_F4HWN_GAME 
-    app/breakout.c
-)
 enable_feature(ENABLE_FEAT_F4HWN_SPECTRUM)
 enable_feature(ENABLE_FEAT_F4HWN_RX_TX_TIMER)
 enable_feature(ENABLE_FEAT_F4HWN_CHARGING_C)
