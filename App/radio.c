@@ -520,7 +520,7 @@ void RADIO_ConfigureSquelchAndOutputPower(VFO_Info_t *pInfo)
     uint8_t Txp[3];
     
     PY25Q16_ReadBuffer(0x100D0 + (Band * 16) + (pInfo->OUTPUT_POWER * 3), Txp, 3);
-    const uint8_t p1 = 2;
+    const uint8_t p1 = 4;
 	const uint8_t p2 = 1;
 	const uint8_t p3 = 70;	
     
