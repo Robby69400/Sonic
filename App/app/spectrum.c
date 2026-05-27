@@ -1678,15 +1678,12 @@ static void ScanProgress_DrawGaugeLine(uint8_t line)
     if (appMode == SCAN_BAND_MODE) {
         globalStepOffset = 0;
         
-        // FIX: Start at index 0. Loop through all bands strictly BEFORE the current band 'bl'.
         for (uint8_t i = 0; i < bl; i++) {
             if (scanStepValues[BParams[i].scanStep] && settings.bandEnabled[i]) {
                 globalStepOffset += (BParams[i].Stopfrequency - BParams[i].Startfrequency) / scanStepValues[BParams[i].scanStep];
             }
         }
-        // scanInfo.i represents the current step within the current band 'bl'
         current_index = globalStepOffset + scanInfo.i;
-        // Calculate total steps across all active bands for the denominator
         total = 0;
         for (uint8_t i = 0; i < bandCount; i++) {
             if (scanStepValues[BParams[i].scanStep] && settings.bandEnabled[i]) {
@@ -1694,23 +1691,21 @@ static void ScanProgress_DrawGaugeLine(uint8_t line)
             }
         }
     } else {
-        // Standard single-range or channel mode logic
         total = GetStepsCount();
         current_index = scanInfo.i;
     }
     const uint8_t fill_start = 4;
     const uint8_t fill_cols  = 121;
 
-    // Safety checks to prevent division by zero or overflow
     if (total == 0) total = 1;
     if (current_index > total) current_index = total;
 
-    // Map progress to display width
     uint8_t filled_until = (uint8_t)((current_index * (uint32_t)fill_cols) / total);
-
-    // Update framebuffer pixels
+    // char text[19] = "";
+    // snprintf(text, sizeof(text), " %d / %d ", filled_until, total);
+    // UI_PrintStringSmallbackground(text, 0, 127, line, 1);  
+    
     for (uint8_t col = 0; col < fill_cols; col++) {
-        // 0xF0 creates a horizontal bar in the middle of the 8-bit vertical page
         gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0x3C : 0x00;
     }
 }

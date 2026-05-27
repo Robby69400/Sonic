@@ -73,7 +73,6 @@
 {
     "name": "USB","inherits": "default","cacheVariables": {
         "ENABLE_USB": true,
-        "ENABLE_PERSIST": true,
         "EDITION_STRING": "USB",
         "TARGET": "SONIC.USB.V21"
     }
@@ -81,7 +80,6 @@
 {
     "name": "RS232","inherits": "default","cacheVariables": {
         "ENABLE_UART": true,
-        "ENABLE_PERSIST": false,
         "EDITION_STRING": "RS232",
         "TARGET": "SONIC.RS232.V21"
     }
