@@ -1771,9 +1771,6 @@ static void DrawF(uint32_t f) {
                     case 0:
                         snprintf(Text, sizeof(Text), "TX %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
                         break;
-                    case 4:
-                        snprintf(Text, sizeof(Text), "ATX%s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
-                        break;
                     case 1:
                         if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) 
                             snprintf(Text, sizeof(Text), "Ninja RX %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
@@ -1784,6 +1781,14 @@ static void DrawF(uint32_t f) {
                             snprintf(Text, sizeof(Text), "LastRX %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
                             else snprintf(Text, sizeof(Text), "LastRX");
                         break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                        snprintf(Text, sizeof(Text), "RO %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
+                        break;
+                    
                     }
                 
                     
@@ -2159,8 +2164,8 @@ static void HandleKeyParameters(uint8_t key) {
                       break;
                 case PARAM_PTT_EMISSION:
                       PttEmission = isKey3 ?
-                            (PttEmission >= 3 ? 0 : PttEmission + 1) :
-                            (PttEmission <= 0 ? 3 : PttEmission - 1);
+                            (PttEmission >= 7 ? 0 : PttEmission + 1) :
+                            (PttEmission <= 0 ? 7 : PttEmission - 1);
                       break;  
                 case PARAM_MONITOR_SCAN:
                     gMonitorScan = !gMonitorScan; 
@@ -3309,7 +3314,7 @@ static void Tick() {
         RenderStatus();
         Render();
     } 
-    if (gNextTimeslice_AutoPtt && PttEmission == 3) {
+    if (gNextTimeslice_AutoPtt && PttEmission >= 3) {
         gNextTimeslice_AutoPtt = 0;
         RADIO_PrepareTX();
         SYSTEM_DelayMs(50);
@@ -4021,7 +4026,24 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
                 strncpy(row->right, "LAST RX",  sizeof(row->right) - 1);
                 break;
             case 3: 
-                strncpy(row->right, "AUTO ROGER",  sizeof(row->right) - 1);
+                strncpy(row->right, "AUTO ROGER 30s",  sizeof(row->right) - 1);
+                gAutoPtt_Time = 30;
+                break;
+            case 4: 
+                strncpy(row->right, "AUTO ROGER 2m",  sizeof(row->right) - 1);
+                gAutoPtt_Time = 120;
+                break;
+            case 5: 
+                strncpy(row->right, "AUTO ROGER 5m",  sizeof(row->right) - 1);
+                gAutoPtt_Time = 300;
+                break;
+            case 6: 
+                strncpy(row->right, "AUTO ROGER 10m",  sizeof(row->right) - 1);
+                gAutoPtt_Time = 600;
+                break;
+            case 7: 
+                strncpy(row->right, "AUTO ROGER 30m",  sizeof(row->right) - 1);
+                gAutoPtt_Time = 1800;
                 break;
             }
             break;

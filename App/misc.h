@@ -283,6 +283,7 @@ extern volatile bool         gNextTimeslice_Monitor;
 extern volatile bool         gNextTimeslice_10ms;
 extern volatile bool         gNextTimeslice_listening;
 extern volatile bool         gNextTimeslice_AutoPtt;
+extern volatile uint16_t     gAutoPtt_Time;
 extern volatile bool         gNextTimeslice_display;
 extern volatile bool         gNextTimeslice_history;
 extern volatile bool         gNextTimeslice_HTimeS;
