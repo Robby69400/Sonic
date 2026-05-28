@@ -66,22 +66,22 @@
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
                 "VERSION_STRING_1": "v0.22",
-                "VERSION_STRING_2": "V21" 
+                "VERSION_STRING_2": "V22" 
             }
         },
        
 {
     "name": "USB","inherits": "default","cacheVariables": {
-        "ENABLE_USB": true,
+        "ENABLE_USB": true,"ENABLE_UART": true,
         "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USB.V21"
+        "TARGET": "SONIC.USB.V22"
     }
 },
 {
     "name": "RS232","inherits": "default","cacheVariables": {
         "ENABLE_UART": true,
         "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232.V21"
+        "TARGET": "SONIC.RS232.V22"
     }
 }
 ],

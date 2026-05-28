@@ -1767,7 +1767,7 @@ static void DrawF(uint32_t f) {
             }
         }
     } else ArrowLine = 2;
-    static char Text[16]="";
+    static char Text[20]="";
     
     switch(ShowLines) {
             case 1: {       // BIG FREQUENCY
@@ -1785,14 +1785,27 @@ static void DrawF(uint32_t f) {
             }
             case 2: {       //SCAN
                 if(isListening) { sprintf(Text, "Signal %d dBm", Rssi2DBm(scanInfo.rssi)); }
-                else { 
-                    if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) {
-                        snprintf(Text, sizeof(Text), "Last %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
+                else switch(PttEmission) {
+                    case 0:
+                        snprintf(Text, sizeof(Text), "TX %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
+                        break;
+                    case 1:
+                        if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) 
+                            snprintf(Text, sizeof(Text), "Ninja RX %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
+                            else snprintf(Text, sizeof(Text), "Ninja");
+                        break;
+                    case 2:
+                        if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) 
+                            snprintf(Text, sizeof(Text), "LastRX %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
+                            else snprintf(Text, sizeof(Text), "LastRX");
+                        break;
                     }
+                
+                    
 #ifdef ENABLE_BENCH
-                    snprintf(line3, sizeof(line3), "Rate: %u/s", benchRatePerSec);
+                snprintf(line3, sizeof(line3), "Rate: %u/s", benchRatePerSec);
 #endif
-                }
+                
                 UI_DisplayFrequency(line1, 3, 0, 1);
                 UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
                 ScanProgress_DrawGaugeLine(3);
@@ -1804,8 +1817,7 @@ static void DrawF(uint32_t f) {
                 ST7565_BlitLine(6);
                 break;
             }
-    } 
-
+    }
 }
 
 static void LookupChannelModulation() {
@@ -2293,6 +2305,7 @@ static void HandleKeySpectrum(uint8_t key) {
 				if (ShowLines == 2) viewName   = "SCAN";
                 sprintf(viewText, "VIEW: %s", viewName);
                 ShowOSDPopup(viewText);
+                spectrumElapsedCount = 0;
             }
             break;
         case KEY_UP:
@@ -3055,8 +3068,8 @@ static void Render() {
     }
     switch (currentState) {
         case SPECTRUM:
-            RenderSpectrum();
-            if (spectrumElapsedCount < 500) {
+            if (spectrumElapsedCount < osdPopupSetting + 200) {
+                RenderSpectrum();
                 ST7565_BlitLine(4);
                 ST7565_BlitLine(5);
                 ST7565_BlitLine(6);

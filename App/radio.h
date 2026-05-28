@@ -67,48 +67,31 @@ typedef struct
 
 typedef struct VFO_Info_t
 {
-    FREQ_Config_t  freq_config_RX;
-    FREQ_Config_t  freq_config_TX;
-
-    // this is for a purpose of the FrequencyReverse function
-    // it points to freq_config_RX normally and to freq_config_TX if reverse function is active
-    //
-    FREQ_Config_t *pRX;
-
-    // this is for a purpose of the FrequencyReverse function
-    // it points to freq_config_TX normally and to freq_config_RX if reverse function is active
-    FREQ_Config_t *pTX;
-
-    uint32_t       TX_OFFSET_FREQUENCY;
-    uint16_t       StepFrequency;
-
-    uint16_t        CHANNEL_SAVE;
-
-    uint8_t        TX_OFFSET_FREQUENCY_DIRECTION;
-
-    uint8_t        SquelchOpenRSSIThresh;
-    uint8_t        SquelchOpenNoiseThresh;
-    uint8_t        SquelchCloseGlitchThresh;
-    uint8_t        SquelchCloseRSSIThresh;
-    uint8_t        SquelchCloseNoiseThresh;
-    uint8_t        SquelchOpenGlitchThresh;
-
-    STEP_Setting_t STEP_SETTING;
-    uint8_t        OUTPUT_POWER;
-    uint8_t        TXP_CalculatedSetting;
-    bool           FrequencyReverse;
-    uint8_t        CHANNEL_BANDWIDTH;
-
-    uint8_t        SCANLIST_PARTICIPATION;
-
-    uint16_t        Band;
-    uint8_t        BUSY_CHANNEL_LOCK;
-
+    FREQ_Config_t       freq_config_RX;
+    FREQ_Config_t       freq_config_TX;
+    FREQ_Config_t       *pRX;
+    FREQ_Config_t       *pTX;
+    uint32_t            TX_OFFSET_FREQUENCY;
+    uint16_t            StepFrequency;
+    uint16_t            CHANNEL_SAVE;
+    uint8_t             TX_OFFSET_FREQUENCY_DIRECTION;
+    uint8_t             SquelchOpenRSSIThresh;
+    uint8_t             SquelchOpenNoiseThresh;
+    uint8_t             SquelchCloseGlitchThresh;
+    uint8_t             SquelchCloseRSSIThresh;
+    uint8_t             SquelchCloseNoiseThresh;
+    uint8_t             SquelchOpenGlitchThresh;
+    STEP_Setting_t      STEP_SETTING;
+    uint8_t             OUTPUT_POWER;
+    uint8_t             TXP_CalculatedSetting;
+    bool                FrequencyReverse;
+    uint8_t             CHANNEL_BANDWIDTH;
+    uint8_t             SCANLIST_PARTICIPATION;
+    uint16_t            Band;
+    uint8_t             BUSY_CHANNEL_LOCK;
     ModulationMode_t    Modulation;
-
-    uint8_t        Compander;
-
-    char           Name[16];
+    uint8_t             Compander;
+    char                Name[16];
 } VFO_Info_t;
 
 // Settings of the main VFO that is selected by the user
