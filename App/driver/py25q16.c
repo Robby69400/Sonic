@@ -38,6 +38,10 @@
 #define SECTOR_SIZE 0x1000
 #define PAGE_SIZE 0x100
 
+// Remplacement du cache secteur (4Ko) par un cache page de seulement 256 octets !
+static uint32_t PageCacheAddr = 0x1000000;
+static uint8_t PageCache[PAGE_SIZE]; 
+
 static uint8_t BlackHole[4] __attribute__((aligned(4)));
 static volatile bool TC_Flag;
 
@@ -254,68 +258,100 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
     printf("spi flash write: %06x %ld %d\n", Address, Size, Append);
 #endif
 
-    // Tampon de 4 Ko isolé sur la pile informatique (Stack)
-    uint8_t SectorCache[SECTOR_SIZE]; 
-
-    uint32_t SecIndex = Address / SECTOR_SIZE;
-    uint32_t SecAddr = SecIndex * SECTOR_SIZE;
-    uint32_t SecOffset = Address % SECTOR_SIZE;
-    uint32_t SecSize = SECTOR_SIZE - SecOffset;
+    uint32_t PageIndex = Address / PAGE_SIZE;
+    uint32_t PageAddr = PageIndex * PAGE_SIZE;
+    uint32_t PageOffset = Address % PAGE_SIZE;
+    uint32_t PageSize = PAGE_SIZE - PageOffset;
 
     while (Size)
     {
         WaitWIP();
 
-        if (Size < SecSize)
+        if (Size < PageSize)
         {
-            SecSize = Size;
+            PageSize = Size;
         }
 
-        // On charge systématiquement le secteur visé en temps réel depuis la puce SPI
-        PY25Q16_ReadBuffer(SecAddr, SectorCache, SECTOR_SIZE);
-
-        if (0 != memcmp(pBuffer, (char *)SectorCache + SecOffset, SecSize))
+        // 1. Lire la page actuelle de 256 octets dans notre petit cache
+        if (PageAddr != PageCacheAddr)
         {
-            bool Erase = false;
-            for (uint32_t i = 0; i < SecSize; i++)
+            PY25Q16_ReadBuffer(PageAddr, PageCache, PAGE_SIZE);
+            PageCacheAddr = PageAddr;
+        }
+
+        // 2. Vérifier si les données à écrire sont différentes de ce qui existe déjà
+        if (0 != memcmp(pBuffer, PageCache + PageOffset, PageSize))
+        {
+            bool EraseNeeded = false;
+            // Est-ce qu'on essaie d'écrire un '1' sur un '0' ? (Nécessite un effacement)
+            for (uint32_t i = 0; i < PageSize; i++)
             {
-                if (0xff != SectorCache[SecOffset + i])
+                uint8_t currentByte = PageCache[PageOffset + i];
+                uint8_t newByte = ((const uint8_t *)pBuffer)[i];
+                if ((currentByte & newByte) != newByte)
                 {
-                    Erase = true;
+                    EraseNeeded = true;
                     break;
                 }
             }
 
-            memcpy(SectorCache + SecOffset, pBuffer, SecSize);
-
-            if (Erase)
+            if (EraseNeeded)
             {
+                // Trouver le début du secteur de 4 Ko qui contient cette page
+                uint32_t SecAddr = (PageAddr / SECTOR_SIZE) * SECTOR_SIZE;
+                
+                // Sauvegarder temporairement la page modifiée dans notre cache de 256 octets
+                memcpy(PageCache + PageOffset, pBuffer, PageSize);
+
+                // Effacer le secteur entier sur la puce
                 SectorErase(SecAddr);
                 WaitWIP();
 
-                if (Append)
+                // Boucle "Read-Modify-Write" intelligente page par page pour reconstruire le secteur
+                for (uint32_t p = 0; p < SECTOR_SIZE; p += PAGE_SIZE)
                 {
-                    SectorProgram(SecAddr, SectorCache, SecOffset + SecSize);
+                    uint32_t currentTargetPage = SecAddr + p;
+
+                    if (currentTargetPage == PageAddr)
+                    {
+                        // C'est la page qu'on vient de modifier en RAM, on l'écrit directement
+                        PageProgram(currentTargetPage, PageCache, PAGE_SIZE);
+                    }
+                    else
+                    {
+                        // Pour les autres pages du secteur, on les lit et on les réécrit à la volée
+                        // (On utilise PageCache comme tampon temporaire de transit)
+                        PY25Q16_ReadBuffer(currentTargetPage, PageCache, PAGE_SIZE);
+                        
+                        // Si la page n'est pas vide, on la réécrit
+                        bool pageIsEmpty = true;
+                        for(int k=0; k<PAGE_SIZE; k++) {
+                            if(PageCache[k] != 0xFF) { pageIsEmpty = false; break; }
+                        }
+                        if (!pageIsEmpty) {
+                            PageProgram(currentTargetPage, PageCache, PAGE_SIZE);
+                        }
+                    }
                 }
-                else
-                {
-                    SectorProgram(SecAddr, SectorCache, SECTOR_SIZE);
-                }
+                // Forcer le rechargement au prochain tour car le cache a servi au transit
+                PageCacheAddr = 0x1000000; 
             }
             else
             {
-                SectorProgram(Address, pBuffer, SecSize);
+                // Pas besoin d'effacer ! On applique la modification en RAM et on écrit la page
+                memcpy(PageCache + PageOffset, pBuffer, PageSize);
+                PageProgram(PageAddr, PageCache, PAGE_SIZE);
             }
         }
 
-        Address += SecSize;
-        pBuffer += SecSize;
-        Size -= SecSize;
+        Address += PageSize;
+        pBuffer = (const uint8_t *)pBuffer + PageSize;
+        Size -= PageSize;
 
-        SecAddr += SECTOR_SIZE;
-        SecOffset = 0;
-        SecSize = SECTOR_SIZE;
-    } // while
+        PageAddr += PAGE_SIZE;
+        PageOffset = 0;
+        PageSize = PAGE_SIZE;
+    }
 
     WaitWIP();
 }
@@ -323,7 +359,13 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
 void PY25Q16_SectorErase(uint32_t Address)
 {
     Address -= (Address % SECTOR_SIZE);
-    SectorErase(Address); // Effectue l'effacement matériel sur la puce
+    SectorErase(Address);
+    
+    // Si la page en cache était dans ce secteur, on l'invalide
+    if (PageCacheAddr >= Address && PageCacheAddr < (Address + SECTOR_SIZE))
+    {
+        memset(PageCache, 0xff, PAGE_SIZE);
+    }
 }
 
 // Снять защиту Block Protect перед полным стиранием.
