@@ -360,24 +360,6 @@ int16_t BK4819_GetAFCValue() { //from Hawk5
   return (signedAfc * 10) / 3;
 }
 
-#ifdef ENABLE_CPU_TEMP
-int16_t temp_dc;
-
-static void RenderCPUTemp(void) {
-    char buf[32];
-    /* ambient_est = cpu_temp - CPU_AMBIENT_OFFSET (default 8.0 degC) */
-#define CPU_AMBIENT_OFFSET_DC  80   /* 8.0 degC in deci-Celsius */
-    if (gNextTimeslice_60s) {
-        gNextTimeslice_60s = 0;
-        temp_dc = CpuTemp_ReadDeciCelsius();
-    }
-    int16_t amb_dc = temp_dc - CPU_AMBIENT_OFFSET_DC;
-    int16_t a_int  = amb_dc / 10;
-    int16_t a_frac = (int16_t)abs(amb_dc % 10);
-    snprintf(buf, sizeof(buf), "%d.%d C", (int)a_int, (int)a_frac);
-    UI_PrintStringSmallbackground(buf, 1, 1, 0, 0);
-}
-#endif
 typedef struct
 {
 	uint8_t      sLevel;      // S-level value
@@ -1789,6 +1771,9 @@ static void DrawF(uint32_t f) {
                     case 0:
                         snprintf(Text, sizeof(Text), "TX %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
                         break;
+                    case 4:
+                        snprintf(Text, sizeof(Text), "ATX%s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
+                        break;
                     case 1:
                         if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) 
                             snprintf(Text, sizeof(Text), "Ninja RX %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
@@ -2174,8 +2159,8 @@ static void HandleKeyParameters(uint8_t key) {
                       break;
                 case PARAM_PTT_EMISSION:
                       PttEmission = isKey3 ?
-                            (PttEmission >= 2 ? 0 : PttEmission + 1) :
-                            (PttEmission <= 0 ? 2 : PttEmission - 1);
+                            (PttEmission >= 3 ? 0 : PttEmission + 1) :
+                            (PttEmission <= 0 ? 3 : PttEmission - 1);
                       break;  
                 case PARAM_MONITOR_SCAN:
                     gMonitorScan = !gMonitorScan; 
@@ -2445,7 +2430,7 @@ static void HandleKeySpectrum(uint8_t key) {
     case KEY_PTT:
         ExitAndCopyToVfo();
         break;
-        case KEY_MENU:
+    case KEY_MENU:
             if (historyListActive) scanInfo.f = HFreqs[historyListIndex];
             SpectrumMonitor = 1;
             SetState(STILL);      
@@ -3324,6 +3309,12 @@ static void Tick() {
         RenderStatus();
         Render();
     } 
+    if (gNextTimeslice_AutoPtt && PttEmission == 3) {
+        gNextTimeslice_AutoPtt = 0;
+        RADIO_PrepareTX();
+        SYSTEM_DelayMs(50);
+        RADIO_SendEndOfTransmission();
+    }
 }
 void APP_RunSpectrumMode(uint8_t mode) {
     Spectrum_state = mode & 3;
@@ -4019,9 +4010,20 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             break;
         case PARAM_PTT_EMISSION:
             snprintf(row->left, sizeof(row->left), "PTT:");
-            if      (PttEmission == 0) strncpy(row->right, "VFO FREQ", sizeof(row->right) - 1);
-            else if (PttEmission == 1) strncpy(row->right, "NINJA",    sizeof(row->right) - 1);
-            else                       strncpy(row->right, "LAST RX",  sizeof(row->right) - 1);
+            switch (PttEmission) {
+            case 0: 
+                strncpy(row->right, "VFO FREQ", sizeof(row->right) - 1);
+                break;
+            case 1:
+                strncpy(row->right, "NINJA",    sizeof(row->right) - 1);
+                break;
+            case 2:
+                strncpy(row->right, "LAST RX",  sizeof(row->right) - 1);
+                break;
+            case 3: 
+                strncpy(row->right, "AUTO ROGER",  sizeof(row->right) - 1);
+                break;
+            }
             break;
         case PARAM_MONITOR_SCAN:
             snprintf(row->left, sizeof(row->left), "Monitor SL");

@@ -282,7 +282,7 @@ extern volatile bool         gNextTimeslice_500ms;
 extern volatile bool         gNextTimeslice_Monitor;
 extern volatile bool         gNextTimeslice_10ms;
 extern volatile bool         gNextTimeslice_listening;
-extern volatile bool         gNextTimeslice_60s;
+extern volatile bool         gNextTimeslice_AutoPtt;
 extern volatile bool         gNextTimeslice_display;
 extern volatile bool         gNextTimeslice_history;
 extern volatile bool         gNextTimeslice_HTimeS;
