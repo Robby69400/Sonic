@@ -3160,7 +3160,7 @@ static void UpdateScan() {
 #ifdef ENABLE_BENCH
     if (benchLapDone) { benchLastLapMs = benchLapMs; benchLapMs = 0; }
 #endif
-    if (SpectrumSleepMs) {
+    if (SpectrumSleepMs && !scanInfo.i) {
         BK4819_Sleep();
         BK4819_ToggleGpioOut(BK4819_GPIO0_PIN28_RX_ENABLE, false);
         SPECTRUM_PAUSED = true;
