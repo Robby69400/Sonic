@@ -1767,7 +1767,7 @@ static void DrawF(uint32_t f) {
             }
             case 2: {       //SCAN
                 if(isListening) { sprintf(Text, "Signal %d dBm", Rssi2DBm(scanInfo.rssi)); }
-                else switch(PttEmission) {
+                else {switch(PttEmission) {
                     case 0:
                         snprintf(Text, sizeof(Text), "TX %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
                         break;
@@ -1795,7 +1795,7 @@ static void DrawF(uint32_t f) {
 #ifdef ENABLE_BENCH
                 snprintf(line3, sizeof(line3), "Rate: %u/s", benchRatePerSec);
 #endif
-                
+                }
                 UI_DisplayFrequency(line1, 3, 0, 1);
                 UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
                 ScanProgress_DrawGaugeLine(3);
@@ -2704,21 +2704,15 @@ static void MyDrawFrameLines(void)
     MyDrawShortHLine(0, 118, 123, 2, false);  // Top short horizontal line (inner right)
     
     MyDrawShortHLine(17, 0, 10, 1, false);    // Mid-top short horizontal line (left)
-    MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
-    
-    MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
     MyDrawShortHLine(17, 120, 127, 1, false); // Mid-top short horizontal line (right)
+    
     if (ShowLines == 1) {
+        MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
+        MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
         MyDrawHLine(50, true);  // Black horizontal line at y=49
         MyDrawHLine(49, false);  // Black horizontal line at y=49
         MyDrawVLine(0,   21, 49, 1);  // Left vertical solid line (bottom section)
         MyDrawVLine(127, 21, 49, 1);  // Right vertical solid line (bottom section)
-    }
-    if (ShowLines == 2) {
-        MyDrawHLine(55, false);  // Black horizontal line at y=49
-        MyDrawHLine(38, false);  // Black horizontal line at y=49
-        MyDrawVLine(0,   21, 61, 1);  // Left vertical solid line (bottom section)
-        MyDrawVLine(127, 21, 61, 1);  // Right vertical solid line (bottom section)
     }
 }
 #endif
@@ -2944,11 +2938,7 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
 
 static void RenderSpectrum()
 {
-    if(isListening) { DrawF(peak.f);}
-    else {
-      if (SpectrumMonitor) DrawF(lastReceivingFreq);
-      else DrawF(scanInfo.f);
-    }
+
     if (ShowLines < 2) {
 #ifdef ENABLE_PERSIST
         uint8_t topY[128];
@@ -2961,10 +2951,8 @@ static void RenderSpectrum()
         UpdateDBMaxAuto();
         DrawSpectrum();
         #endif
-#ifdef ENABLE_SPECTRUM_LINES
-            MyDrawFrameLines();
-#endif
-        }
+    }
+
 }
 
 static void DrawMeter(int line) {
@@ -3058,6 +3046,15 @@ static void Render() {
     }
     switch (currentState) {
         case SPECTRUM:
+#ifdef ENABLE_SPECTRUM_LINES
+            MyDrawFrameLines();
+#endif
+            if(isListening) { DrawF(peak.f);}
+            else {
+                    if (SpectrumMonitor) DrawF(lastReceivingFreq);
+                    else DrawF(scanInfo.f);
+            }
+
             if (spectrumElapsedCount < osdPopupSetting + 200) {
                 RenderSpectrum();
                 ST7565_BlitLine(4);
