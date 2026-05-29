@@ -72,7 +72,7 @@
        
 {
     "name": "USB","inherits": "default","cacheVariables": {
-        "ENABLE_USB": true,"ENABLE_UART": true,
+        "ENABLE_USB": true,
         "EDITION_STRING": "USB",
         "TARGET": "SONIC.USB.V22"
     }

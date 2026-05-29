@@ -465,27 +465,6 @@ static void SectorErase(uint32_t Addr)
     WaitWIP();
 }
 
-static void SectorProgram(uint32_t Addr, const uint8_t *Buf, uint32_t Size)
-{
-    uint32_t Size1 = PAGE_SIZE - (Addr % PAGE_SIZE);
-
-    while (Size)
-    {
-        if (Size < Size1)
-        {
-            Size1 = Size;
-        }
-
-        PageProgram(Addr, Buf, Size1);
-
-        Addr += Size1;
-        Buf += Size1;
-        Size -= Size1;
-
-        Size1 = PAGE_SIZE;
-    }
-}
-
 static void PageProgram(uint32_t Addr, const uint8_t *Buf, uint32_t Size)
 {
 #ifdef DEBUG
