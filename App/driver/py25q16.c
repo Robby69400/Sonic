@@ -38,6 +38,8 @@
 #define SECTOR_SIZE 0x1000
 #define PAGE_SIZE 0x100
 
+static uint32_t SectorCacheAddr = 0x1000000;
+static uint8_t SectorCache[SECTOR_SIZE];
 static uint8_t BlackHole[4] __attribute__((aligned(4)));
 static volatile bool TC_Flag;
 
@@ -254,8 +256,9 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
     printf("spi flash write: %06x %ld %d\n", Address, Size, Append);
 #endif
 
-    // Tampon de 4 Ko isolé sur la pile informatique (Stack)
-    uint8_t SectorCache[SECTOR_SIZE]; 
+    //#ifdef ENABLE_FEAT_F4HWN_DEBUG
+    //    gDebug++;
+    //#endif
 
     uint32_t SecIndex = Address / SECTOR_SIZE;
     uint32_t SecAddr = SecIndex * SECTOR_SIZE;
@@ -264,6 +267,7 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
 
     while (Size)
     {
+        // CRITICAL FIX #1: Wait for flash ready before processing each sector
         WaitWIP();
 
         if (Size < SecSize)
@@ -271,8 +275,11 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
             SecSize = Size;
         }
 
-        // On charge systématiquement le secteur visé en temps réel depuis la puce SPI
-        PY25Q16_ReadBuffer(SecAddr, SectorCache, SECTOR_SIZE);
+        if (SecAddr != SectorCacheAddr)
+        {
+            PY25Q16_ReadBuffer(SecAddr, SectorCache, SECTOR_SIZE);
+            SectorCacheAddr = SecAddr;
+        }
 
         if (0 != memcmp(pBuffer, (char *)SectorCache + SecOffset, SecSize))
         {
@@ -291,11 +298,14 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
             if (Erase)
             {
                 SectorErase(SecAddr);
+
+                // CRITICAL FIX #2: Erase takes ~300ms, must complete before program starts
                 WaitWIP();
 
                 if (Append)
                 {
                     SectorProgram(SecAddr, SectorCache, SecOffset + SecSize);
+                    memset(SectorCache + SecOffset + SecSize, 0xff, SECTOR_SIZE - SecOffset - SecSize);
                 }
                 else
                 {
@@ -317,13 +327,18 @@ void PY25Q16_WriteBuffer(uint32_t Address, const void *pBuffer, uint32_t Size, b
         SecSize = SECTOR_SIZE;
     } // while
 
+    // CRITICAL FIX #3: Ensure all writes complete before function returns
     WaitWIP();
 }
 
 void PY25Q16_SectorErase(uint32_t Address)
 {
     Address -= (Address % SECTOR_SIZE);
-    SectorErase(Address); // Effectue l'effacement matériel sur la puce
+    SectorErase(Address);
+    if (SectorCacheAddr == Address)
+    {
+        memset(SectorCache, 0xff, SECTOR_SIZE);
+    }
 }
 
 // Снять защиту Block Protect перед полным стиранием.

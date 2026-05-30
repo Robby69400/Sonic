@@ -885,52 +885,55 @@ void SETTINGS_SaveChannelName(uint16_t channel, const char * name)
 
 void SETTINGS_UpdateChannel(uint16_t channel, const VFO_Info_t *pVFO, bool keep, bool check, bool save)
 {
-    ChannelAttributes_t  state;
-    ChannelAttributes_t  att = {
-        .band = 0x7,
-        .compander = 0,
-        .unused_1 = 0,
-        .unused_2 = 0,
-        .exclude = 0,
-        .scanlist = 0,
-    };        // default attributes
+    {
+        ChannelAttributes_t  state;
+        ChannelAttributes_t  att = {
+            .band = 0x7,
+            .compander = 0,
+            .unused_1 = 0,
+            .unused_2 = 0,
+            .exclude = 0,
+            .scanlist = 0,
+            };        // default attributes
 
-    // Calcul de l'adresse exacte en Flash des 2 octets d'attributs de ce canal
-    uint32_t attrAddress = 0x008000 + (channel * 2);
+        // 0x0D60
+        PY25Q16_ReadBuffer(0x008000 + (channel * 2), &state, 2);
 
-    // On lit uniquement les 2 octets actuels de ce canal
-    PY25Q16_ReadBuffer(attrAddress, &state, 2);
+        if (keep) {
+            att.band = pVFO->Band;
+            att.compander = pVFO->Compander;
+            att.unused_1 = 0;
+            att.unused_2 = 0;
+            att.exclude = 0;
+            att.scanlist = pVFO->SCANLIST_PARTICIPATION;
+            if (check && state.__val == att.__val)
+                return; // no change in the attributes
+        }
 
-    if (keep) {
-        att.band = pVFO->Band;
-        att.compander = pVFO->Compander;
-        att.unused_1 = 0;
-        att.unused_2 = 0;
-        att.exclude = 0;
-        att.scanlist = pVFO->SCANLIST_PARTICIPATION; // Assigne la scanlist demandée
-        
-        if (check && state.__val == att.__val)
-            return; // Pas de changement, on quitte immédiatement pour économiser la Flash
-    }
+        state.__val = att.__val;
 
-    state.__val = att.__val;
+#ifndef ENABLE_FEAT_F4HWN
+        save = true;
+#endif
+        if(save)
+        {
+            uint16_t buf[MR_CHANNELS_MAX + 24];
+            PY25Q16_ReadBuffer(0x008000, buf, sizeof(buf));
+            buf[channel] = state.__val;
+            PY25Q16_WriteBuffer(0x008000, buf, sizeof(buf), false);
+        }
 
+        MR_SetChannelAttributes(channel, &att);
 
-        // CORRECTION : Au lieu de lire et réécrire TOUS les canaux (gros buffer),
-        // on écrit CHIRURGICALEMENT uniquement les 2 octets de ce canal.
-        PY25Q16_WriteBuffer(attrAddress, &state.__val, 2, false);
-
-    // Mise à jour de la structure interne en RAM
-    MR_SetChannelAttributes(channel, &att);
-
-    if (IS_MR_CHANNEL(channel)) {   // it's a memory channel
-        if (!keep) {
-            // clear/reset the channel name
-            SETTINGS_SaveChannelName(channel, "");
-            // Zero the 16-byte channel data block (freq, tones, flags)
-            // so CHIRP reads a clean empty channel instead of stale data
-            uint8_t zeroBuf[16] = {0};
-            PY25Q16_WriteBuffer((uint32_t)channel * 16, zeroBuf, sizeof(zeroBuf), false);
+        if (IS_MR_CHANNEL(channel)) {   // it's a memory channel
+            if (!keep) {
+                // clear/reset the channel name
+                SETTINGS_SaveChannelName(channel, "");
+                // Zero the 16-byte channel data block (freq, tones, flags)
+                // so CHIRP reads a clean empty channel instead of stale data
+                uint8_t zeroBuf[16] = {0};
+                PY25Q16_WriteBuffer((uint32_t)channel * 16, zeroBuf, sizeof(zeroBuf), false);
+            }
         }
     }
 }
