@@ -197,7 +197,6 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             *pMax = 10;
             break;
 
-        case MENU_1_CALL:
         case MENU_MEM_NAME:
             //*pMin = 0;
             *pMax = MR_CHANNEL_LAST;
@@ -473,10 +472,6 @@ void MENU_AcceptSetting(void)
             gFlagResetVfos    = true;
 //          gRequestSaveChannel = 1;
             return;
-
-        case MENU_1_CALL:
-            gEeprom.CHAN_1_CALL = gSubMenuSelection;
-            break;
 
 
         case MENU_BAT_TXT:
@@ -755,10 +750,6 @@ void MENU_ShowCurrentSetting(void)
             gSubMenuSelection = gTxVfo->Compander;
             return;
 
-        case MENU_1_CALL:
-            gSubMenuSelection = gEeprom.CHAN_1_CALL;
-            break;
-
         case MENU_BAT_TXT:
             gSubMenuSelection = gSetting_battery_text;
             return;
@@ -946,8 +937,7 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         return;
     }
 
-    if (UI_MENU_GetCurrentMenuId() == MENU_1_CALL ||
-        UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME)
+    if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME)
     {   // enter 3-digit channel number
 
         if (gInputBoxIndex < 3)
@@ -1245,7 +1235,6 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
     switch (UI_MENU_GetCurrentMenuId())
     {
         case MENU_DEL_CH:
-        case MENU_1_CALL:
         case MENU_MEM_NAME:
             bCheckScanList = false;
             break;

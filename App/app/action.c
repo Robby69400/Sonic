@@ -430,14 +430,3 @@ void ACTION_Remove_Offset(void)
 #endif
 #endif
 
-void ACTION_1Call(void)
-{
-    if (!IS_MR_CHANNEL(gEeprom.CHAN_1_CALL))
-        return;
-    gEeprom.ScreenChannel[gEeprom.TX_VFO] = gEeprom.CHAN_1_CALL;
-    gEeprom.MrChannel[gEeprom.TX_VFO]     = gEeprom.CHAN_1_CALL;
-    gVfoConfigureMode                      = VFO_CONFIGURE_RELOAD;
-    gFlagReconfigureVfos                   = true;
-    gRequestDisplayScreen                  = DISPLAY_MAIN;
-    gUpdateStatus                          = true;
-}

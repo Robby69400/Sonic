@@ -2591,8 +2591,10 @@ static void OnKeyDownStill(KEY_Code_t key) {
       case KEY_5:
       case KEY_0:
       case KEY_6:
+        break;
       case KEY_7:
-      break;
+        SaveSettings();
+        break;
           
       case KEY_SIDE1: 
           SpectrumMonitor++;

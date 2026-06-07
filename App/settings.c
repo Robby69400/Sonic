@@ -77,11 +77,8 @@ void SETTINGS_InitEEPROM(void)
             {
                 uint8_t btnBuf[8] = {0};
                 PY25Q16_ReadBuffer(0x00A0A8, btnBuf, sizeof(btnBuf));
-                // byte[0] bits[7:1] = KEY_M_LONG → FLASHLIGHT
                 btnBuf[0] = (btnBuf[0] & 0x01) | (ACTION_OPT_FLASHLIGHT << 1);
-                // byte[1] = KEY_1_SHORT → MONITOR
                 btnBuf[1] = ACTION_OPT_MONITOR;
-                // byte[3] = KEY_2_SHORT → RXMODE
                 btnBuf[3] = ACTION_OPT_RXMODE;
                 PY25Q16_WriteBuffer(0x00A0A8, btnBuf, sizeof(btnBuf), false);
             }
@@ -190,8 +187,6 @@ void SETTINGS_InitEEPROM(void)
         gEeprom.TAIL_TONE_ELIMINATION = Data[6] & 0x01;
         gSetting_set_nfm = (Data[6] >> 1) & 0x01;
         #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-            // Читаем VFO_OPEN из бита 2. После NoCH сброса (0xFF) → бит=1 → VFO открыт.
-            // После сохранения с MR-каналом → бит=0 → стартуем в канальном режиме.
             gEeprom.VFO_OPEN = ((Data[6] >> 2) & 0x01) != 0;
         #endif
     #else
@@ -293,10 +288,6 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
     gEeprom.SCANLIST_PRIORITY_CH[1] =
             (uint16_t)Data[3] |
             ((uint16_t)Data[4] << 8);
-
-    gEeprom.CHAN_1_CALL =
-            (uint16_t)Data[5] |
-            ((uint16_t)Data[6] << 8);
 
     // 0F40..0F47
     PY25Q16_ReadBuffer(0x00A150, Data, 8);
@@ -737,9 +728,6 @@ void SETTINGS_SaveSettings(void)
     State[3] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[1] & 0xFF);
     State[4] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[1] >> 8);
 
-    State[5] = (uint8_t)(gEeprom.CHAN_1_CALL & 0xFF);
-    State[6] = (uint8_t)(gEeprom.CHAN_1_CALL >> 8);
-
     PY25Q16_WriteBuffer(0x00A130, SecBuf, 0x08, false);
 
     // ---------------------
@@ -994,9 +982,6 @@ State[1] = 0
 
         State[3] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[1] & 0xFF);
         State[4] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[1] >> 8);
-
-        State[5] = (uint8_t)(gEeprom.CHAN_1_CALL & 0xFF);
-        State[6] = (uint8_t)(gEeprom.CHAN_1_CALL >> 8);
 
         PY25Q16_WriteBuffer(0x00A130, State, sizeof(State), false);
     }

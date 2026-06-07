@@ -180,77 +180,38 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             break;
 
         case KEY_1:
-            if (!beep) {
-                // долгое 1: смена диапазона
-                const uint8_t Vfo1 = gEeprom.TX_VFO;
-                if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-                    // MR→VFO: переносим частоту канала в VFO-слот текущего диапазона
-                    uint32_t mrFreq = gTxVfo->pRX->Frequency; // сохраняем ДО переключения
-                    uint8_t  mrBand = gTxVfo->Band;
-                    uint16_t freqCh = FREQ_CHANNEL_FIRST + mrBand;
-                    gEeprom.ScreenChannel[Vfo1] = freqCh;
-                    gEeprom.FreqChannel[Vfo1]   = freqCh;
-                    RADIO_SelectVfos();            // теперь gTxVfo → VFO-слот
-                    gTxVfo->pRX->Frequency = mrFreq;
-                    gTxVfo->pTX->Frequency = mrFreq;
-                    gTxVfo->Band           = mrBand;
-                    SETTINGS_SaveChannel(freqCh, Vfo1, gTxVfo, 2); // синхронно в EEPROM до RELOAD
-                    RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
-                    RADIO_SetupRegisters(true);
-                    gVfoConfigureMode     = VFO_CONFIGURE_RELOAD;
-                    gRequestDisplayScreen = DISPLAY_MAIN;
-                } else {
-                    // VFO: смена диапазона, пропускаем BAND2 (FM), авиа BAND3 остаётся
-                if (gTxVfo->Band == BAND7_470MHz && gTxVfo->pRX->Frequency < _1GHz_in_KHz) {
-                    gTxVfo->pRX->Frequency = _1GHz_in_KHz;
-                    break;
-                }
-
-                gTxVfo->Band += 1;
-                if (gTxVfo->Band >= BAND_N_ELEM)
-                    gTxVfo->Band = BAND1_50MHz;
-                gEeprom.ScreenChannel[Vfo1] = FREQ_CHANNEL_FIRST + gTxVfo->Band;
-                gEeprom.FreqChannel[Vfo1]   = FREQ_CHANNEL_FIRST + gTxVfo->Band;
-                gRequestSaveVFO             = true;
-                gVfoConfigureMode           = VFO_CONFIGURE_RELOAD;
-                gRequestDisplayScreen       = DISPLAY_MAIN;
-                }
-            } else {
-                ACTION_1Call();
-            }
+            const uint8_t Vfo1 = gEeprom.TX_VFO;
+            if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
+                uint32_t mrFreq = gTxVfo->pRX->Frequency;
+                uint8_t  mrBand = gTxVfo->Band;
+                uint16_t freqCh = FREQ_CHANNEL_FIRST + mrBand;
+                gEeprom.ScreenChannel[Vfo1] = freqCh;
+                gEeprom.FreqChannel[Vfo1]   = freqCh;
+                RADIO_SelectVfos();            
+                gTxVfo->pRX->Frequency = mrFreq;
+                gTxVfo->pTX->Frequency = mrFreq;
+                gTxVfo->Band           = mrBand;
+                SETTINGS_SaveChannel(freqCh, Vfo1, gTxVfo, 2); 
+                RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
+                RADIO_SetupRegisters(true);
+                gVfoConfigureMode     = VFO_CONFIGURE_RELOAD;
+                gRequestDisplayScreen = DISPLAY_MAIN;
+            } 
             break;
 
         case KEY_2:
-            if (!beep) {
-                // долгое 2: переключение VFO A/B
-#ifdef ENABLE_FEAT_F4HWN
-                gVfoConfigureMode = VFO_CONFIGURE;
-#endif
-                COMMON_SwitchVFOs();
+            if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
+                // F+2 in MR mode: delete with sync confirmation popup
+                DeleteChannelWithConfirm();
             } else {
-                if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-                    // F+2 in MR mode: delete with sync confirmation popup
-                    DeleteChannelWithConfirm();
-                } else {
-                    // F+2 in VFO mode: save frequency to nearest free channel
-                    SaveFreqToFreeChannel();
-                }
+                // F+2 in VFO mode: save frequency to nearest free channel
+                SaveFreqToFreeChannel();
             }
             break;
 
         case KEY_3:
-            if (!beep) {
-#ifdef ENABLE_FEAT_F4HWN
-                gVfoConfigureMode = VFO_CONFIGURE;
-#endif
-                COMMON_SwitchVFOMode();
-            }
-            break;
-
         case KEY_4:
-            break;
         case KEY_5:
-            if (!beep) toggle_chan_scanlist();
             break;
 
         case KEY_7:
@@ -390,63 +351,21 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                     gRequestDisplayScreen = DISPLAY_MAIN;
                     return;
                 }
-                // Долгое 1: в VFO — смена диапазона; в MR — копия в VFO
-                if (Key == KEY_1) {
-                    const uint8_t Vfo1 = gEeprom.TX_VFO;
-                    if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-                        // MR → VFO: копируем частоту канала в VFO этого бенда
-                        gTxVfo->freq_config_RX.Frequency = gTxVfo->pRX->Frequency;
-                        gTxVfo->freq_config_TX.Frequency = gTxVfo->pTX->Frequency;
-                        uint16_t freqCh = FREQ_CHANNEL_FIRST + gTxVfo->Band;
-                        gEeprom.ScreenChannel[Vfo1]  = freqCh;
-                        gEeprom.FreqChannel[Vfo1]    = freqCh;
-                        gTxVfo->CHANNEL_SAVE         = freqCh;
-                        RADIO_SelectVfos();
-                        RADIO_ApplyOffset(gRxVfo);
-                        RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
-                        RADIO_SetupRegisters(true);
-                        gRequestSaveChannel   = 1;
-                        gRequestSaveVFO       = true;
-                        gRequestDisplayScreen = DISPLAY_MAIN;
-                    } else {
-                    if (gTxVfo->Band == BAND7_470MHz && gTxVfo->pRX->Frequency < _1GHz_in_KHz) {
-                        gTxVfo->pRX->Frequency = _1GHz_in_KHz;
-                            return;
-                        }
-                    gTxVfo->Band += 1;
-                    if (gTxVfo->Band >= BAND_N_ELEM)
-                        gTxVfo->Band = BAND1_50MHz;
-                    gEeprom.ScreenChannel[Vfo1] = FREQ_CHANNEL_FIRST + gTxVfo->Band;
-                    gEeprom.FreqChannel[Vfo1]   = FREQ_CHANNEL_FIRST + gTxVfo->Band;
-                    gRequestSaveVFO             = true;
-                    gVfoConfigureMode           = VFO_CONFIGURE_RELOAD;
-                    gRequestDisplayScreen       = DISPLAY_MAIN;
-                    }
-                    return;
-                }
-                // Долгое 2: переключение VFO A/B
-                if (Key == KEY_2) {
-#ifdef ENABLE_FEAT_F4HWN
+                if (Key == KEY_2 && gEeprom.DUAL_WATCH != DUAL_WATCH_OFF) {
                     gVfoConfigureMode = VFO_CONFIGURE;
-#endif
                     COMMON_SwitchVFOs();
                     return;
                 }
-                // Долгое 3: переключение VFO/MR
                 if (Key == KEY_3) {
-#ifdef ENABLE_FEAT_F4HWN
                     gVfoConfigureMode = VFO_CONFIGURE;
-#endif
                     COMMON_SwitchVFOMode();
                     return;
                 }
-                // Долгое 4: W/N
                 if (Key == KEY_4) {
                     ACTION_Wn();
                     gRequestDisplayScreen = DISPLAY_MAIN;
                     return;
                 }
-                // Долгое 5: scanlist/шаг (KA50)
                 if (Key == KEY_5) {
                     if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
                         toggle_chan_scanlist();

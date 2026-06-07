@@ -20,7 +20,6 @@
 #include "driver/keyboard.h"
 
 void ACTION_Power(void);
-void ACTION_1Call(void);
 void ACTION_Monitor(void);
 void ACTION_Scan(bool bRestart);
 

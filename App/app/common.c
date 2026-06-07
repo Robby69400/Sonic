@@ -42,8 +42,6 @@ void COMMON_SwitchVFOs()
 
 void COMMON_SwitchVFOMode()
 {
-    if (gEeprom.VFO_OPEN)
-    {
         if (gInputBoxIndex > 0) {
             gInputBoxIndex = 0;
             gHasVfoBackup = false;
@@ -65,5 +63,5 @@ void COMMON_SwitchVFOMode()
             gVfoConfigureMode   = VFO_CONFIGURE_RELOAD;
             return;
         }
-    }
+    
 }

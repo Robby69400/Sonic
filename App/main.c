@@ -239,15 +239,10 @@ void Main(void)
     #endif
 
     while (true) {
-        APP_Update();
-
         if (gNextTimeslice) {
-
+            APP_Update();
             APP_TimeSlice10ms();
-
-            if (gNextTimeslice_500ms) {
-                APP_TimeSlice500ms();
-            }
+            if (gNextTimeslice_500ms) {APP_TimeSlice500ms();}
         }
     }
 }

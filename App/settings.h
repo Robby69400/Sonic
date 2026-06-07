@@ -196,7 +196,6 @@ typedef struct {
     uint8_t               KEY_2_LONG_PRESS_ACTION;
     uint8_t               MIC_SENSITIVITY;
     uint8_t               MIC_SENSITIVITY_TUNING;
-    uint16_t              CHAN_1_CALL;
     
 
     int16_t               BK4819_XTAL_FREQ_LOW;

@@ -59,7 +59,6 @@ const t_menu_item MenuList[] =
     #endif
     {"Compnd",      MENU_COMPAND       },
     {"Roger",       MENU_ROGER         },
-    {"1 Call",      MENU_1_CALL        },
     {"STE",         MENU_STE           },
     {"RP STE",      MENU_RP_STE        },
     {"ChName",      MENU_MEM_NAME      },
@@ -534,7 +533,6 @@ void UI_DisplayMenu(void)
             break;
 
         case MENU_MEM_CH:
-        case MENU_1_CALL:
         case MENU_DEL_CH:
         {
             const bool valid = RADIO_CheckValidChannel(gSubMenuSelection, false, 0);

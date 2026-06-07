@@ -53,7 +53,6 @@ enum
     MENU_RP_STE,
     MENU_MIC,
     MENU_COMPAND,
-    MENU_1_CALL,
     MENU_D_ST,
     MENU_PONMSG,
     MENU_ROGER,
