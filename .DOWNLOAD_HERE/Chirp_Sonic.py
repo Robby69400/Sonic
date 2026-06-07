@@ -595,7 +595,7 @@ VOICE_LIST = ["OFF", "Chinese", "English"]
 # ACTIVE CHANNEL
 TX_VFO_LIST = ["A", "B"]
 ALARMMODE_LIST = ["SITE", "TONE"]
-ROGER_LIST = ["OFF", "MARIO", "BLAST", "R2D2", "ROGER", "AMBUL", "OURO","KLAC","PIU","ICQ"]
+ROGER_LIST = ["OFF", "MARIO", "BLAST", "R2D2", "ROGER", "AMBUL", "OURO","KLAC","PIU","SONIC"]
 RTE_LIST = ["OFF", "100ms", "200ms", "300ms", "400ms",
             "500ms", "600ms", "700ms", "800ms", "900ms", "1000ms"]
 VOX_LIST = ["OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]

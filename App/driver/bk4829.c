@@ -1480,15 +1480,42 @@ void roger_beep_PIU(void) {
 
 //###########################################################################################
 
-// ICQ — классический аська "uh-oh" (из ICQ.mp3)
-void roger_beep_ICQ(void) {
-    play_note(1400,  40);
-    play_note(0,     70);
-    play_note(1300,  10);
-    play_note(1100,  20);
-    play_note(1200, 110);
-    play_note(1100, 130);
+void play_morse_element(uint32_t freq, uint32_t duration_ms) {
+    BK4819_WriteRegister(BK4819_REG_71, scale_freq(freq));
+    BK4819_ExitTxMute();
+    SYSTEM_DelayMs(duration_ms);
+    BK4819_EnterTxMute();
+    SYSTEM_DelayMs(50); // Small gap after each element
 }
+
+void play_morse_letter(const char *pattern) {
+    while (*pattern) {
+        if (*pattern == '.') {
+            play_morse_element(400, 100);
+        } else if (*pattern == '-') {
+            play_morse_element(400, 300);
+        }
+        pattern++;
+    }
+    SYSTEM_DelayMs(100); // Adjust for letter gap
+}
+
+void send_sonic_morse() {
+    play_morse_letter("..."); 	//S
+    play_morse_letter("---"); 	//O
+    play_morse_letter("-.");    //N
+    play_morse_letter("..");	//I
+    play_morse_letter("-.-.");	//C
+}
+/* void send_robzyl_morse() {
+    play_morse_letter(".-."); 	//R
+    play_morse_letter("---"); 	//O
+    play_morse_letter("-...");  //B
+    play_morse_letter("--..");	//Z
+    play_morse_letter("-.--");	//Y
+    play_morse_letter(".-..");	//L
+}  */
+
 //###########################################################################################
 
 void BK4819_PlayRoger(uint8_t song)
@@ -1505,10 +1532,10 @@ void BK4819_PlayRoger(uint8_t song)
     	case 3: roger_r2d2();           break;
     	case 4:	Roger1();               break;
         case 5: play_ambulance();       break;
-    	case 6: roger_beep_OURO();      break;  // OURO
-    	case 7: roger_beep_KLAC();      break;  // KLAC
-    	case 8: roger_beep_PIU();       break;  // PIU
-    	case 9: roger_beep_ICQ();       break;  // ICQ
+    	case 6: roger_beep_OURO();      break;
+    	case 7: roger_beep_KLAC();      break;
+    	case 8: roger_beep_PIU();       break;
+    	case 9: send_sonic_morse();     break;
         default:                    	break;
     }
 	BK4819_WriteRegister(BK4819_REG_70, 0x0000);

@@ -1786,6 +1786,7 @@ static void DrawF(uint32_t f) {
                     case 5:
                     case 6:
                     case 7:
+                    case 8:
                         snprintf(Text, sizeof(Text), "RO %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
                         break;
                     
@@ -2164,8 +2165,8 @@ static void HandleKeyParameters(uint8_t key) {
                       break;
                 case PARAM_PTT_EMISSION:
                       PttEmission = isKey3 ?
-                            (PttEmission >= 7 ? 0 : PttEmission + 1) :
-                            (PttEmission <= 0 ? 7 : PttEmission - 1);
+                            (PttEmission >= 8 ? 0 : PttEmission + 1) :
+                            (PttEmission <= 0 ? 8 : PttEmission - 1);
                       break;  
                 case PARAM_MONITOR_SCAN:
                     gMonitorScan = !gMonitorScan; 
@@ -4025,22 +4026,26 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
                 strncpy(row->right, "LAST RX",  sizeof(row->right) - 1);
                 break;
             case 3: 
+                strncpy(row->right, "AUTO ROGER 10s",  sizeof(row->right) - 1);
+                gAutoPtt_Time = 10;
+                break;
+            case 4: 
                 strncpy(row->right, "AUTO ROGER 30s",  sizeof(row->right) - 1);
                 gAutoPtt_Time = 30;
                 break;
-            case 4: 
+            case 5: 
                 strncpy(row->right, "AUTO ROGER 2m",  sizeof(row->right) - 1);
                 gAutoPtt_Time = 120;
                 break;
-            case 5: 
+            case 6: 
                 strncpy(row->right, "AUTO ROGER 5m",  sizeof(row->right) - 1);
                 gAutoPtt_Time = 300;
                 break;
-            case 6: 
+            case 7: 
                 strncpy(row->right, "AUTO ROGER 10m",  sizeof(row->right) - 1);
                 gAutoPtt_Time = 600;
                 break;
-            case 7: 
+            case 8: 
                 strncpy(row->right, "AUTO ROGER 30m",  sizeof(row->right) - 1);
                 gAutoPtt_Time = 1800;
                 break;

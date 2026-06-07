@@ -170,7 +170,7 @@ const char gSubMenu_ROGER[][6] =
     "OURO",
     "KLAC",
     "PIU",
-    "ICQ"
+    "SONIC"
 };
 
 const char gSubMenu_RESET[][5] =
