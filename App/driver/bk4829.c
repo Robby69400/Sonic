@@ -1500,14 +1500,20 @@ void play_morse_letter(const char *pattern) {
     SYSTEM_DelayMs(100); // Adjust for letter gap
 }
 
-void send_sonic_morse() {
+void send_morse() {
+    play_morse_letter("..."); 	//S
+    play_morse_letter("---"); 	//O
+    play_morse_letter("..."); 	//S
+}
+
+/*void send_sonic_morse() {
     play_morse_letter("..."); 	//S
     play_morse_letter("---"); 	//O
     play_morse_letter("-.");    //N
     play_morse_letter("..");	//I
     play_morse_letter("-.-.");	//C
 }
-/* void send_robzyl_morse() {
+void send_robzyl_morse() {
     play_morse_letter(".-."); 	//R
     play_morse_letter("---"); 	//O
     play_morse_letter("-...");  //B
@@ -1535,7 +1541,7 @@ void BK4819_PlayRoger(uint8_t song)
     	case 6: roger_beep_OURO();      break;
     	case 7: roger_beep_KLAC();      break;
     	case 8: roger_beep_PIU();       break;
-    	case 9: send_sonic_morse();     break;
+    	case 9: send_morse();           break;
         default:                    	break;
     }
 	BK4819_WriteRegister(BK4819_REG_70, 0x0000);

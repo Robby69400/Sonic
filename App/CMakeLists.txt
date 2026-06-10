@@ -161,6 +161,7 @@ enable_feature(ENABLE_INVERT_NAV)
 # Robzyl scan list display features
 enable_feature(ENABLE_SPECTRUM_LINES)
 enable_feature(ENABLE_PERSIST)
+enable_feature(ENABLE_ADVANCED_SPECTRUM)
 
 # ---- CONTRIB MODS ----
 

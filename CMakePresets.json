@@ -13,6 +13,7 @@
                 "ENABLE_FMRADIO": true,
                 "ENABLE_UART": false,
                 "ENABLE_USB": false,
+                "ENABLE_ADVANCED_SPECTRUM":false,
                 "ENABLE_PERSIST": false,
                 "ENABLE_BENCH": true,
                 "ENABLE_VERSION": false,
@@ -83,10 +84,28 @@
         "EDITION_STRING": "RS232",
         "TARGET": "SONIC.RS232.V23"
     }
+},
+{
+    "name": "USBAS","inherits": "default","cacheVariables": {
+        "ENABLE_USB": true,
+        "ENABLE_ADVANCED_SPECTRUM":true,
+        "EDITION_STRING": "USB",
+        "TARGET": "SONIC.USBAS.V23"
+    }
+},
+{
+    "name": "RS232AS","inherits": "default","cacheVariables": {
+        "ENABLE_UART": true,
+        "ENABLE_ADVANCED_SPECTRUM":true,
+        "EDITION_STRING": "RS232",
+        "TARGET": "SONIC.RS232AS.V23"
+    }
 }
 ],
 "buildPresets": [
     {"name": "USB","configurePreset": "USB"},
-    {"name": "RS232","configurePreset": "RS232"}
+    {"name": "RS232","configurePreset": "RS232"},
+    {"name": "USBAS","configurePreset": "USBAS"},
+    {"name": "RS232AS","configurePreset": "RS232AS"}
 ]
 }

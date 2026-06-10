@@ -1495,6 +1495,7 @@ static int16_t Rssi2Y(uint16_t rssi) {
   return DrawingEndY + delta -Rssi2PX(rssi, delta, DrawingEndY);
 }
 
+    #ifdef ENABLE_ADVANCED_SPECTRUM
 static void DrawSpectrum(void) {
     // Build topY[] with rssi → Y-coordinate conversion
     uint8_t topY[128];
@@ -1541,7 +1542,17 @@ static void DrawSpectrum(void) {
                 gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
     }
 }
-
+    #else
+    static void DrawSpectrum(void) {
+        int16_t y_baseline = Rssi2Y(0); 
+        for (uint8_t i = 0; i < 128; i++) {
+            int16_t y_curr = Rssi2Y(rssiHistory[i]);
+            for (int16_t y = y_curr; y <= y_baseline; y++) {
+                    gFrameBuffer[y >> 3][i] |= (1 << (y & 7));
+                }
+            }
+    }
+    #endif
 #endif
 
 
@@ -2949,11 +2960,11 @@ static void RenderSpectrum()
         DrawNums();
         UpdateDBMaxAuto();
         DrawSpectrumCurve(topY);
-        #else
+#else
         DrawNums();
         UpdateDBMaxAuto();
         DrawSpectrum();
-        #endif
+#endif
     }
 
 }
