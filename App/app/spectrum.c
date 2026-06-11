@@ -216,7 +216,7 @@ static uint16_t ctcssFreq;
 #define F_MAX frequencyBandTable[ARRAY_SIZE(frequencyBandTable) - 1].upper
 #define Bottom_print 51 //Robby69
 static Mode appMode;
-#define UHF_NOISE_FLOOR 5
+#define UHF_NOISE_FLOOR 20
 
 static uint16_t scanChannelsCount;
 static uint8_t monitorChannelsCount;
@@ -997,6 +997,7 @@ static uint16_t GetRssi(void) {
     if (isListening) SYSTICK_DelayUs(12000);
     else             SYSTICK_DelayUs(DelayRssi);
     rssi = BK4819_GetRSSI();
+    if (scanInfo.f > 30000000) {rssi += UHF_NOISE_FLOOR;}
     return rssi;
 }
 

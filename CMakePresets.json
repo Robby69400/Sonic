@@ -27,7 +27,6 @@
                 "ENABLE_CUSTOM_MENU_LAYOUT": true,
                 "ENABLE_KEEP_MEM_NAME": true,
                 "ENABLE_TX_WHEN_AM": false,
-                "ENABLE_F_CAL_MENU": false,
                 "ENABLE_CTCSS_TAIL_PHASE_SHIFT": false,
                 "ENABLE_BOOT_BEEPS": false,
                 "ENABLE_SHOW_CHARGE_LEVEL": false,
@@ -66,23 +65,24 @@
                 "ENABLE_AGC_SHOW_DATA": false,
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
-                "VERSION_STRING_1": "V23",
-                "VERSION_STRING_2": "V23" 
+                "VERSION_STRING_1": "V24",
+                "VERSION_STRING_2": "V24" 
             }
         },
        
 {
     "name": "USB","inherits": "default","cacheVariables": {
         "ENABLE_USB": true,
+        //"ENABLE_UART": true,
         "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USB.V23"
+        "TARGET": "SONIC.USB.V24"
     }
 },
 {
     "name": "RS232","inherits": "default","cacheVariables": {
         "ENABLE_UART": true,
         "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232.V23"
+        "TARGET": "SONIC.RS232.V24"
     }
 },
 {
@@ -90,7 +90,7 @@
         "ENABLE_USB": true,
         "ENABLE_ADVANCED_SPECTRUM":true,
         "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USBAS.V23"
+        "TARGET": "SONIC.USBAS.V24"
     }
 },
 {
@@ -98,7 +98,7 @@
         "ENABLE_UART": true,
         "ENABLE_ADVANCED_SPECTRUM":true,
         "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232AS.V23"
+        "TARGET": "SONIC.RS232AS.V24"
     }
 }
 ],
