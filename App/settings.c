@@ -29,6 +29,8 @@
 #include "settings.h"
 #include "ui/menu.h"
 #include <stdio.h>
+#include "app/spectrum.h"
+
 EEPROM_Config_t gEeprom = { 0 };
 
 void SETTINGS_InitEEPROM(void)
@@ -532,6 +534,7 @@ void SETTINGS_FactoryReset(bool bIsAll)
         gScheduleVfoSave = true;
         SETTINGS_SaveVfoIndicesFlush();
     #endif
+    ClearSettings();
 }
 
 #ifdef ENABLE_FMRADIO
