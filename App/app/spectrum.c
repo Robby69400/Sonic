@@ -167,13 +167,10 @@ static uint8_t IndexMaxLT = 0;
 static const char *labels[] = {"OFF","3s","6s","10s","20s", "1m", "5m", "10m", "20m", "30m"};
 static const uint16_t listenSteps[] = {0, 3, 6, 10, 20, 60, 300, 600, 1200, 1800}; //in s
 #define LISTEN_STEP_COUNT 9
-
 static uint8_t IndexPS = 0;
 static const char *labelsPS[] = {"OFF","200ms","500ms", "1s", "2s", "5s"};
 static const uint16_t PS_Steps[] = {0, 20, 50, 100, 200, 500}; //in 10 ms
 #define PS_STEP_COUNT 5
-
-
 static uint32_t lastReceivingFreq = 0;
 static bool gIsPeak = false;
 static bool historyListActive = false;
@@ -182,17 +179,13 @@ static uint8_t SpectrumMonitor = 0;
 static uint8_t prevSpectrumMonitor = 0;
 static bool Key_1_pressed = 0;
 static uint16_t WaitSpectrum = 0; 
-#define SQUELCH_OFF_DELAY 10;
-
 static uint8_t ArrowLine = 1;
-
 static void ToggleRX(bool on);
 static void NextScanStep();
 static void BuildValidScanListIndices();
 static void RenderHistoryList();
 static void RenderScanListSelect();
 static void RenderParametersSelect();
-//static bool StorePtt_Toggle_Mode = 0;
 static void UpdateScan();
 static uint8_t bandListSelectedIndex = 0;
 static int bandListScrollOffset = 0;
@@ -216,7 +209,7 @@ static uint16_t ctcssFreq;
 #define F_MAX frequencyBandTable[ARRAY_SIZE(frequencyBandTable) - 1].upper
 #define Bottom_print 51 //Robby69
 static Mode appMode;
-#define UHF_NOISE_FLOOR 20
+//#define UHF_NOISE_FLOOR 0
 
 static uint16_t scanChannelsCount;
 static uint8_t monitorChannelsCount;
@@ -736,10 +729,14 @@ static void SetF(uint32_t sf) {
   if (f < 1400000 || f > 130000000) return;
   if (SPECTRUM_PAUSED) return;
   BK4819_SetFrequency(f);
-  BK4819_PickRXFilterPathBasedOnFrequency(f);
-  uint16_t reg = reg_30_cache;
-  BK4819_WriteRegister(BK4819_REG_30, 0);
-  BK4819_WriteRegister(BK4819_REG_30, reg);
+  static uint8_t lastFilterPath = 0xFF; 
+  uint8_t currentFilterPath = (f < 28000000) ? 1 : 0;
+
+  if (currentFilterPath != lastFilterPath) BK4819_PickRXFilterPathBasedOnFrequency(f);
+    uint16_t reg = reg_30_cache;
+    BK4819_WriteRegister(BK4819_REG_30, 0);
+    BK4819_WriteRegister(BK4819_REG_30, reg);
+    lastFilterPath = currentFilterPath;
 }
 
 static void ResetInterrupts()
@@ -997,7 +994,7 @@ static uint16_t GetRssi(void) {
     if (isListening) SYSTICK_DelayUs(12000);
     else             SYSTICK_DelayUs(DelayRssi);
     rssi = BK4819_GetRSSI();
-    if (scanInfo.f > 30000000) {rssi += UHF_NOISE_FLOOR;}
+    //if (scanInfo.f > 30000000) {rssi += UHF_NOISE_FLOOR;}
     return rssi;
 }
 
@@ -3070,7 +3067,7 @@ static void Render() {
                     else DrawF(scanInfo.f);
             }
 
-            if (spectrumElapsedCount < osdPopupSetting + 200) {
+            if (spectrumElapsedCount < 500) {
                 RenderSpectrum();
                 ST7565_BlitLine(4);
                 ST7565_BlitLine(5);
@@ -3274,12 +3271,11 @@ static void Tick() {
         }
 #endif
         if(SpectrumPauseCount) SpectrumPauseCount--;
-        if (osdPopupTimer > 0) {
+        if (osdPopupTimer) {
             osdPopupTimer -= 10; 
             if (osdPopupTimer <= 0) {osdPopupText[0] = '\0';}
             UI_DisplayPopup(osdPopupText);
-            ST7565_BlitLine(2);
-            ST7565_BlitLine(3);
+            ST7565_BlitFullScreen();
             return;
             }
     }

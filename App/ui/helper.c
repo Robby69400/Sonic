@@ -530,7 +530,6 @@ void UI_DisplayPopup(const char *string)
     for (uint8_t x = 0; x < 128; x++) {
         gFrameBuffer[2][x] ^= 0xFF;
         gFrameBuffer[3][x] ^= 0xFF;}
-
 }
 
 void UI_DisplayClear()

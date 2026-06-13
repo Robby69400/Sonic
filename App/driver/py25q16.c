@@ -341,9 +341,9 @@ void PY25Q16_SectorErase(uint32_t Address)
     }
 }
 
-// Снять защиту Block Protect перед полным стиранием.
-// Читает Status Register 1, сбрасывает биты BP0/BP1/BP2/SRWD и записывает обратно.
-// Без этого SectorErase молча игнорируется если защита включена закрытой прошивкой.
+// Remove Block Protect before full erase.
+// Reads Status Register 1, resets the BP0/BP1/BP2/SRWD bits, and writes them back.
+// Without this, SectorErase is silently ignored if protection is enabled by locked firmware.
 void PY25Q16_ClearBlockProtect(void)
 {
     // Читаем текущий Status Register 1
