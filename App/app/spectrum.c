@@ -1242,7 +1242,7 @@ static void Measure() {
                         UpdateGlitch();
                     }
                 }
-            SYSTEM_DelayMs(50);
+            
             scanInfo.rssi = GetRssi();
             }
     } 
@@ -3081,13 +3081,13 @@ static void Render() {
             RenderStill();
             break;
         case BAND_LIST_SELECT:
-            if (kbd.counter) RenderBandSelect();
+            RenderBandSelect();
             return;
         case SCANLIST_SELECT:
-            if (kbd.counter) RenderScanListSelect();
+            RenderScanListSelect();
             return;
         case PARAMETERS_SELECT:
-            if (kbd.counter) RenderParametersSelect();
+            RenderParametersSelect();
             return;
     }
 ST7565_BlitFullScreen();

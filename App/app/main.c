@@ -40,29 +40,35 @@ static void SaveFreqToFreeChannel(void)
     if (f < 1000000)
         return;
 
-    // Проверяем — нет ли уже такой частоты
-    for (uint16_t i = MR_CHANNEL_FIRST; i <= MR_CHANNEL_LAST; i++) {
-        uint32_t chf = SETTINGS_FetchChannelFrequency(i);
-        if (chf == f) {
-            gRequestDisplayScreen = DISPLAY_MAIN;
-            return;
-        }
-    }
-
-    // Ищем первый свободный канал (пустой = 0xFFFFFFFF или 0)
     int freeCh = -1;
+    int firstEmptyCh = -1;
+
+    // Une seule boucle pour trouver soit un doublon, soit le premier canal vide
     for (uint16_t i = MR_CHANNEL_FIRST; i <= MR_CHANNEL_LAST; i++) {
         uint32_t chf = SETTINGS_FetchChannelFrequency(i);
-        if (chf == 0xFFFFFFFF || chf == 0) {
+        
+        // Si la fréquence existe déjà, c'est notre cible prioritaire (on écrase)
+        if (chf == f) {
             freeCh = (int)i;
-            break;
+            break; 
+        }
+        
+        // On mémorise le premier canal vide trouvé (au cas où la fréquence n'existe nulle part)
+        if (firstEmptyCh == -1 && (chf == 0xFFFFFFFF || chf == 0)) {
+            firstEmptyCh = (int)i;
         }
     }
 
-    // Попап: очищаем строки под текстом, пишем большим шрифтом
+    // Si la fréquence n'a pas été trouvée, on utilise le premier canal vide mémorisé
+    if (freeCh == -1) {
+        freeCh = firstEmptyCh;
+    }
+
+    // Sauvegarde et affichage du Pop-up
     if (freeCh >= 0) {
         SETTINGS_SaveChannel((uint16_t)freeCh, gEeprom.TX_VFO, gTxVfo, 2);
         MR_InvalidateChannelAttributesCache();
+        
         char chStr[16];
         sprintf(chStr, "SAVE CH:%d", freeCh + 1);
         UI_DisplayPopup(chStr);
@@ -75,9 +81,11 @@ static void SaveFreqToFreeChannel(void)
         ST7565_BlitLine(3);
         SYSTEM_DelayMs(600);
     }
+    
     gRequestDisplayScreen = DISPLAY_MAIN;
     gUpdateDisplay = true;
 }
+
 #include "ui/inputbox.h"
 #include "ui/ui.h"
 #include <stdlib.h>
