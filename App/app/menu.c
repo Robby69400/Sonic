@@ -174,11 +174,9 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
         case MENU_SET_TMR:
         #endif
 #endif
-            //*pMin = 0;
             *pMax = ARRAY_SIZE(gSubMenu_OFF_ON) - 1;
             break;
         case MENU_AM:
-            //*pMin = 0;
             *pMax = ARRAY_SIZE(gModulationStr) - 1;
             break;
 
@@ -187,22 +185,19 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             break;
 
         case MENU_TOT:
-            //*pMin = 0;
             *pMin = 5;
             *pMax = 179;
             break;
 
         case MENU_RP_STE:
-            //*pMin = 0;
             *pMax = 10;
             break;
 
+        case MENU_MEM_CH:
+        case MENU_DEL_CH:
         case MENU_MEM_NAME:
-            //*pMin = 0;
             *pMax = MR_CHANNEL_LAST;
             break;
-
-// SLIST1/2/3 removed (KA52-only)
 
         case MENU_SAVE:
             //*pMin = 0;
@@ -373,9 +368,24 @@ void MENU_AcceptSetting(void)
             gRequestSaveChannel       = 1;
             return;
 
+
+        case MENU_DEL_CH:
+            SETTINGS_UpdateChannel(gSubMenuSelection, NULL, false, false, true);
+            gVfoConfigureMode = VFO_CONFIGURE_RELOAD;
+            gFlagResetVfos    = true;
+            return;
+
+        case MENU_MEM_CH:
+            gTxVfo->CHANNEL_SAVE = gSubMenuSelection;
+            gEeprom.MrChannel[gEeprom.TX_VFO] = gSubMenuSelection;
+            gRequestSaveChannel = 2;
+            gVfoConfigureMode   = VFO_CONFIGURE_RELOAD;
+            gFlagResetVfos      = true;
+            return;
+
         case MENU_MEM_NAME:
             for (int i = 9; i >= 0; i--) {
-                if (edit[i] != ' ' && edit[i] != '_' && edit[i] != 0x00 && edit[i] != 0xff)
+                if (edit[i] != ' ' && edit[i] != 0x00 && edit[i] != 0xff)
                     break;
                 edit[i] = ' ';
             }
@@ -470,15 +480,11 @@ void MENU_AcceptSetting(void)
             SETTINGS_UpdateChannel(gTxVfo->CHANNEL_SAVE, gTxVfo, true, false, true);
             gVfoConfigureMode = VFO_CONFIGURE;
             gFlagResetVfos    = true;
-//          gRequestSaveChannel = 1;
             return;
-
 
         case MENU_BAT_TXT:
             gSetting_battery_text = gSubMenuSelection;
             break;
-
-
 
         case MENU_PONMSG:
             gEeprom.POWER_ON_DISPLAY_MODE = gSubMenuSelection;
@@ -492,9 +498,6 @@ void MENU_AcceptSetting(void)
             gTxVfo->Modulation     = gSubMenuSelection;
             gRequestSaveChannel = 1;
             return;
-
-
-
 
         case MENU_RESET:
             SETTINGS_FactoryReset(gSubMenuSelection);
@@ -674,6 +677,9 @@ void MENU_ShowCurrentSetting(void)
             gSubMenuSelection = gTxVfo->CHANNEL_BANDWIDTH;
             break;
 
+        case MENU_MEM_CH:
+                gSubMenuSelection = gEeprom.MrChannel[gEeprom.TX_VFO];
+            break;
         case MENU_MEM_NAME:
             gSubMenuSelection = gEeprom.MrChannel[gEeprom.TX_VFO];
             break;
@@ -766,7 +772,10 @@ void MENU_ShowCurrentSetting(void)
         case MENU_AM:
             gSubMenuSelection = gTxVfo->Modulation;
             break;
-
+        
+        case MENU_DEL_CH:
+            gSubMenuSelection = RADIO_FindNextChannel(gEeprom.MrChannel[gEeprom.TX_VFO], 1, false, 1);
+            break;
         case MENU_F_LOCK:
             gSubMenuSelection = gSetting_F_LOCK;
             break;
@@ -937,18 +946,20 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         return;
     }
 
-    if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME)
-    {   // enter 3-digit channel number
+    const int m = UI_MENU_GetCurrentMenuId();
 
-        if (gInputBoxIndex < 3)
+    if (m == MENU_MEM_CH ||
+        m == MENU_DEL_CH ||
+        m == MENU_MEM_NAME)
+    {   // enter 4-digit channel number
+
+        if (gInputBoxIndex < 4)
         {
             gRequestDisplayScreen = DISPLAY_MENU;
             return;
         }
-
         gInputBoxIndex = 0;
-
-        Value = ((gInputBox[0] * 100) + (gInputBox[1] * 10) + gInputBox[2]) - 1;
+        Value = (((gInputBox[0] * 10 + gInputBox[1]) * 10 + gInputBox[2]) * 10 + gInputBox[3]) - 1;
 
         if (IS_MR_CHANNEL(Value))
         {
@@ -966,21 +977,6 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     }
 
     Offset = (Max >= 100) ? 3 : (Max >= 10) ? 2 : 1;
-
-    /*
-    switch (gInputBoxIndex)
-    {
-        case 1:
-            Value = gInputBox[0];
-            break;
-        case 2:
-            Value = (gInputBox[0] *  10) + gInputBox[1];
-            break;
-        case 3:
-            Value = (gInputBox[0] * 100) + (gInputBox[1] * 10) + gInputBox[2];
-            break;
-    }
-    */
 
     for (uint8_t i = 0; i < gInputBoxIndex; i++) {
         Value = (Value * 10) + gInputBox[i];
@@ -1051,16 +1047,10 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
 
     if (!gIsInSubMenu)
     {
-        if (
-            false
-            )
-            return;
-        #if 1
-            if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME)
+        const int m = UI_MENU_GetCurrentMenuId();
+            if (m == MENU_DEL_CH || m == MENU_MEM_NAME)
                 if (!RADIO_CheckValidChannel(gSubMenuSelection, false, 0))
                     return;  // invalid channel
-        #endif
-
         gAskForConfirmation = 0;
         gIsInSubMenu        = true;
 
@@ -1114,9 +1104,12 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
     // exiting the sub menu
 
     if (gIsInSubMenu)
-    {
-        if (UI_MENU_GetCurrentMenuId() == MENU_RESET  ||
-            UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME)
+    {   
+        const int m = UI_MENU_GetCurrentMenuId();
+        if (m == MENU_RESET  ||
+            m == MENU_MEM_CH ||
+            m == MENU_DEL_CH ||
+            m == MENU_MEM_NAME)
         {
             switch (gAskForConfirmation)
             {
@@ -1129,7 +1122,7 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
 
                     UI_DisplayMenu();
 
-                    if (UI_MENU_GetCurrentMenuId() == MENU_RESET)
+                    if (m == MENU_RESET)
                     {
 
                         MENU_AcceptSetting();
@@ -1158,7 +1151,7 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
 static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
 {
     uint8_t VFO;
-    uint8_t Channel;
+    uint16_t Channel;
     bool    bCheckScanList;
 
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && gIsInSubMenu && edit_index >= 0)
@@ -1237,13 +1230,6 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         case MENU_DEL_CH:
         case MENU_MEM_NAME:
             bCheckScanList = false;
-            break;
-
-// removed KA52-only: case MENU_SLIST3:
-            break;
-// removed KA52-only: case MENU_SLIST2:
-            break;
-// removed KA52-only: case MENU_SLIST1:
             break;
 
         default:

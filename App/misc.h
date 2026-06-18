@@ -38,7 +38,7 @@
 
 #define FM_CHANNELS_MAX 48
 
-    #define MR_CHANNELS_MAX 975
+#define MR_CHANNELS_MAX 1024
 
 #define MR_CHANNELS_LIST 20
 #define MENU_ITEMS 69

@@ -61,6 +61,8 @@ const t_menu_item MenuList[] =
     {"Roger",       MENU_ROGER         },
     {"STE",         MENU_STE           },
     {"RP STE",      MENU_RP_STE        },
+    {"ChSave",      MENU_MEM_CH        },
+    {"ChDele",      MENU_DEL_CH        },
     {"ChName",      MENU_MEM_NAME      },
     {"ChDisp",      MENU_MDF           },
     {"F1Shrt",      MENU_F1SHRT        },
@@ -537,6 +539,14 @@ void UI_DisplayMenu(void)
         case MENU_MEM_CH:
         case MENU_DEL_CH:
         {
+            if(gSubMenuSelection == MR_CHANNELS_MAX)
+            {
+                UI_PrintString("None", menu_item_x1, menu_item_x2, 2, 8);
+                already_printed = true;
+                break;
+            }
+            else
+            {
             const bool valid = RADIO_CheckValidChannel(gSubMenuSelection, false, 0);
 
             UI_GenerateChannelStringEx(String, valid, gSubMenuSelection);
@@ -553,6 +563,7 @@ void UI_DisplayMenu(void)
             UI_PrintStringSmallBold(String[0] ? String : "--", menu_item_x1, menu_item_x2, 2);
             already_printed = true;
             break;
+            }
         }
 
         case MENU_MEM_NAME:
@@ -830,29 +841,6 @@ case MENU_F_LOCK: // разрешить всё
 
     if ((UI_MENU_GetCurrentMenuId() == MENU_R_CTCS || UI_MENU_GetCurrentMenuId() == MENU_R_DCS) && gCssBackgroundScan)
         UI_PrintStringSmallBold("SCAN", menu_item_x1, menu_item_x2, 4);
-
-
-    if (UI_MENU_GetCurrentMenuId() == MENU_R_CTCS ||
-        UI_MENU_GetCurrentMenuId() == MENU_T_CTCS ||
-        UI_MENU_GetCurrentMenuId() == MENU_R_DCS  ||
-        UI_MENU_GetCurrentMenuId() == MENU_T_DCS
-    ) {
-
-    //      // ОТДЕЛЬНЫЕ НАСТРОЙКИ ДЛЯ X/Y — МЕНЯЙ ЗДЕСЬ
-    // uint8_t base_x = 90;  // Базовый X (центр экрана, можно менять)
-    // uint8_t y_pos  = 50;   // Y=0 (верхняя строка, меняй на 1, 2 и т.д.)
-
-    //     sprintf(String, "%2d", gSubMenuSelection);
-    // uint8_t text_len = strlen(String);
-    // uint8_t text_width = text_len * 4;  // ширина символа в GUI_DisplaySmallestDark — 4 пикселя
-    // uint8_t x_pos = base_x - (text_width / 2);  // центр относительно base_x
-
-    // Выводим dark-шрифтом (самый маленький)
-   // GUI_DisplaySmallestDark(String, x_pos, y_pos, false, true);
-  // UI_PrintStringSmallBold(String, 90, 0, 6);
-
-
-    }
 
     if ((UI_MENU_GetCurrentMenuId() == MENU_RESET    ||
          UI_MENU_GetCurrentMenuId() == MENU_MEM_CH   ||

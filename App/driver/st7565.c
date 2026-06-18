@@ -69,7 +69,7 @@ static void SPI_Init()
     InitStruct.NSS = LL_SPI_NSS_SOFT;
     InitStruct.BitOrder = LL_SPI_MSB_FIRST;
     InitStruct.CRCCalculation = LL_SPI_CRCCALCULATION_DISABLE;
-    InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV64;
+    InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV256;
     LL_SPI_Init(SPIx, &InitStruct);
 
     LL_SPI_Enable(SPIx);

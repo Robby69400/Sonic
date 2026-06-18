@@ -65,8 +65,8 @@
                 "ENABLE_AGC_SHOW_DATA": false,
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
-                "VERSION_STRING_1": "V26",
-                "VERSION_STRING_2": "V26" 
+                "VERSION_STRING_1": "V27",
+                "VERSION_STRING_2": "V27" 
             }
         },
        
@@ -75,14 +75,14 @@
         "ENABLE_USB": true,
         //"ENABLE_UART": true,
         "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USB.V26"
+        "TARGET": "SONIC.USB.V27"
     }
 },
 {
     "name": "RS232","inherits": "default","cacheVariables": {
         "ENABLE_UART": true,
         "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232.V26"
+        "TARGET": "SONIC.RS232.V27"
     }
 },
 {
@@ -90,7 +90,7 @@
         "ENABLE_USB": true,
         "ENABLE_ADVANCED_SPECTRUM":true,
         "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USBAS.V26"
+        "TARGET": "SONIC.USBAS.V27"
     }
 },
 {
@@ -98,7 +98,7 @@
         "ENABLE_UART": true,
         "ENABLE_ADVANCED_SPECTRUM":true,
         "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232AS.V26"
+        "TARGET": "SONIC.RS232AS.V27"
     }
 }
 ],
