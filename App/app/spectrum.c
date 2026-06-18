@@ -725,16 +725,15 @@ static void ToggleAFDAC(bool on) {
 }
 
 static void SetF(uint32_t sf) {
-  uint32_t f = sf;
-  if (f < 1400000 || f > 130000000) return;
-  if (SPECTRUM_PAUSED) return;
-  BK4819_SetFrequency(f);
-  static uint8_t lastFilterPath = 0xFF; 
-  uint8_t currentFilterPath = (f < 28000000) ? 1 : 0;
-
-  if (currentFilterPath != lastFilterPath) BK4819_PickRXFilterPathBasedOnFrequency(f);
+    uint32_t f = sf;
+    if (f < 1400000 || f > 130000000) return;
+    if (SPECTRUM_PAUSED) return;
+    BK4819_SetFrequency(f);
+    static uint8_t lastFilterPath = 0xFF; 
+    uint8_t currentFilterPath = (f < 28000000) ? 1 : 0;
+    if (currentFilterPath != lastFilterPath) BK4819_PickRXFilterPathBasedOnFrequency(f);
     uint16_t reg = reg_30_cache;
-    BK4819_WriteRegister(BK4819_REG_30, 0);
+    BK4819_WriteRegister(BK4819_REG_30, 0x200); //AF DAC Enable.
     BK4819_WriteRegister(BK4819_REG_30, reg);
     lastFilterPath = currentFilterPath;
 }
@@ -3375,8 +3374,8 @@ void APP_RunSpectrum(void) {
         BK4819_SetCDCSSCodeWord(DCS_GetGolayCodeWord(CodeType, Code));
         ResetInterrupts();
         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
-        BK4819_WriteRegister(BK4819_REG_47, 0x6040);
-        BK4819_WriteRegister(BK4819_REG_48, 0xB3A8);  // AF gain
+        BK4819_WriteRegister(BK4819_REG_47, 0x6042);
+        BK4819_WriteRegister(BK4819_REG_48, 0xB3AA);  // AF gain
 	    ToggleRX(true), ToggleRX(false); // hack to prevent noise when squelch off
         RADIO_SetModulation(settings.modulationType = gTxVfo->Modulation);
         BK4819_SetFilterBandwidth(settings.listenBw, false);
