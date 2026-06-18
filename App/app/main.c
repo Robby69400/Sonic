@@ -222,25 +222,24 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
         case KEY_5:
             break;
 
-        case KEY_7:
-#ifdef ENABLE_SPECTRUM
-            APP_RunSpectrumMode(1); // F+7 = ScanList режим
+        case KEY_6:
+            APP_RunSpectrumMode(2);
             gRequestDisplayScreen = DISPLAY_MAIN;
-#endif
+            break;
+
+        case KEY_7:
+            APP_RunSpectrumMode(1);
+            gRequestDisplayScreen = DISPLAY_MAIN;
             break;
 
         case KEY_8:
-#ifdef ENABLE_SPECTRUM
-            APP_RunSpectrumMode(3); // F+8 = Band режим
+            APP_RunSpectrumMode(3);
             gRequestDisplayScreen = DISPLAY_MAIN;
-#endif
             break;
 
         case KEY_9:
-#ifdef ENABLE_SPECTRUM
-            APP_RunSpectrumMode(0); // F+9 = Range режим
+            APP_RunSpectrumMode(0);
             gRequestDisplayScreen = DISPLAY_MAIN;
-#endif
             break;
 
         case KEY_UP:

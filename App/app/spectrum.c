@@ -1920,28 +1920,26 @@ static void NextScanStep() {
 }
 
 void NextAppMode(void) {
-    if (kbd.counter < 5) {
-        if (Spectrum_state == 1) {Spectrum_state = 3;}
-        else {Spectrum_state = 1;}
-    } else {
-        if (++Spectrum_state > 3) {
-            Spectrum_state = 0;
-            kbd.prev = KEY_INVALID;
-        }
-    }   
-    switch (Spectrum_state) {
-        case 0:  appMode = FREQUENCY_MODE;  break;
-        case 1:  appMode = CHANNEL_MODE;    break;
-        case 2:  appMode = SCAN_RANGE_MODE; break;
-        case 3:  appMode = SCAN_BAND_MODE;  break;
-        default: appMode = FREQUENCY_MODE;  break;
+    if (Spectrum_state == 1) { Spectrum_state = 3; }
+    else { Spectrum_state = 1; }
+       
+
+    if (Spectrum_state == 1 && !scanChannelsCount) {
+        Spectrum_state = 3;
     }
+
+    switch (Spectrum_state) {
+        case 1:  appMode = CHANNEL_MODE;    break;
+        case 3:  appMode = SCAN_BAND_MODE;  break;
+    }
+
     LoadActiveScanFrequencies();
-    if (!scanChannelsCount && Spectrum_state ==1) Spectrum_state++; //No SL skip SL mode
+
     char sText[32];
     const char* s[] = {"FREQ", "S LIST", "RANGE", "BAND"};
     sprintf(sText, "MODE: %s", s[Spectrum_state]);
     ShowOSDPopup(sText);
+
     gRequestedSpectrumState = Spectrum_state;
     gSpectrumChangeRequested = true;
     isInitialized = false;
