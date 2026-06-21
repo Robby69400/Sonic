@@ -499,16 +499,28 @@ static uint16_t CountValidFrequencies(void) {
     return count;
 }
 
+uint8_t CountActiveBands(void) {
+    uint8_t activeCount = 0;
+    for (uint8_t i = 0; i < MAX_BANDS; i++) {
+        if (settings.bandEnabled[i]) {
+            activeCount++;
+        }
+    }
+    return activeCount;
+}
+
 static void LoadActiveScanFrequencies(void)
-{   if(appMode!=CHANNEL_MODE) return;
-    if (ScanFrequencies != NULL) { free(ScanFrequencies); ScanFrequencies = NULL; }
+{   if (ScanFrequencies != NULL) { free(ScanFrequencies); ScanFrequencies = NULL; }
     uint16_t needed = CountValidFrequencies();
     if (needed > 0) {
         ScanFrequencies = (uint32_t *)malloc(needed * sizeof(uint32_t));
         if (!ScanFrequencies) return;
     }
     char str[32];
-    sprintf(str, "%d CHANNELS", needed);
+    if(appMode == CHANNEL_MODE) {sprintf(str, "CHANNELS:%d", needed);}
+    if(appMode == SCAN_BAND_MODE) {sprintf(str, "BANDS:%d",CountActiveBands());}
+    if(appMode == FREQUENCY_MODE) {sprintf(str, "FREQUENCY");}
+    if(appMode == SCAN_RANGE_MODE) {sprintf(str, "RANGE");}
     if (!gComeBack) ShowOSDPopup(str);
     scanChannelsCount = 0;
     ChannelAttributes_t cache;
@@ -1920,35 +1932,23 @@ static void NextScanStep() {
 }
 
 void NextAppMode(void) {
-    if (Spectrum_state == 1) { Spectrum_state = 3; }
-    else { Spectrum_state = 1; }
-       
-
-    if (Spectrum_state == 1 && !scanChannelsCount) {
+    if (Spectrum_state == 1 || !scanChannelsCount) {
         Spectrum_state = 3;
+        appMode = SCAN_BAND_MODE;
+    } else {
+        Spectrum_state = 1;
+        appMode = CHANNEL_MODE;
     }
-
-    switch (Spectrum_state) {
-        case 1:  appMode = CHANNEL_MODE;    break;
-        case 3:  appMode = SCAN_BAND_MODE;  break;
-    }
-
-    LoadActiveScanFrequencies();
-
-    char sText[32];
-    const char* s[] = {"FREQ", "S LIST", "RANGE", "BAND"};
-    sprintf(sText, "MODE: %s", s[Spectrum_state]);
-    ShowOSDPopup(sText);
-
-    gRequestedSpectrumState = Spectrum_state;
+   
+    gRequestedSpectrumState  = Spectrum_state;
     gSpectrumChangeRequested = true;
-    isInitialized = false;
-    spectrumElapsedCount = 0;
-    WaitSpectrum = 0;
-    gIsPeak = false;
-    SPECTRUM_PAUSED = false;
-    SpectrumPauseCount = 0;
-    newScanStart = true;
+    isInitialized            = false;
+    spectrumElapsedCount     = 0;
+    WaitSpectrum             = 0;
+    gIsPeak                  = false;
+    SPECTRUM_PAUSED          = false;
+    SpectrumPauseCount       = 0;
+    newScanStart             = true;
     ToggleRX(false);
 }
 
@@ -2013,12 +2013,14 @@ static void HandleKeyBandList(uint8_t key) {
                     nextBandToScanIndex = bandListSelectedIndex;
                     gForceModulation = 0; // KOLYAN ADD
                     SetState(SPECTRUM);
+                    ResetModifiers();
                     RelaunchScan();
                 }
                 break;
             case KEY_EXIT:
                     SpectrumMonitor = 0;
                     SetState(SPECTRUM);
+                    ResetModifiers();
                     RelaunchScan(); 
                     gForceModulation = 0; // KOLYAN ADD
                     break;
@@ -2951,7 +2953,6 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
 
 static void RenderSpectrum()
 {
-
     if (ShowLines < 2) {
 #ifdef ENABLE_PERSIST
         uint8_t topY[128];
@@ -3349,7 +3350,7 @@ void APP_RunSpectrum(void) {
             case 3:  mode = SCAN_BAND_MODE;  break;
             default: mode = FREQUENCY_MODE;  break;
         }
-        if(mode == CHANNEL_MODE) {LoadActiveScanFrequencies();}
+        LoadActiveScanFrequencies();
         if(mode == SCAN_BAND_MODE){
             if (BParams == NULL) {
                 BParams = (bandparameters *)malloc((MAX_BANDS) * sizeof(bandparameters));}
