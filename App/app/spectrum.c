@@ -139,8 +139,8 @@ uint16_t GetMaxVisualRows(void) {
 ////////////////////////////////////////////////////////////////////
 
 static uint8_t IndexDelayRssi = 3;
-static const char *DelayRssiText[] =       {".7",".8",".9","1","2","4"};
-static const uint16_t DelayRssiValues[] =   {700,800,900,1000,2000,4000}; //in ms
+static const char *DelayRssiText[] =       {".75",".8",".9","1","2","4"};
+static const uint16_t DelayRssiValues[] =   {750,800,900,1000,2000,4000}; //in ms
 
 static bool     Backlight_On = 1;
 uint8_t osdPopupIndex = 3;
@@ -3658,9 +3658,9 @@ void ClearSettings()
   BK4819_WriteRegister(BK4819_REG_10, 0x0145);
   BK4819_WriteRegister(BK4819_REG_11, 0x01B5);
   BK4819_WriteRegister(BK4819_REG_12, 0x0393);
-  BK4819_WriteRegister(BK4819_REG_13, 0x03BE);
+  BK4819_WriteRegister(BK4819_REG_13, 0x03FF);
   BK4819_WriteRegister(BK4819_REG_14, 0x0019);
-  BK4819_WriteRegister(BK4819_REG_40, 13520);
+  BK4819_WriteRegister(BK4819_REG_40, 13738);
   BK4819_WriteRegister(BK4819_REG_29, 43840);
   BK4819_WriteRegister(BK4819_REG_19, 4161);
   BK4819_WriteRegister(BK4819_REG_73, 18066);

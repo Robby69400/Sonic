@@ -81,11 +81,6 @@ uint8_t           gSetting_F_LOCK;
 
 enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 
-#ifdef ENABLE_AM_FIX
-    bool          gSetting_AM_fix = true;
-#endif
-
-
 #ifdef ENABLE_FEAT_F4HWN
     uint8_t       gSetting_set_pwr = 1;
     bool          gDeleteChannelPending = false; // F+2 in MR mode: waiting M to confirm

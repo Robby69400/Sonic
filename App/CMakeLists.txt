@@ -141,17 +141,10 @@ enable_feature(ENABLE_BOOT_BEEPS)
 enable_feature(ENABLE_SHOW_CHARGE_LEVEL)
 enable_feature(ENABLE_REVERSE_BAT_SYMBOL)
 enable_feature(ENABLE_NO_CODE_SCAN_TIMEOUT)
-enable_feature(ENABLE_AM_FIX__
-    am_fix.c
-)
 enable_feature(ENABLE_SQUELCH_MORE_SENSITIVE)
 enable_feature(ENABLE_FASTER_CHANNEL_SCAN)
 enable_feature(ENABLE_RSSI_BAR)
 enable_feature(ENABLE_AUDIO_BAR)
-enable_feature(ENABLE_AM_FIX
-    am_fix.c
-)
-enable_feature(ENABLE_AM_FIX___SHOW_DATA)
 enable_feature(ENABLE_COPY_CHAN_TO_VFO)
 enable_feature(ENABLE_REDUCE_LOW_MID_TX_POWER)
 enable_feature(ENABLE_BYP_RAW_DEMODULATORS)
@@ -190,7 +183,6 @@ enable_feature(ENABLE_FEAT_F4HWN_MEM)
 
 # ---- DEBUGGING ----
 
-enable_feature(ENABLE_AM_FIX___SHOW_DATA)
 enable_feature(ENABLE_AGC_SHOW_DATA)
 enable_feature(ENABLE_UART_RW_BK_REGS)
 

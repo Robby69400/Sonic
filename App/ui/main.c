@@ -16,10 +16,6 @@
 
 #include <string.h>
 #include <stdlib.h>  // abs()
-
-#ifdef ENABLE_AM_FIX
-    #include "am_fix.h"
-#endif
 #include "menu.h"
 #include "bitmaps.h"
 #include "board.h"

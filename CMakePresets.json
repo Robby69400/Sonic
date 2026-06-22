@@ -15,7 +15,7 @@
                 "ENABLE_USB": false,
                 "ENABLE_ADVANCED_SPECTRUM":false,
                 "ENABLE_PERSIST": false,
-                "ENABLE_BENCH": false,
+                "ENABLE_BENCH": true,
                 "ENABLE_VERSION": false,
                 "ENABLE_AIRCOPY": false,
                 "ENABLE_NOAA": false,
