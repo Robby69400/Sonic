@@ -39,7 +39,7 @@
 // SECTION: Compile-time configuration
 // ============================================================
 #define MAX_VISIBLE_LINES 6
-#define NoisLvl 45
+#define NoisLvl 40
 #define NoiseHysteresis 15
           /////////////////////////DEBUG//////////////////////////
 //char str[64] = "";sprintf(str, "%d\r\n", Spectrum_state );LogUart(str);
@@ -3645,13 +3645,13 @@ void ClearSettings()
   Backlight_On = 1;
   Noislvl_OFF = NoisLvl; 
   Noislvl_ON = NoisLvl - NoiseHysteresis;  
-  UOO_trigger = 15;
-  osdPopupSetting = 500;
-  GlitchMax = 20;  
+  UOO_trigger = 5;
+  osdPopupSetting = 200;
+  GlitchMax = 10;  
   Spectrum_state = 1; 
   SoundBoost = 0;
   gMonitorScan = false;
-  Light_Mode = true;
+  Light_Mode = false;
   interlacing = false;
   settings.bandEnabled[0] = 1;
   for (int i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
