@@ -99,7 +99,6 @@ static uint8_t  GlitchMax = 20;
 static bool     SoundBoost = 0;             
 static uint8_t  PttEmission = 0;            
 static bool     gMonitorScan = true;       
-static bool     interlacing = 0; 
 
 // Configuration des index du menu des paramètres
 #define PARAM_LIGHT_MODE       0
@@ -121,7 +120,6 @@ static bool     interlacing = 0;
 #define PARAM_PTT_EMISSION     16
 #define PARAM_MONITOR_SCAN     17
 #define PARAM_RESET_DEFAULT    18
-#define PARAM_INTERLACING      19
 
 static const uint8_t lightModeMenuMapping[] = {
     PARAM_LIGHT_MODE,
@@ -133,7 +131,7 @@ static const uint8_t lightModeMenuMapping[] = {
 };
 
 uint16_t GetMaxVisualRows(void) {
-    return (Light_Mode) ? 6 : 20; 
+    return (Light_Mode) ? 6 : 19; 
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1197,7 +1195,8 @@ uint8_t  BK4819_GetExNoiseIndicator(void)
 }
 
 static void UpdateNoiseOff(){
-  if( BK4819_GetExNoiseIndicator() > Noislvl_OFF) {gIsPeak = false;ToggleRX(0);}		
+    if (!Noislvl_OFF) return;
+    if( BK4819_GetExNoiseIndicator() > Noislvl_OFF) {gIsPeak = false;ToggleRX(0);}		
 }
 
 static void UpdateNoiseOn(){
@@ -1213,6 +1212,7 @@ static void UpdateScanInfo() {
   }
 }
 static void UpdateGlitch() {
+    if (!GlitchMax) return;
     uint8_t glitch = BK4819_GetGlitchIndicator();
     if (glitch > GlitchMax) {gIsPeak = false;} 
     else {gIsPeak = true;}// if glitch is too high, receiving stopped
@@ -1256,12 +1256,12 @@ static void Measure() {
     } 
     if (!gIsPeak || !isListening) previousRssi = rssi;
     else if (rssi < previousRssi) previousRssi = rssi;
-
+    if (ShowLines == 2) return;
+    
     uint16_t count = GetStepsCount();
     uint16_t i = scanInfo.i;
-    static uint16_t lastPixel = 255;
     static uint8_t pixel;
-    if (interlacing && count > 128) {
+    if (count > 128) {
         uint32_t diff = (scanInfo.f - SpectrumRangeStart) / 100;
         uint32_t span = (SpectrumRangeStop - SpectrumRangeStart) / 100;
         if (span > 0) {
@@ -1272,15 +1272,6 @@ static void Measure() {
         }
     }
 
-    if (!interlacing && count > 128) {
-        pixel = ((uint32_t)i * 127) / count;
-        if (pixel != lastPixel) {
-            rssiHistory[pixel] = rssi;
-            lastPixel = pixel;
-        } else if (rssi > rssiHistory[pixel]) {
-            rssiHistory[pixel] = rssi;
-        }
-    }
     if (count <= 128) {
         uint16_t base = 128 / count;
         uint16_t rem  = 128 % count;
@@ -1904,15 +1895,11 @@ static void NextScanStep() {
         StartF = SpectrumRangeStart;
         scanInfo.f = StartF;
     } else {
-        if (interlacing){
             scanInfo.f += jumpSizes[settings.scanStepIndex];
             if (scanInfo.f >= SpectrumRangeStop) {
                 StartF += scanInfo.scanStep;
                 scanInfo.f = StartF;
             }
-        } else {
-            scanInfo.f += scanInfo.scanStep;
-        }
     }
     scanInfo.i++;
 #ifdef ENABLE_BENCH
@@ -2146,9 +2133,9 @@ static void HandleKeyParameters(uint8_t key) {
                       break;
                 case PARAM_NOISE_LEVEL_OFF:
                       Noislvl_OFF = isKey3 ? 
-                                  (Noislvl_OFF >= 80 ? 30  : Noislvl_OFF + 1) :
-                                  (Noislvl_OFF <= 30  ? 80 : Noislvl_OFF - 1);
-                      Noislvl_ON = NoisLvl - NoiseHysteresis;                      
+                                  (Noislvl_OFF >= 80 ? 0  : Noislvl_OFF + 1) :
+                                  (Noislvl_OFF <= 0  ? 80 : Noislvl_OFF - 1);
+                      Noislvl_ON = Noislvl_OFF - NoiseHysteresis;                      
                       break;
                 case PARAM_OSD_POPUP:
                       static const int osdPopupTimes[] = {0, 200, 300, 500, 1000, 2000, 3000};
@@ -2170,7 +2157,7 @@ static void HandleKeyParameters(uint8_t key) {
                       break;
                 case PARAM_GLITCH_MAX:
                     if (isKey3) { if (GlitchMax < 75) GlitchMax += 5; }
-                    else        { if (GlitchMax > 5) GlitchMax -= 5; }
+                    else        { if (GlitchMax >= 5) GlitchMax -= 5; }
                       break;
                 case PARAM_SOUND_BOOST:
                       SoundBoost = !SoundBoost;
@@ -2182,9 +2169,6 @@ static void HandleKeyParameters(uint8_t key) {
                       break;  
                 case PARAM_MONITOR_SCAN:
                     gMonitorScan = !gMonitorScan; 
-                    break;
-                case PARAM_INTERLACING:
-                    interlacing = !interlacing; 
                     break;
                 case PARAM_RESET_DEFAULT:
                       if (isKey3) ClearSettings();
@@ -3105,7 +3089,10 @@ static void HandleUserInput(void) {
     } else kbd.counter =0;
 
     if (kbd.counter == 2 || (kbd.counter > 30 && (kbd.counter % 10 == 0))) {
-        if(Backlight_On) BACKLIGHT_TurnOn();
+        if(Backlight_On && !backlightOn && gEeprom.BACKLIGHT_TIME) {
+            BACKLIGHT_TurnOn();
+            return;
+        }
         switch (currentState) {
             case SPECTRUM:
             case BAND_LIST_SELECT:
@@ -3479,7 +3466,6 @@ typedef struct {
     bool SoundBoost;  
     bool gMonitorScan;
     bool Light_Mode;
-    bool interlacing;
 } SettingsEEPROM;
 
 
@@ -3530,7 +3516,6 @@ void LoadSettings()
   SoundBoost = eepromData.SoundBoost;
   gMonitorScan = eepromData.gMonitorScan;    
   Light_Mode = eepromData.Light_Mode;    
-  interlacing = eepromData.interlacing;    
   BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
   BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
   BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
@@ -3573,7 +3558,6 @@ static void SaveSettings()
   eepromData.SoundBoost = SoundBoost;
   eepromData.gMonitorScan = gMonitorScan;
   eepromData.Light_Mode = Light_Mode;
-  eepromData.interlacing = interlacing;
   for (int i = 0; i < MAX_BANDS; i++) { 
     if (settings.bandEnabled[i]) {
         eepromData.bandListFlags |= ((uint64_t)1 << i);
@@ -3652,7 +3636,6 @@ void ClearSettings()
   SoundBoost = 0;
   gMonitorScan = false;
   Light_Mode = false;
-  interlacing = false;
   settings.bandEnabled[0] = 1;
   for (int i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
   BK4819_WriteRegister(BK4819_REG_10, 0x0145);
@@ -4073,10 +4056,6 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
         case PARAM_LIGHT_MODE:
             strncpy(row->left, Light_Mode ? "Advanced Menu" : "Light Menu", sizeof(row->left) - 1);
             break;
-        case PARAM_INTERLACING:
-            strncpy(row->left, interlacing ? "Scan Interlaced" : "Scan Normal", sizeof(row->left) - 1);
-            break;
-
         default:
             row->left[0] = '\0';
             break;
