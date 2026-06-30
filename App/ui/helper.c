@@ -537,7 +537,6 @@ void UI_DisplayClear()
     memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
 }
 
-/***********ИНВЕРСИЯ МЕЛКОГО ТЕКСТА**********INVERSION FONT SMALL**********************************/
 // wide_spacing = true: 6 px
 // wide_spacing = false: 4 px
 void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool statusbar, bool wide_spacing)
@@ -553,6 +552,11 @@ void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool sta
     uint8_t c;
     const uint8_t *p = (const uint8_t *)pString;
 
+    // Définition d'une macro locale pour simplifier les appels de dessin
+    #define DRAW_PIXEL(px, py, color) \
+        if (statusbar) PutPixelStatus((px), (py), (color)); \
+        else PutPixel((px), (py), (color))
+
     while ((c = *p++) != '\0')
     {
         if (c < 0x20) {
@@ -562,31 +566,25 @@ void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool sta
 
         c -= 0x20;
 
-        // Линия сверху 
+        // Ligne supérieure : Changée en BLANC (false) pour le mode positif
         if (y > 0)
         {
             for (uint8_t dx = 0; dx < char_width; dx++)
             {
-                if (statusbar)
-                    PutPixelStatus(end_x + dx, y - 1, true);
-                else
-                    PutPixel(end_x + dx, y - 1, true);
+                DRAW_PIXEL(end_x + dx, y - 1, false);
             }
         }
 
-        // Чёрный фон
+        // Fond : Changé en BLANC (false)
         for (uint8_t dy = 0; dy < char_height; dy++)
         {
             for (uint8_t dx = 0; dx < char_width; dx++)
             {
-                if (statusbar)
-                    PutPixelStatus(end_x + dx, y + dy, true);
-                else
-                    PutPixel(end_x + dx, y + dy, true);
+                DRAW_PIXEL(end_x + dx, y + dy, false);
             }
         }
 
-        // Белые буквы
+        // Lettres : Changées en NOIR (true)
         const uint8_t *glyph = gFont3x5[c];
         for (uint8_t col = 0; col < 3; col++)
         {
@@ -596,10 +594,7 @@ void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool sta
                 if (pixels & 1)
                 {
                     uint8_t offset = wide_spacing ? 1 : 0;
-                    if (statusbar)
-                        PutPixelStatus(end_x + col + offset, y + row, false);
-                    else
-                        PutPixel(end_x + col + offset, y + row, false);
+                    DRAW_PIXEL(end_x + col + offset, y + row, true);
                 }
                 pixels >>= 1;
             }
@@ -608,36 +603,20 @@ void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool sta
         end_x += char_width;
     }
 
-    // Вертикальные линии — в обоих режимах две слева, одна справа
+    // Lignes verticales de bordure : Changées en BLANC (false) pour se fondre dans le nouveau fond
     for (uint8_t dy = 0; dy <= char_height; dy++)
     {
         uint8_t line_y = y + dy - 1;
         if (line_y < 64)
         {
-            // Две линии слева
-            if (base_x >= 2)
-            {
-                if (statusbar)
-                    PutPixelStatus(base_x - 2, line_y, true);
-                else
-                    PutPixel(base_x - 2, line_y, true);
-            }
-            if (base_x >= 1)
-            {
-                if (statusbar)
-                    PutPixelStatus(base_x - 1, line_y, true);
-                else
-                    PutPixel(base_x - 1, line_y, true);
-            }
+            // Deux lignes à gauche
+            if (base_x >= 2) DRAW_PIXEL(base_x - 2, line_y, false);
+            if (base_x >= 1) DRAW_PIXEL(base_x - 1, line_y, false);
 
-            // Линия справа
-            if (end_x < 128)
-            {
-                if (statusbar)
-                    PutPixelStatus(end_x, line_y, true);
-                else
-                    PutPixel(end_x, line_y, true);
-            }
+            // Une ligne à droite
+            if (end_x < 128) DRAW_PIXEL(end_x, line_y, false);
         }
     }
+
+    #undef DRAW_PIXEL // Nettoyage de la macro locale
 }

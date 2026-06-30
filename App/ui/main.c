@@ -736,9 +736,7 @@ void UI_DisplayMain(void)
     gSetting_set_gui = isMainOnly() ? 1 : 0;
 
     // ================================================================
-    // MAIN ONLY DISPLAY — полностью по дизайну SU-75
-    // Трогай ТОЛЬКО координаты x_mr/x_vfo y_mr/y_vfo
-    // Двойной VFO loop ниже не изменяется
+    // MAIN ONLY DISPLAY
     // ================================================================
     if (isMainOnly())
     {
@@ -747,74 +745,24 @@ void UI_DisplayMain(void)
         uint32_t frequency = vfoInfo->pRX->Frequency;
         if (gCurrentFunction == FUNCTION_TRANSMIT)
             frequency = vfoInfo->pTX->Frequency;
-
         const bool isMR = IS_MR_CHANNEL(gEeprom.ScreenChannel[vfo_num]);
-
-        // ── Очистка ──────────────────────────────────────────────────
         memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
 
-        // ── ГОРИЗОНТАЛЬНЫЕ ЛИНИИ (рисуем ПЕРВЫМИ, чтобы надписи были поверх) ──
-        // Структура: {y, x_start, x_end, step(1=сплошная 2=пунктир)}
-        typedef struct { uint8_t y, x0, x1, step; } hline_t;
-        static const hline_t vfo_hlines[] = {
-           // { 10, 0, 127, 2 },
-            { 12, 0, 127, 2 },
-            { 21, 0, 127, 2 },
-            { 50, 0, 127, 2 },   // нижняя: опущена на 5px (было 47)
-        };
-        static const hline_t mr_hlines[] = {
-           // { 10, 0, 127, 2 },
-            { 12, 0, 127, 2 },
-            { 30, 0, 127, 2 },
-            { 50, 0, 127, 2 },   // нижняя: опущена на 5px (было 47)
-        };
-        const hline_t *hl     = isMR ? mr_hlines  : vfo_hlines;
-        uint8_t        hl_cnt = isMR ? 3 : 3;
-        for (uint8_t i = 0; i < hl_cnt; i++) {
-            for (uint8_t x = hl[i].x0; x <= hl[i].x1; x += hl[i].step) {
-                uint8_t y = hl[i].y;
-                if (y < 8) gStatusLine[x] |= (1u << y);
-                else       gFrameBuffer[(y - 8) >> 3][x] |= (1u << ((y - 8) & 7));
-            }
-        }
-
-        // ── ВЕРТИКАЛЬНЫЕ ЛИНИИ (рисуем ПЕРВЫМИ, чтобы надписи были поверх) ──
-        typedef struct { uint8_t x, y0, y1, step; } vline_t;
-        static const vline_t vfo_vlines[] = {
-            { 14, 23, 46, 2 },
-        };
-        static const vline_t mr_vlines[] = {
-            { 34, 18, 28, 2 },
-            { 14, 32, 47, 2 },
-        };
-        const vline_t *vl     = isMR ? mr_vlines  : vfo_vlines;
-        uint8_t        vl_cnt = isMR ? 2 : 1;
-        for (uint8_t i = 0; i < vl_cnt; i++) {
-            for (uint8_t y = vl[i].y0; y <= vl[i].y1; y += vl[i].step) {
-                uint8_t x = vl[i].x;
-                if (y < 8) gStatusLine[x] |= (1u << y);
-                else       gFrameBuffer[(y - 8) >> 3][x] |= (1u << ((y - 8) & 7));
-            }
-        }
-
-        if (isMR)
+    if (isMR)
         {
             const bool inputting = (gInputBoxIndex != 0 && gEeprom.TX_VFO == vfo_num);
             if (!inputting)
                 sprintf(String, "M%u", gEeprom.ScreenChannel[vfo_num] + 1);
             else
                 sprintf(String, "M%.3s", INPUTBOX_GetAscii());
-            // Номер канала слева — по центру в левой зоне
             UI_PrintString(String, 18 - (strlen(String) * 4), 0, 1, 8);
 
-            // Список сканирования
             const ChannelAttributes_t* att = MR_GetChannelAttributes(gEeprom.ScreenChannel[vfo_num]);
             if (att && att->scanlist > 0 && att->scanlist <= MR_CHANNELS_LIST) {
                 sprintf(String, "%02d", att->scanlist);
-                GUI_DisplaySmallestDark(String, 18, 25, false, false);
+                GUI_DisplaySmallestDark(String, 3, 25, false, false);
             }
 
-            // Имя канала (или частота если нет имени)
             if (!inputting) {
                 char dispName[22];
                 SETTINGS_FetchChannelName(dispName, gEeprom.ScreenChannel[vfo_num]);
@@ -824,10 +772,8 @@ void UI_DisplayMain(void)
             }
         }
 
-        // ── ЧАСТОТА ───────────────────────────────────────────────────
         if (gInputBoxIndex > 0 && IS_FREQ_CHANNEL(gEeprom.ScreenChannel[vfo_num]) && gEeprom.TX_VFO == vfo_num)
         {
-            // Ввод частоты
             const char *ascii = INPUTBOX_GetAscii();
             bool isGigaF = frequency >= _1GHz_in_KHz;
             sprintf(String, "%.*s.%.3s", 3 + isGigaF, ascii, ascii + 3 + isGigaF);
@@ -838,23 +784,16 @@ void UI_DisplayMain(void)
         else
         {
             sprintf(String, "%3u.%05u", frequency / 100000, frequency % 100000);
-
-            // Мелкие нули частоты
             uint8_t small_y    = isMR ? 3 : 2;
-            uint8_t small_x    = isMR ? 116 : 114;
+            uint8_t small_x    = 102;
             UI_PrintString(String + 7, small_x - (strlen(String + 7) * 6 / 2), 0, small_y, 8);
             String[7] = 0;
-
-            // Большая частота
             uint8_t big_y = isMR ? 3 : 2;
-            uint8_t big_x = isMR ? 68 : 50;
-            if (isMR)
-                UI_PrintString(String, big_x - (strlen(String) * 6 / 2), 0, big_y, 8);
-            else
-                UI_DisplayFrequency(String, big_x - (strlen(String) * 8 / 2), big_y, false);
+            uint8_t big_x = 40;
+            UI_DisplayFrequency(String, big_x - (strlen(String) * 8 / 2), big_y, false);
         }
 
-        // ── МОДУЛЯЦИЯ ─────────────────────────────────────────────────
+        
         {
             const char *s = "";
             const ModulationMode_t mod = vfoInfo->Modulation;
@@ -879,11 +818,11 @@ void UI_DisplayMain(void)
 
         // ── PTT TOGGLE ────────────────────────────────────────────────
         if (gSetting_set_ptt_session) {
-            uint8_t x_mr = 4, y_mr = 2;
+            uint8_t x_mr = 4, y_mr = 3;
             uint8_t x_vfo = 4, y_vfo = 1;
             uint8_t x = isMR ? x_mr : x_vfo;
             uint8_t y = isMR ? y_mr : y_vfo;
-            UI_PrintStringSmallBold("S", LCD_WIDTH + x, 0, y);
+            UI_PrintStringSmallBold("T", LCD_WIDTH + x, 0, y);
         }
 
             uint8_t x_mr = 91, y_mr = 5;
@@ -907,7 +846,7 @@ void UI_DisplayMain(void)
             }
         }
 
-        // ── ШАГ ───────────────────────────────────────────────────────
+        
         {
             uint8_t x_mr = 62, y_mr = 5;
             uint8_t x_vfo = 62, y_vfo = 5;
@@ -928,7 +867,7 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold(stepStr, LCD_WIDTH + x - (uint8_t)(strlen(stepStr) * 3), 0, y);
         }
 
-        // ── ШУМОДАВ ───────────────────────────────────────────────────
+        
         {
             uint8_t x_mr = 8, y_mr = 5;
             uint8_t x_vfo = 8, y_vfo = 5;
@@ -939,7 +878,7 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold(sqlStr, LCD_WIDTH + x, 0, y);
         }
 
-        // ── ПОЛОСА ────────────────────────────────────────────────────
+        
         {
             uint8_t x_mr = 34, y_mr = 5;
             uint8_t x_vfo = 34, y_vfo = 5;
@@ -950,7 +889,6 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold(bw, LCD_WIDTH + x - (uint8_t)(strlen(bw) * 3), 0, y);
         }
 
-        // ── СОСТОЯНИЕ VFO (TIMEOUT/ALARM/etc) ────────────────────────
         {
             enum VfoState_t state = VfoState[vfo_num];
             if (state != VFO_STATE_NORMAL) {
@@ -964,25 +902,21 @@ void UI_DisplayMain(void)
             }
         }
 
-        // ── МЕТКИ "VFO MODE" / "MR MODE" ─────────────────────────────
+        // "VFO MODE" / "MR MODE" ─────────────────────────────
         if (isMR) {
-            GUI_DisplaySmallestDark("MODE", 16, 2, false, true);
-            GUI_DisplaySmallestDark("MR",   1,  2, false, true);
-            GUI_DisplaySmallestDark("CHAN", 104,2, false, true);
-            GUI_DisplaySmallestDark("SQL",  6,  40, false, false);
-            GUI_DisplaySmallestDark("BAND", 28, 40, false, false);
-            GUI_DisplaySmallestDark("STEP", 58, 40, false, false);
-            GUI_DisplaySmallestDark("POW",  88, 40, false, false);
-            GUI_DisplaySmallestDark("MOD",  110,40, false, false);
+            UI_PrintStringSmallNormal("CHANNEL", 0, 0, 0);
+            GUI_DisplaySmallestDark("SQL",  6,  42, false, false);
+            GUI_DisplaySmallestDark("BAND", 28, 42, false, false);
+            GUI_DisplaySmallestDark("STEP", 58, 42, false, false);
+            GUI_DisplaySmallestDark("POW",  88, 42, false, false);
+            GUI_DisplaySmallestDark("MOD",  110,42, false, false);
         } else {
-            GUI_DisplaySmallestDark("MODE", 16, 2, false, true);
-            GUI_DisplaySmallestDark("VFO",  1,  2, false, false);
-            GUI_DisplaySmallestDark("FREQ", 104,2, false, true);
-            GUI_DisplaySmallestDark("SQL",  6,  40, false, false);
-            GUI_DisplaySmallestDark("BAND", 28, 40, false, false);
-            GUI_DisplaySmallestDark("STEP", 58, 40, false, false);
-            GUI_DisplaySmallestDark("POW",  88, 40, false, false);
-            GUI_DisplaySmallestDark("MOD",  110,40, false, false);
+            UI_PrintStringSmallNormal("FREQUENCY", 0, 0, 0);
+            GUI_DisplaySmallestDark("SQL",  6,  42, false, false);
+            GUI_DisplaySmallestDark("BND", 28, 42, false, false);
+            GUI_DisplaySmallestDark("STP", 58, 42, false, false);
+            GUI_DisplaySmallestDark("POW",  88, 42, false, false);
+            GUI_DisplaySmallestDark("MOD",  110,42, false, false);
         }
 
         // ── TX / RX ИНДИКАТОР ────────────────────────────────────────
@@ -990,13 +924,6 @@ void UI_DisplayMain(void)
             GUI_DisplaySmallestDark("TX", 2, 25, false, false);
         else if (FUNCTION_IsRx())
             GUI_DisplaySmallestDark("RX", 2, 25, false, false);
-
-        // ── Перерисовка MR-линии y=30 поверх имени канала ────────────
-        // UI_PrintString с 8px шрифтом занимает y=16..31, затирая линию y=30
-        if (isMR) {
-            for (uint8_t x = 0; x <= 127; x += 2)
-                gFrameBuffer[(30 - 8) >> 3][x] |= (1u << ((30 - 8) & 7));
-        }
 
         ST7565_BlitFullScreen();
         return;

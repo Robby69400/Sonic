@@ -267,7 +267,7 @@ const t_sidefunction gSubMenu_SIDEFUNCTIONS[] =
 #ifdef ENABLE_FEAT_F4HWN
     {"RX MODE",         ACTION_OPT_RXMODE},
     {"MAIN ONLY",       ACTION_OPT_MAINONLY},
-    {"PTT",             ACTION_OPT_PTT},
+    {"PTT TOGGLE",      ACTION_OPT_PTT},
     {"WIDE\nNARROW",    ACTION_OPT_WN},
       
     {"MUTE",            ACTION_OPT_MUTE},
