@@ -44,7 +44,7 @@ PRESET=${PRESET:-USB}
 # Nettoyage si l'option est activée
 # ---------------------------------------------
 if [ "$CLEAN_BUILD" = true ]; then
-  echo "🧹 Cleaning build directory..."
+  echo " 🧹 Cleaning build directory..."
   rm -rf build/
 fi
 
@@ -56,23 +56,6 @@ if [[ ! "$PRESET" =~ ^(USB|RS232|USBAS|RS232AS|All)$ ]]; then
   echo "Valid presets are: USB RS232 USBAS RS232AS All"
   exit 1
 fi
-
-# VERSION_FILE="App/version.h"
-# if [ -f "$VERSION_FILE" ]; then
-#     # On cherche la ligne, on extrait le 3ème mot (le numéro)
-#     CURRENT_VERSION=$(grep "#define APP_VERSION" "$VERSION_FILE" | awk '{print $3}')
-#     
-#     if [ -n "$CURRENT_VERSION" ]; then
-#         NEW_VERSION=$((CURRENT_VERSION + 1))
-#         # Utilisation de sed pour remplacer la ligne entière
-#         sed -i "s/#define APP_VERSION $CURRENT_VERSION/#define APP_VERSION $NEW_VERSION/" "$VERSION_FILE"
-#         echo "🔢 Version mise à jour : $CURRENT_VERSION -> $NEW_VERSION"
-#     else
-#         echo "⚠️  Ligne '#define APP_VERSION' introuvable dans $VERSION_FILE"
-#     fi
-# else
-#     echo "❌ Fichier $VERSION_FILE introuvable au chemin spécifié."
-# fi
 
 # ---------------------------------------------
 # Build the Docker image (only needed once)
@@ -87,17 +70,21 @@ fi
 # ---------------------------------------------
 # rm -rf build
 export MSYS_NO_PATHCONV=1
+
+# ---------------------------------------------
+# Function to build one preset
+# ---------------------------------------------
 # ---------------------------------------------
 # Function to build one preset
 # ---------------------------------------------
 build_preset() {
   local preset="$1"
-  echo -e "\n=== 🚀 Building: ${preset} ===\n---------------------------------------------"
-
+  echo -e "\n 🚀 Building: ${preset}"
   docker run --rm -u $(id -u):$(id -g) -v "$PWD":/src -w /src "$IMAGE" \
   bash -c "cmake --preset ${preset} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} && \
            cmake --build --preset ${preset} -j" \
-  2>&1 | sed "s|/src/|C:/Perso/Sonic/|g"
+  2>&1 | sed "s|/src/|C:/Perso/Sonic/|g" \
+       | sed -E '/^[[:space:]]+[A-Za-z0-9_]+(:[A-Za-z]+)?=/d; /--( Configuring|Generating) done/d; /-- Build files have been written to/d'
 
   docker run --rm -v "$PWD":/src -w /src "$IMAGE" \
     arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V29.elf
@@ -105,10 +92,6 @@ build_preset() {
   echo "✅ Done: ${preset}"
 }
 
-# text : Votre code (Flash).
-# data + bss : Votre RAM statique (dont vos buffers USB et BParams).
-# La somme data + bss + _Min_Stack_Size + _Min_Heap_Size doit rester inférieure à la RAM totale du PY32 (8 Ko ou 16 Ko selon la variante).
-# Pour un projet stable, la recommandation standard est de ne pas dépasser 80% de la RAM totale en combinant data + bss + stack + heap.
 
 # ---------------------------------------------
 # Handle 'All' preset

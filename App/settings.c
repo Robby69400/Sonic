@@ -165,14 +165,7 @@ void SETTINGS_InitEEPROM(void)
     #endif
     gEeprom.SQUELCH_LEVEL        = (Data[1] > 0 && Data[1] < 10) ? Data[1] : 1;
     gEeprom.TX_TIMEOUT_TIMER     = (Data[2] > 4 && Data[2] < 180) ? Data[2] : 11;
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        gEeprom.KEY_LOCK = (Data[4] & 0x01) != 0;
-        gEeprom.MENU_LOCK = (Data[4] & 0x02) != 0;
-        gEeprom.SET_KEY = ((Data[4] >> 2) & 0x0F) > 4 ? 0 : (Data[4] >> 2) & 0x0F;
-        gEeprom.SET_NAV = (Data[4] & 0x40) != 0;
-    #else
-        gEeprom.KEY_LOCK             = (Data[4] <  2) ? Data[4] : false;
-    #endif
+    gEeprom.KEY_LOCK             = (Data[4] <  2) ? Data[4] : false;
     gEeprom.FlashlightOnRX = (Data[5] & 0x02) ? true : false;
     gEeprom.MIC_SENSITIVITY      = (Data[7] <  9) ? Data[7] : 4;
 
@@ -500,37 +493,20 @@ void SETTINGS_FactoryReset(bool bIsAll)
         }
     }
 
-    // Prevent reset to restart in RO mode...
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        uint8_t Data8[0x10];
-        PY25Q16_ReadBuffer(0x00A000, Data8, sizeof(Data8));
-        Data8[4] &= (uint8_t)~0x01;   // KEY_LOCK = 0
-        Data8[4] &= (uint8_t)~0x02;   // MENU_LOCK = 0
-        Data8[4] &= (uint8_t)~0x3C;   // SET_KEY = 0
-        Data8[4] &= (uint8_t)~0x40;   // SET_NAV = 0
-        #ifdef ENABLE_FEAT_F4HWN_RESET_VFO
-            Data8[7] = (1 & 0x01);
-        #endif
-        PY25Q16_WriteBuffer(0x00A000, Data8, sizeof(Data8), false);
-        gEeprom.MENU_LOCK = 0;
-    #endif
-
     // Reset VFO defaults
-    #ifdef ENABLE_FEAT_F4HWN_RESET_VFO
-        RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL_FIRST + BAND3_137MHz, 14550000);
-        RADIO_InitInfo(&gEeprom.VfoInfo[1], FREQ_CHANNEL_FIRST + BAND6_400MHz, 43350000);
-        gEeprom.ScreenChannel[0] = FREQ_CHANNEL_FIRST + BAND3_137MHz;
-        gEeprom.ScreenChannel[1] = FREQ_CHANNEL_FIRST + BAND6_400MHz;
-        gEeprom.MrChannel[0]     = MR_CHANNEL_FIRST;
-        gEeprom.MrChannel[1]     = MR_CHANNEL_FIRST;
-        gEeprom.FreqChannel[0]   = FREQ_CHANNEL_FIRST + BAND3_137MHz;
-        gEeprom.FreqChannel[1]   = FREQ_CHANNEL_FIRST + BAND6_400MHz;
-        SETTINGS_SaveChannel(FREQ_CHANNEL_FIRST + BAND3_137MHz, 0, &gEeprom.VfoInfo[0], 2);
-        SETTINGS_SaveChannel(FREQ_CHANNEL_FIRST + BAND6_400MHz, 1, &gEeprom.VfoInfo[1], 2);
-        gVfoStateChanged = true;
-        gScheduleVfoSave = true;
-        SETTINGS_SaveVfoIndicesFlush();
-    #endif
+    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL_FIRST + BAND3_137MHz, 14550000);
+    RADIO_InitInfo(&gEeprom.VfoInfo[1], FREQ_CHANNEL_FIRST + BAND6_400MHz, 43350000);
+    gEeprom.ScreenChannel[0] = FREQ_CHANNEL_FIRST + BAND3_137MHz;
+    gEeprom.ScreenChannel[1] = FREQ_CHANNEL_FIRST + BAND6_400MHz;
+    gEeprom.MrChannel[0]     = MR_CHANNEL_FIRST;
+    gEeprom.MrChannel[1]     = MR_CHANNEL_FIRST;
+    gEeprom.FreqChannel[0]   = FREQ_CHANNEL_FIRST + BAND3_137MHz;
+    gEeprom.FreqChannel[1]   = FREQ_CHANNEL_FIRST + BAND6_400MHz;
+    SETTINGS_SaveChannel(FREQ_CHANNEL_FIRST + BAND3_137MHz, 0, &gEeprom.VfoInfo[0], 2);
+    SETTINGS_SaveChannel(FREQ_CHANNEL_FIRST + BAND6_400MHz, 1, &gEeprom.VfoInfo[1], 2);
+    gVfoStateChanged = true;
+    gScheduleVfoSave = true;
+    SETTINGS_SaveVfoIndicesFlush();
     ClearSettings();
 }
 
@@ -614,18 +590,8 @@ void SETTINGS_SaveSettings(void)
     #endif
         State[1] = gEeprom.SQUELCH_LEVEL;
     State[2] = gEeprom.TX_TIMEOUT_TIMER;
-        State[3] = false;
-
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        State[4] =
-            (gEeprom.KEY_LOCK        ? 0x01 : 0) |
-            (gEeprom.MENU_LOCK       ? 0x02 : 0) |
-            ((gEeprom.SET_KEY & 0x0F) << 2)      |
-            (gEeprom.SET_NAV  ? 0x40 : 0);
-    #else
-        State[4] = gEeprom.KEY_LOCK;
-    #endif
-
+    State[3] = false;
+    State[4] = gEeprom.KEY_LOCK;
     State[5] = (gEeprom.FlashlightOnRX ? 0x02 : 0x00);
     State[6] = 0;
     State[7] = gEeprom.MIC_SENSITIVITY;
@@ -943,9 +909,6 @@ State[1] = 0
 
 #ifdef ENABLE_SPECTRUM
     | (1 << 5)
-#endif
-#ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-    | (1 << 6)
 #endif
 ;
     PY25Q16_WriteBuffer(0x00A158, State, sizeof(State), false);

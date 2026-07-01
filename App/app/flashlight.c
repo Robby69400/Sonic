@@ -8,7 +8,7 @@ static inline void Flashlight_TurnOn(){ GPIO_SetOutputPin(GPIO_PIN_FLASHLIGHT); 
 static inline void Flashlight_TurnOff(){ GPIO_ResetOutputPin(GPIO_PIN_FLASHLIGHT); }
 static inline void Flashlight_Toggle(){ GPIO_TogglePin(GPIO_PIN_FLASHLIGHT); }
 
-#if !defined(ENABLE_FEAT_F4HWN) || defined(ENABLE_FEAT_F4HWN_RESCUE_OPS)
+#if !defined(ENABLE_FEAT_F4HWN) 
     enum FlashlightMode_t  gFlashLightState;
 
     void FlashlightTimeSlice()

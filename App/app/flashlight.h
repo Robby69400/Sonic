@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-#if !defined(ENABLE_FEAT_F4HWN) || defined(ENABLE_FEAT_F4HWN_RESCUE_OPS)
+#if !defined(ENABLE_FEAT_F4HWN) 
     enum FlashlightMode_t {
         FLASHLIGHT_OFF = 0,
         FLASHLIGHT_ON,

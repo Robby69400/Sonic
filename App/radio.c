@@ -432,18 +432,6 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 
     pVfo->Compander = att->compander;
 
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-    if(gRemoveOffset)
-    {
-        pVfo->pTX = &pVfo->freq_config_RX;
-    }
-
-    if(gPowerHigh)
-    {
-        pVfo->OUTPUT_POWER = OUTPUT_POWER_HIGH;
-    }
-    #endif
-
     RADIO_ConfigureSquelchAndOutputPower(pVfo);
 }
 

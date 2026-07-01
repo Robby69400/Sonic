@@ -609,12 +609,9 @@ void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool sta
         uint8_t line_y = y + dy - 1;
         if (line_y < 64)
         {
-            // Deux lignes à gauche
-            if (base_x >= 2) DRAW_PIXEL(base_x - 2, line_y, false);
-            if (base_x >= 1) DRAW_PIXEL(base_x - 1, line_y, false);
-
-            // Une ligne à droite
-            if (end_x < 128) DRAW_PIXEL(end_x, line_y, false);
+            if (base_x >= 2) {DRAW_PIXEL(base_x - 2, line_y, false);}
+            if (base_x >= 1) {DRAW_PIXEL(base_x - 1, line_y, false);}
+            if (end_x < 128) {DRAW_PIXEL(end_x, line_y, false);}
         }
     }
 

@@ -36,13 +36,8 @@ void ACTION_SwitchDemodul(void);
     void ACTION_Wn(void);
     void ACTION_BackLightOnDemand(void);
     void ACTION_BackLight(void);
-    void ACTION_Mute(void);
     #ifdef ENABLE_FEAT_F4HWN_AUDIO
         void ACTION_RxA(void);
-    #endif
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        void ACTION_Power_High(void);
-        void ACTION_Remove_Offset(void);
     #endif
 #endif
 

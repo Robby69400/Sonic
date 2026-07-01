@@ -101,29 +101,23 @@ void     BK4819_RX_TurnOn(void);
 void     BK4819_PickRXFilterPathBasedOnFrequency(uint32_t Frequency);
 bool     BK4819_CompanderEnabled(void);
 void     BK4819_SetCompander(const unsigned int mode);
-
 void     BK4819_PlayTone(uint16_t Frequency, bool bTuningGainSwitch);
 void     BK4819_PlaySingleTone(const unsigned int tone_Hz, const unsigned int delay, const unsigned int level, const bool play_speaker);
 void     BK4819_EnterTxMute(void);
 void     BK4819_ExitTxMute(void);
 void     BK4819_Sleep(void);
 void     BK4819_TurnsOffTones_TurnsOnRX(void);
-#ifdef ENABLE_AIRCOPY
-    void     BK4819_SetupAircopy(void);
-#endif
 void     BK4819_ResetFSK(void);
 void     BK4819_Idle(void);
 void     BK4819_ExitBypass(void);
 void     BK4819_PrepareTransmit(void);
 void     BK4819_TxOn_Beep(void);
 void     BK4819_ExitSubAu(void);
-
 void     BK4819_Conditional_RX_TurnOn_and_GPIO6_Enable(void);
 void     BK4819_EnableTXLink(void);
 void     BK4819_GenTail(uint8_t Tail);
 void     BK4819_PlayCDCSSTail(void);
 void     BK4819_PlayCTCSSTail(void);
-
 uint16_t BK4819_GetRSSI(void);
 int8_t   BK4819_GetRxGain_dB(void);
 int16_t  BK4819_GetRSSI_dBm(void);
@@ -131,7 +125,6 @@ uint8_t  BK4819_GetGlitchIndicator(void);
 uint8_t  BK4819_GetExNoiceIndicator(void);
 uint16_t BK4819_GetVoiceAmplitudeOut(void);
 uint8_t  BK4819_GetAfTxRx(void);
-
 bool     BK4819_GetFrequencyScanResult(uint32_t *pFrequency);
 BK4819_CssScanResult_t BK4819_GetCxCSSScanResult(uint32_t *pCdcssFreq, uint16_t *pCtcssFreq);
 void     BK4819_DisableFrequencyScan(void);

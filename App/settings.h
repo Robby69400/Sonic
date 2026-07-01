@@ -95,14 +95,6 @@ enum ACTION_OPT_t {
     ACTION_OPT_BACKLIGHT,
     ACTION_OPT_MUTE,
     ACTION_OPT_RXA,
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        ACTION_OPT_POWER_HIGH,
-        ACTION_OPT_REMOVE_OFFSET,
-    #endif
-#endif
-#ifdef ENABLE_REGA
-    ACTION_OPT_REGA_ALARM,
-    ACTION_OPT_REGA_TEST,
 #endif
     ACTION_OPT_LEN
 };
@@ -169,10 +161,6 @@ typedef struct {
     bool                  SET_NAV;
 #endif
     bool                  FlashlightOnRX;     // мигание фонарика при входящем
-#ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-    bool                  MENU_LOCK;
-    uint8_t               SET_KEY;
-#endif
     uint8_t               CHANNEL_DISPLAY_MODE;
     bool                  TAIL_TONE_ELIMINATION;
     bool                  VFO_OPEN;

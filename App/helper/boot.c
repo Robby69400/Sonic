@@ -15,10 +15,6 @@
  */
 
 #include <string.h>
-
-#ifdef ENABLE_AIRCOPY
-    #include "app/aircopy.h"
-#endif
 #include "driver/bk4819.h"
 #include "driver/keyboard.h"
 #include "driver/gpio.h"
@@ -37,8 +33,6 @@
 BOOT_Mode_t BOOT_GetMode(void)
 {
     KEY_Code_t key;
-
-    // Читаем кнопку дважды для стабильности
     SYSTEM_DelayMs(20);
     key = KEYBOARD_Poll();
     SYSTEM_DelayMs(20);
@@ -47,23 +41,8 @@ BOOT_Mode_t BOOT_GetMode(void)
 
     bool ptt = GPIO_IsPttPressed();
 
-    // PTT + FN2 (SIDE2) = ALL reset: всё кроме калибровок (как в меню ALL)
     if (ptt && key == KEY_SIDE2)
         return BOOT_MODE_ERASE_NO_CALIB;
-
-    // PTT + FN1 (SIDE1) = не используется
-
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-    if (ptt && key == (KEY_Code_t)(10 + gEeprom.SET_KEY))
-        return BOOT_MODE_RESCUE_OPS;
-    #endif
-
-    #ifdef ENABLE_AIRCOPY
-    if (!ptt && key == KEY_SIDE2) {
-        gAirCopyBootMode = true;
-        return BOOT_MODE_AIRCOPY;
-    }
-    #endif
 
     return BOOT_MODE_NORMAL;
 }
@@ -144,13 +123,5 @@ void BOOT_ProcessMode(BOOT_Mode_t Mode)
         GUI_SelectNextDisplay(DISPLAY_MAIN);
         return;
     }
-
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-    if (Mode == BOOT_MODE_RESCUE_OPS) {
-        gEeprom.MENU_LOCK = !gEeprom.MENU_LOCK;
-        SETTINGS_SaveSettings();
-    }
-    #endif
-
     GUI_SelectNextDisplay(DISPLAY_MAIN);
 }

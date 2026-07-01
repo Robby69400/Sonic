@@ -17,15 +17,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-
-
 #include "app/action.h"
-
-#ifdef ENABLE_AIRCOPY
-    #include "app/aircopy.h"
-#endif
 #include "app/app.h"
-
 #ifdef ENABLE_FLASHLIGHT
     #include "app/flashlight.h"
 #endif
@@ -40,7 +33,6 @@
     #include "scheduler.h"
 #endif
 #include "py32f0xx.h"
-
 #include "board.h"
 #include "driver/backlight.h"
 #ifdef ENABLE_FMRADIO
@@ -84,18 +76,9 @@ void (*ProcessKeysFunctions[])(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld) 
 #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &FM_ProcessKeys,
 #endif
-
-#ifdef ENABLE_AIRCOPY
-    [DISPLAY_AIRCOPY] = &AIRCOPY_ProcessKeys,
-#endif
 };
 
-#ifdef ENABLE_REGA
-// This is a hack for REGA as I need a special display element only for it with no key
-static_assert(ARRAY_SIZE(ProcessKeysFunctions) == DISPLAY_N_ELEM-1);
-#else
 static_assert(ARRAY_SIZE(ProcessKeysFunctions) == DISPLAY_N_ELEM);
-#endif
 
 static void CheckForIncoming(void)
 {
@@ -523,20 +506,6 @@ static void CheckRadioInterrupts(void)
             g_SquelchLost = false;
             BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
         }
-
-#ifdef ENABLE_AIRCOPY
-        if (interrupts.fskFifoAlmostFull &&
-            gScreenToDisplay == DISPLAY_AIRCOPY &&
-            gAircopyState == AIRCOPY_TRANSFER &&
-            gAirCopyIsSendMode == 0)
-        {
-            for (unsigned int i = 0; i < 4; i++) {
-                g_FSK_Buffer[gFSKWriteIndex++] = BK4819_ReadRegister(BK4819_REG_5F);
-            }
-
-            AIRCOPY_StorePacket();
-        }
-#endif
     }
 }
 
@@ -768,13 +737,6 @@ void StopTransmitting(void) {
 // called every 10ms
 void CheckKeys(void)
 {
-
-#ifdef ENABLE_AIRCOPY
-    if (gScreenToDisplay == DISPLAY_AIRCOPY && gAircopyState != AIRCOPY_READY){
-        return;
-    }
-#endif
-
 // -------------------- PTT ------------------------
     const bool serialConfigInProgress = SerialConfigInProgress();
 
@@ -974,7 +936,7 @@ void APP_TimeSlice10ms(void)
         return;
 #endif
 
-#if !defined(ENABLE_FEAT_F4HWN) || defined(ENABLE_FEAT_F4HWN_RESCUE_OPS)
+#if !defined(ENABLE_FEAT_F4HWN)
     #ifdef ENABLE_FLASHLIGHT
         FlashlightTimeSlice();
     #endif
@@ -998,15 +960,6 @@ void APP_TimeSlice10ms(void)
         if (--gFM_RestoreCountdown_10ms == 0) { 
             FM_Start(); // switch back to FM radio mode
             GUI_SelectNextDisplay(DISPLAY_FM);
-        }
-    }
-#endif
-
-
-#ifdef ENABLE_AIRCOPY
-    if (gScreenToDisplay == DISPLAY_AIRCOPY && gAircopyState == AIRCOPY_TRANSFER && gAirCopyIsSendMode == 1) {
-        if (!AIRCOPY_SendMessage()) {
-            GUI_DisplayScreen();
         }
     }
 #endif
@@ -1121,9 +1074,6 @@ void APP_TimeSlice500ms(void)
     if (!gCssBackgroundScan
 #ifdef ENABLE_FMRADIO
         && (gFM_ScanState == FM_SCAN_OFF || gAskToSave)
-#endif
-#ifdef ENABLE_AIRCOPY
-        && gScreenToDisplay != DISPLAY_AIRCOPY
 #endif
     ) {
         if (gEeprom.AUTO_KEYPAD_LOCK && gKeyLockCountdown > 0

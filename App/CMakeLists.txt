@@ -164,6 +164,7 @@ enable_feature(ENABLE_EXTRA_UART_CMD)
 # ---- F4HWN MODS ----
 
 enable_feature(ENABLE_FEAT_F4HWN)
+enable_feature(ENABLE_FEAT_F4HWN_AUDIO)
 enable_feature(ENABLE_FEAT_F4HWN_AUDIO_SCOPE)
 enable_feature(ENABLE_FEAT_F4HWN_SPECTRUM)
 enable_feature(ENABLE_FEAT_F4HWN_RX_TX_TIMER)

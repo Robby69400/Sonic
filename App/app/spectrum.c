@@ -3419,18 +3419,6 @@ static void ToggleScanList(int scanListNumber, int single )
 // SECTION: EEPROM / Settings persistence
 // ============================================================
 
-#ifdef ENABLE_VERSION
-bool IsVersionMatching(void) {
-    uint16_t stored,app_version;
-    app_version = APP_VERSION;
-    PY25Q16_ReadBuffer(ADRESS_VERSION, &stored, 2);
-    SYSTEM_DelayMs(50);
-    if (stored != APP_VERSION) PY25Q16_WriteBuffer(ADRESS_VERSION, &app_version, 2, 0);
-    return (stored == APP_VERSION);
-}
-#endif
-
-
 typedef struct {
     int ShowLines;
     uint8_t IndexDelayRssi;
@@ -3473,18 +3461,21 @@ void LoadSettings(bool VFO)
 {
   if(SettingsLoaded) return;
   SettingsEEPROM  eepromData  = {0};
-#ifdef ENABLE_VERSION
-  if(!IsVersionMatching()) ClearSettings();
-#endif
   PY25Q16_ReadBuffer(ADRESS_PARAMS, &eepromData, sizeof(eepromData));
-  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
-  if(VFO) return;
-
+  
   BK4819_WriteRegister(BK4819_REG_10, eepromData.R10);
   BK4819_WriteRegister(BK4819_REG_11, eepromData.R11);
   BK4819_WriteRegister(BK4819_REG_12, eepromData.R12);
   BK4819_WriteRegister(BK4819_REG_13, eepromData.R13);
   BK4819_WriteRegister(BK4819_REG_14, eepromData.R14);
+  BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
+  BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
+  BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
+  BK4819_WriteRegister(BK4819_REG_3C, eepromData.R3C);
+  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
+  BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
+  BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);
+  if(VFO) return;
 
   for (int i = 0; i < MR_CHANNELS_LIST; i++) {
     settings.scanListEnabled[i] = (eepromData.scanListFlags >> i) & 0x01;
@@ -3519,12 +3510,7 @@ void LoadSettings(bool VFO)
   gMonitorScan = eepromData.gMonitorScan;    
   Light_Mode = eepromData.Light_Mode;    
   
-  BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
-  BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
-  BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);
-  BK4819_WriteRegister(BK4819_REG_3C, eepromData.R3C);
-  BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
-  BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
+
   
  if (!historyLoaded) {
         LoadHistory();

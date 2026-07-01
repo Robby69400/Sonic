@@ -52,7 +52,6 @@
                 "ENABLE_FEAT_F4HWN_NARROWER": true,
                 "ENABLE_FEAT_F4HWN_INV": true,
                 "ENABLE_FEAT_F4HWN_CTR": true,
-                "ENABLE_FEAT_F4HWN_RESCUE_OPS": false,
                 "ENABLE_FEAT_F4HWN_VOL": true,
                 "ENABLE_FEAT_F4HWN_AUDIO": true,
                 "ENABLE_FEAT_F4HWN_RESET_VFO": true,

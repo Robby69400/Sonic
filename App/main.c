@@ -120,15 +120,6 @@ void Main(void)
         // Если вернулись (отмена) — продолжаем нормальную загрузку
         BootMode = BOOT_MODE_NORMAL;
     }
-
-#ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-    if (BootMode == BOOT_MODE_RESCUE_OPS)
-    {
-        gEeprom.MENU_LOCK = !gEeprom.MENU_LOCK;
-        SETTINGS_SaveSettings();
-    }
-#endif
-
     // count the number of menu items
     gMenuListCount = 0;
     while (MenuList[gMenuListCount].name[0] != '\0') {

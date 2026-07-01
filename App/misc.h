@@ -173,10 +173,6 @@ extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     extern bool               gSaveRxMode;
     extern uint8_t            crc[15];
     extern bool               gAirCopyBootMode;
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        extern bool               gPowerHigh;
-        extern bool               gRemoveOffset;
-    #endif
     extern int8_t dBmCorrTable[7];
 #endif
 

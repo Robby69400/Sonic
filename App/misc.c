@@ -110,10 +110,6 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     bool          gSaveRxMode = false;
     uint8_t       crc[15] = { 0 };
     bool          gAirCopyBootMode = 0;
-    #ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
-        bool          gPowerHigh = false;
-        bool          gRemoveOffset = false;
-    #endif
     int8_t dBmCorrTable[7] = {-15, -25, -20, -4, -7, -6, -1}; // KA52 calibration
 #endif
 
