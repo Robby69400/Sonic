@@ -3327,7 +3327,7 @@ void APP_RunSpectrum(void) {
     for (;;) {
         LoadMonitorFrequencies ();
         Mode mode;
-        if (!Key_1_pressed ) LoadSettings();
+        if (!Key_1_pressed ) LoadSettings(0);
         Key_1_pressed = 0;
         
         switch (Spectrum_state) {
@@ -3469,7 +3469,7 @@ typedef struct {
 } SettingsEEPROM;
 
 
-void LoadSettings()
+void LoadSettings(bool VFO)
 {
   if(SettingsLoaded) return;
   SettingsEEPROM  eepromData  = {0};
@@ -3477,7 +3477,9 @@ void LoadSettings()
   if(!IsVersionMatching()) ClearSettings();
 #endif
   PY25Q16_ReadBuffer(ADRESS_PARAMS, &eepromData, sizeof(eepromData));
-  
+  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
+  if(VFO) return;
+
   BK4819_WriteRegister(BK4819_REG_10, eepromData.R10);
   BK4819_WriteRegister(BK4819_REG_11, eepromData.R11);
   BK4819_WriteRegister(BK4819_REG_12, eepromData.R12);
@@ -3516,7 +3518,7 @@ void LoadSettings()
   SoundBoost = eepromData.SoundBoost;
   gMonitorScan = eepromData.gMonitorScan;    
   Light_Mode = eepromData.Light_Mode;    
-  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
+  
   BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
   BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
   BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);

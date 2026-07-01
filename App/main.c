@@ -227,7 +227,7 @@ void Main(void)
                 break;
         }
     #endif
-
+	LoadSettings(1);
     while (true) {
         if (gNextTimeslice) {
             APP_Update();
