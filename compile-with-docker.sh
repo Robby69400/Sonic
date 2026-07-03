@@ -87,7 +87,7 @@ build_preset() {
        | sed -E '/^[[:space:]]+[A-Za-z0-9_]+(:[A-Za-z]+)?=/d; /--( Configuring|Generating) done/d; /-- Build files have been written to/d'
 
   docker run --rm -v "$PWD":/src -w /src "$IMAGE" \
-    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V29.elf
+    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V30.elf
 
   echo "✅ Done: ${preset}"
 }
@@ -114,7 +114,7 @@ fi
 echo "⚡ Flashing USB firmware on COM14..."
 
 # Vérification de l'existence du fichier avant de flasher
-IFILE="./build/USB/SONIC.USB.V29.bin"
+IFILE="./build/USB/SONIC.USB.V30.bin"
 
 if [[ -f "$IFILE" ]]; then
     python flash.py "$IFILE" -p COM14
