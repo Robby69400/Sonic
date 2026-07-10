@@ -812,10 +812,10 @@ void RADIO_SetModulation(ModulationMode_t modulation)
             BK4819_WriteRegister(0x31, uVar1 | 1); // AM Demodulation Enable
             BK4819_WriteRegister(0x42, 0x6f5c);
             BK4819_WriteRegister(0x2a, 0x7434);
-            BK4819_WriteRegister(0x2B, 0x0400); // FAGCI: HP filter off, LP on, de-emph on
+            BK4819_WriteRegister(0x2B, 0x0600); // FAGCI: HP filter off, LP on, de-emph on
             BK4819_WriteRegister(0x2F, 0x9990); // FAGCI: AM filter
-            BK4819_WriteRegister(0x28, 0x0B40); // FAGCI: noise gate AM
-            BK4819_WriteRegister(0x2C, 0x1822); // FAGCI: emph AM
+            //BK4819_WriteRegister(0x28, 0x0B40); // FAGCI: noise gate AM
+            //BK4819_WriteRegister(0x2C, 0x1822); // FAGCI: emph AM
 
             #ifdef ENABLE_FEAT_F4HWN_AUDIO
                 AUDIO_ApplyAMProfile(gSetting_set_audio_am);
