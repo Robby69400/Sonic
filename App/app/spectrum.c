@@ -973,6 +973,7 @@ static void ExitAndCopyToVfo() {
             if (PttEmission == 2) {
                 SpectrumDelay = 0;
                 gCurrentVfo->freq_config_TX.Frequency = lastReceivingFreq;
+
                 gCurrentVfo->freq_config_RX.Frequency = lastReceivingFreq;
                 gEeprom.MrChannel[0]     = 0;
                 gEeprom.ScreenChannel[0] = 0;
@@ -1644,6 +1645,8 @@ static void UpdateCssDetection(void) {
             CodeFreq = peak.f;
             snprintf(StringCode, sizeof(StringCode), " D%03oN ", DCS_Options[LCode]);
             code = LCode += 100;
+            gCurrentVfo->freq_config_TX.CodeType  = CODE_TYPE_DIGITAL ;
+            gCurrentVfo->freq_config_TX.Code  = LCode ;
             return;
         }
     } else if (scanResult == BK4819_CSS_RESULT_CTCSS) {
@@ -1652,6 +1655,8 @@ static void UpdateCssDetection(void) {
             CodeFreq = peak.f;
             snprintf(StringCode, sizeof(StringCode), " %u.%uHz ", CTCSS_Options[LCode] / 10, CTCSS_Options[LCode] % 10);
             code = LCode;
+            gCurrentVfo->freq_config_TX.CodeType  = CODE_TYPE_CONTINUOUS_TONE;
+            gCurrentVfo->freq_config_TX.Code  = LCode ;
             return;
         }
     }
