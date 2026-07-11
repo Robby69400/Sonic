@@ -157,6 +157,8 @@ volatile bool     gNextTimeslice_listening;
 volatile bool     gNextTimeslice_AutoPtt;
 volatile uint16_t gAutoPtt_Time = 120; //120s
 volatile bool     gNextTimeslice_display;
+volatile bool     gNextTimeslice_SCAN_LED;
+volatile bool     gNextTimeslice_SCAN_LED_OFF;
 volatile bool     gNextTimeslice_history;
 volatile bool     gNextTimeslice_HTimeS;
 volatile bool     gNextTimeslice_ShowNames;

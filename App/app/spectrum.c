@@ -1094,6 +1094,8 @@ static void ToggleRX(bool on) {
         RADIO_SetModulation(MODULATION_FM);
         BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false); //Scan in 25K bandwidth
         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
+        BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
+        channelName[0] = '\0';
     }
     if (on != audioState) {
         ToggleAudio(on);
@@ -1691,10 +1693,6 @@ static void ScanProgress_DrawGaugeLine(uint8_t line)
     if (current_index > total) current_index = total;
 
     uint8_t filled_until = (uint8_t)((current_index * (uint32_t)fill_cols) / total);
-    // char text[19] = "";
-    // snprintf(text, sizeof(text), " %d / %d ", filled_until, total);
-    // UI_PrintStringSmallbackground(text, 0, 127, line, 1);  
-    
     for (uint8_t col = 0; col < fill_cols; col++) {
         gFrameBuffer[line][fill_start + col] = (col < filled_until) ? 0x3C : 0x00;
     }
@@ -1722,9 +1720,9 @@ static void DrawF(uint32_t f) {
     } else if (appMode == CHANNEL_MODE) {
 
         if (channelName[0] != '\0') {
-            snprintf(line2, sizeof(line2), " %s%s %s ", prefix, channelName, StringCode);
+            snprintf(line2, sizeof(line2), "%s %s ", channelName, StringCode);
         } else {
-            snprintf(line2, sizeof(line2), " %s %s ", prefix, StringCode);
+            snprintf(line2, sizeof(line2), "%s ", StringCode);
         }
     } else {
         line2[0] = '\0';
@@ -1768,7 +1766,7 @@ static void DrawF(uint32_t f) {
                     }
                 }
                 UI_DisplayFrequency(line1, 3, 0, 1);  
-                UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
+                UI_PrintStringSmallbackground(line2, 0, 127, 2, 0);  
                 GUI_DisplaySmallest(Text, 42, Bottom_print, false, true);
                 ArrowLine = 3;
                 break;
@@ -1806,7 +1804,7 @@ static void DrawF(uint32_t f) {
 #endif
                 }
                 UI_DisplayFrequency(line1, 3, 0, 1);
-                UI_PrintStringSmallbackground(line2, 0, 127, 2, 1);  
+                UI_PrintStringSmallbackground(line2, 0, 127, 2, 0);  
                 ScanProgress_DrawGaugeLine(3);
                 if(isListening) DrawMeter(4);
                 UI_PrintStringSmallbackground(Text, 0, 127, 5, 0);
@@ -2035,7 +2033,7 @@ static void HandleKeyScanList(uint8_t key) {
                         scanListScrollOffset = scanListSelectedIndex - MAX_VISIBLE_LINES + 1;
                 } else {
                 scanListSelectedIndex = 0;
-                }    
+                }
                 break;
         case KEY_4: /* toggle selected list, advance cursor */
             ToggleScanList(validScanListIndices[scanListSelectedIndex], 0);
@@ -3191,8 +3189,10 @@ static void UpdateListening(void) {
     if (peak.f == stableFreq) {
         if (++stableCount >= 2) {  
             if (!SpectrumMonitor) FillfreqHistory();
-            if (gEeprom.BACKLIGHT_MAX > 5)
+            if (gEeprom.BACKLIGHT_MAX > 5){
                 BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
+                BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
+            }
             if(Backlight_On) BACKLIGHT_TurnOn();
         }
     } else {
@@ -3311,6 +3311,21 @@ static void Tick() {
         RenderStatus();
         Render();
     } 
+    if (gNextTimeslice_SCAN_LED) {
+        gNextTimeslice_SCAN_LED = 0;
+        if (!isListening) {
+            BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 1);
+            BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
+        } 
+    }
+    if (gNextTimeslice_SCAN_LED_OFF) {
+        gNextTimeslice_SCAN_LED_OFF = 0;
+        if (!isListening) {
+        BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
+        }
+    }
+
     if (gNextTimeslice_AutoPtt && PttEmission >= 3) {
         gNextTimeslice_AutoPtt = 0;
         RADIO_PrepareTX();
@@ -3363,7 +3378,8 @@ void APP_RunSpectrum(void) {
         uint8_t Code     = gTxVfo->pRX->Code;
         BK4819_SetCDCSSCodeWord(DCS_GetGolayCodeWord(CodeType, Code));
         ResetInterrupts();
-        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
+        BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
         BK4819_WriteRegister(BK4819_REG_47, 0x6042);
         BK4819_WriteRegister(BK4819_REG_48, 0xB3AA);  // AF gain
 	    ToggleRX(true), ToggleRX(false); // hack to prevent noise when squelch off
