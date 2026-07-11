@@ -1660,8 +1660,6 @@ static void UpdateCssDetection(void) {
             return;
         }
     }
-
-    StringCode[0] = '\0';
 }
 
 static void ScanProgress_DrawGaugeLine(uint8_t line)
@@ -1726,8 +1724,6 @@ static void DrawF(uint32_t f) {
 
         if (channelName[0] != '\0') {
             snprintf(line2, sizeof(line2), "%s %s ", channelName, StringCode);
-        } else {
-            snprintf(line2, sizeof(line2), "%s ", StringCode);
         }
     } else {
         line2[0] = '\0';
@@ -1789,8 +1785,8 @@ static void DrawF(uint32_t f) {
                         break;
                     case 2:
                         if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) 
-                            snprintf(Text, sizeof(Text), "LastRX %u.%05u", lastReceivingFreq / 100000, lastReceivingFreq % 100000);
-                            else snprintf(Text, sizeof(Text), "LastRX");
+                            snprintf(Text, sizeof(Text), "%u.%05u %s", lastReceivingFreq / 100000, lastReceivingFreq % 100000, StringCode);
+                        else snprintf(Text, sizeof(Text), "LastRX");
                         break;
                     case 3:
                     case 4:
