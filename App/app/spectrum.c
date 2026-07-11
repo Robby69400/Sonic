@@ -3480,18 +3480,12 @@ void LoadSettings()
   SettingsEEPROM  eepromData  = {0};
   PY25Q16_ReadBuffer(ADRESS_PARAMS, &eepromData, sizeof(eepromData));
   
-  BK4819_WriteRegister(BK4819_REG_13, eepromData.R13);
-  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
-  BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);
   BK4819_WriteRegister(BK4819_REG_10, eepromData.R10);
   BK4819_WriteRegister(BK4819_REG_11, eepromData.R11);
   BK4819_WriteRegister(BK4819_REG_12, eepromData.R12);
+  BK4819_WriteRegister(BK4819_REG_13, eepromData.R13);
   BK4819_WriteRegister(BK4819_REG_14, eepromData.R14);
-  BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
-  BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
-  BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
-  BK4819_WriteRegister(BK4819_REG_3C, eepromData.R3C);
-  BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
+  
   for (int i = 0; i < MR_CHANNELS_LIST; i++) {
     settings.scanListEnabled[i] = (eepromData.scanListFlags >> i) & 0x01;
   }
@@ -3524,8 +3518,13 @@ void LoadSettings()
   SoundBoost = eepromData.SoundBoost;
   gMonitorScan = eepromData.gMonitorScan;    
   Light_Mode = eepromData.Light_Mode;    
-  
-
+  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
+  BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
+  BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
+  BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);
+  BK4819_WriteRegister(BK4819_REG_3C, eepromData.R3C);
+  BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
+  BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
   
  if (!historyLoaded) {
         LoadHistory();
