@@ -89,7 +89,7 @@
         "ENABLE_USB": true,
         "ENABLE_ADVANCED_SPECTRUM":true,
         "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USB_SMOOTH_SPECTRUM.V32"
+        "TARGET": "SONIC.USBAS.V32"
     }
 },
 {
@@ -97,7 +97,7 @@
         "ENABLE_UART": true,
         "ENABLE_ADVANCED_SPECTRUM":true,
         "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232_SMOOTH_SPECTRUM.V32"
+        "TARGET": "SONIC.RS232AS.V32"
     }
 }
 ],

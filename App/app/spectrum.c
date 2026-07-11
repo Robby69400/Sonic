@@ -3313,14 +3313,14 @@ static void Tick() {
     } 
     if (gNextTimeslice_SCAN_LED) {
         gNextTimeslice_SCAN_LED = 0;
-        if (!isListening) {
+        if (!isListening && gEeprom.BACKLIGHT_MAX > 5) {
             BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 1);
             BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
         } 
     }
     if (gNextTimeslice_SCAN_LED_OFF) {
         gNextTimeslice_SCAN_LED_OFF = 0;
-        if (!isListening) {
+        if (!isListening && gEeprom.BACKLIGHT_MAX > 5) {
         BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
         }
@@ -3334,7 +3334,7 @@ static void Tick() {
     }
 }
 void APP_RunSpectrumMode(uint8_t mode) {
-    Spectrum_state = mode & 3;
+    Spectrum_state = mode;
     APP_RunSpectrum();
 }
 
