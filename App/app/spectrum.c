@@ -972,15 +972,31 @@ static void ExitAndCopyToVfo() {
             // PTT Mode 2: Last RX
             if (PttEmission == 2) {
                 SpectrumDelay = 0;
+                const FREQUENCY_Band_t band = FREQUENCY_GetBand(lastReceivingFreq);
+                gEeprom.FreqChannel[0]    = band + FREQ_CHANNEL_FIRST;
+                gCurrentVfo->CHANNEL_SAVE = band + FREQ_CHANNEL_FIRST;
                 gCurrentVfo->freq_config_TX.Frequency = lastReceivingFreq;
-
                 gCurrentVfo->freq_config_RX.Frequency = lastReceivingFreq;
-                gEeprom.MrChannel[0]     = 0;
-                gEeprom.ScreenChannel[0] = 0;
                 gCurrentVfo->STEP_SETTING = STEP_0_01kHz;
                 gCurrentVfo->Modulation   = MODULATION_FM;
-                gCurrentVfo->OUTPUT_POWER  = OUTPUT_POWER_HIGH;
-                gRequestSaveChannel        = 1;
+                gCurrentVfo->OUTPUT_POWER = OUTPUT_POWER_HIGH;
+                
+                uint32_t mrFreq = gTxVfo->pRX->Frequency;
+                uint8_t  mrBand = gTxVfo->Band;
+                uint16_t freqCh = FREQ_CHANNEL_FIRST + mrBand;
+                gEeprom.ScreenChannel[0] = freqCh;
+                gEeprom.FreqChannel[0]   = freqCh;
+                RADIO_SelectVfos();            
+                gTxVfo->pRX->Frequency = mrFreq;
+                gTxVfo->pTX->Frequency = mrFreq;
+                gTxVfo->Band           = mrBand;
+                SETTINGS_SaveChannel(freqCh, 0, gTxVfo, 2); 
+                RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
+                RADIO_SetupRegisters(true);
+                gVfoConfigureMode     = VFO_CONFIGURE_RELOAD;
+                gRequestDisplayScreen = DISPLAY_MAIN;
+
+                SETTINGS_SetVfoFrequency(lastReceivingFreq);
             }
             // PTT Mode 0: VFO Freq
             gComeBack = 1;
