@@ -117,6 +117,7 @@ enable_feature(ENABLE_FMRADIO
     ui/fmradio.c
 )
 enable_feature(ENABLE_BENCH)
+enable_feature(ENABLE_SAVE_REGISTERS)
 enable_feature(ENABLE_SET_TOT_EOT)
 enable_feature(ENABLE_ALARM)
 enable_feature(ENABLE_FLASHLIGHT

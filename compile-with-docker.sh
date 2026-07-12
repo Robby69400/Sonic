@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
       CLEAN_BUILD=true
       shift
       ;;
-    USB|RS232|USBAS|RS232AS|All)
+    USB|RS232|USB_SMOOTH_SPECTRUM|RS232_SMOOTH_SPECTRUM|All)
       PRESET="$1"
       shift
       ;;
@@ -51,9 +51,9 @@ fi
 # ---------------------------------------------
 # Validate preset name
 # ---------------------------------------------
-if [[ ! "$PRESET" =~ ^(USB|RS232|USBAS|RS232AS|All)$ ]]; then
+if [[ ! "$PRESET" =~ ^(USB|RS232|USB_SMOOTH_SPECTRUM|RS232_SMOOTH_SPECTRUM|All)$ ]]; then
   echo "❌ Unknown preset: '$PRESET'"
-  echo "Valid presets are: USB RS232 USBAS RS232AS All"
+  echo "Valid presets are: USB RS232 USB_SMOOTH_SPECTRUM RS232_SMOOTH_SPECTRUM All"
   exit 1
 fi
 
@@ -87,7 +87,7 @@ build_preset() {
        | sed -E '/^[[:space:]]+[A-Za-z0-9_]+(:[A-Za-z]+)?=/d; /--( Configuring|Generating) done/d; /-- Build files have been written to/d'
 
   docker run --rm -v "$PWD":/src -w /src "$IMAGE" \
-    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V33.elf
+    arm-none-eabi-size ./build/${preset}/SONIC.${preset}.V34.elf
 
   echo "✅ Done: ${preset}"
 }
@@ -97,7 +97,7 @@ build_preset() {
 # Handle 'All' preset
 # ---------------------------------------------
 if [[ "$PRESET" == "All" ]]; then
-  PRESETS=(USB RS232 USBAS RS232AS)
+  PRESETS=(USB RS232 USB_SMOOTH_SPECTRUM RS232_SMOOTH_SPECTRUM)
   for p in "${PRESETS[@]}"; do
     build_preset "$p"
   done
@@ -114,7 +114,7 @@ fi
 echo "⚡ Flashing USB firmware on COM14..."
 
 # Vérification de l'existence du fichier avant de flasher
-IFILE="./build/USB/SONIC.USB.V33.bin"
+IFILE="./build/USB/SONIC.USB.V34.bin"
 
 if [[ -f "$IFILE" ]]; then
     python flash.py "$IFILE" -p COM14

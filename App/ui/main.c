@@ -130,66 +130,6 @@ static void DrawLevelBar(uint8_t xpos, uint8_t line, uint8_t level, uint8_t bars
 }
 #endif
 
-// ─── КОМПАКТНЫЙ БАР между линиями y=10 и y=14 ───────────────────────────────
-// xpos, y_pos=9 → рисует на пикселях 11,12,13 (dy=2,3,4)
-// level_percent: 0–100
-#ifdef ENABLE_FEAT_F4HWN
-static void DrawCompactBar(uint8_t xpos, uint8_t y_pos, uint8_t level_percent)
-{
-    const uint8_t bar_width     = 60;
-    const uint8_t section_width = 5;
-    const uint8_t gap           = 1;
-    const uint8_t step_px       = section_width + gap;
-    const uint8_t max_sections  = 10;
-
-    uint8_t sections = (max_sections * level_percent) / 100;
-    if (sections > max_sections) sections = max_sections;
-
-    // Очистка области бара (3 пикселя в высоту: dy=2,3,4)
-    for (uint8_t dy = 2; dy < 5; dy++) {
-        uint8_t y = y_pos + dy;
-        if (y >= LCD_HEIGHT) continue;
-        uint8_t *p; uint8_t bit;
-        if (y < 8) { p = gStatusLine; bit = y; }
-        else        { p = gFrameBuffer[(y - 8) >> 3]; bit = (y - 8) & 7; }
-        for (uint8_t x = xpos; x < xpos + bar_width && x < LCD_WIDTH; x++)
-            p[x] &= ~(1u << bit);
-    }
-
-    // Заполненные секции
-    for (uint8_t s = 0; s < sections; s++) {
-        uint8_t sx = xpos + s * step_px;
-        for (uint8_t dy = 2; dy < 5; dy++) {
-            uint8_t y = y_pos + dy;
-            if (y >= LCD_HEIGHT) continue;
-            uint8_t *p; uint8_t bit;
-            if (y < 8) { p = gStatusLine; bit = y; }
-            else        { p = gFrameBuffer[(y - 8) >> 3]; bit = (y - 8) & 7; }
-            for (uint8_t dx = 0; dx < section_width; dx++) {
-                if (sx + dx >= LCD_WIDTH || sx + dx >= xpos + bar_width) break;
-                p[sx + dx] |= (1u << bit);
-            }
-        }
-    }
-}
-#endif  // ENABLE_FEAT_F4HWN
-
-#ifdef ENABLE_AUDIO_BAR
-static void DrawCompactLevelBar(uint8_t xpos, uint8_t y_pos, uint16_t voice_amp)
-{
-    // Масштабируем: 200(тишина)→0%, 3000→100%
-    uint8_t level_percent;
-    if (voice_amp <= 200u)
-        level_percent = 0;
-    else if (voice_amp >= 3000u)
-        level_percent = 100;
-    else
-        level_percent = (uint8_t)((uint32_t)(voice_amp - 200u) * 100u / (3000u - 200u));
-
-    DrawCompactBar(xpos, y_pos, level_percent);
-}
-#endif
-
 #ifdef ENABLE_AUDIO_BAR
 
 void UI_DisplayAudioBar(void)
@@ -207,17 +147,7 @@ void UI_DisplayAudioBar(void)
     RxBlinkLedCounter = 0;
     BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
 #endif
-
-#ifdef ENABLE_FEAT_F4HWN
-    if (isMainOnly()) {
-        // Компактный бар между линиями y=10 и y=14 (как в референсном FW)
-        DrawCompactLevelBar(42, 9, BK4819_GetVoiceAmplitudeOut());
-    } else {
-        UI_DisplayAudioScope();
-    }
-#else
     UI_DisplayAudioScope();
-#endif
 }
 #endif
 
@@ -337,59 +267,12 @@ void UI_DisplayAudioScope(void)
  */
 void DisplayRSSIBar(const bool now)
 {
-#if defined(ENABLE_RSSI_BAR)
-
     const unsigned int txt_width    = 7 * 8;                 // 8 text chars
     const unsigned int bar_x        = 2 + txt_width + 4;     // X coord of bar graph
-
-#ifdef ENABLE_FEAT_F4HWN
-    /*
-    const char empty[] = {
-        0b00000000,
-        0b00000000,
-        0b00000000,
-        0b00000000,
-        0b00000000,
-        0b00000000,
-        0b00000000,
-    };
-    */
-
-    unsigned int line;
-    if (isMainOnly())
-    {
-        line = 5;
-    }
-    else
-    {
-        line = 3;
-    }
-
-    //char rx[4];
-    //sprintf(String, "%d", RxBlink);
-    //UI_PrintStringSmallBold(String, 80, 0, RxLine);
-
-    if(RxLine >= 0 && center_line != CENTER_LINE_IN_USE && !isMainOnly())
-    {
-        static bool clean = false;
-        uint8_t *p_line0 = gFrameBuffer[RxLine + 0];
-
-        clean = !clean;
-
-        if(clean) {
-            for(uint8_t i = 0; i < sizeof(BITMAP_VFO_Default); i++)
-                p_line0[i] = (p_line0[i] & 0x80) | BITMAP_VFO_Default[i];
-        } else {
-            for(uint8_t i = 0; i < sizeof(BITMAP_VFO_Empty); i++)
-                p_line0[i] = (p_line0[i] & 0x80) | BITMAP_VFO_Empty[i];
-        }
-
-        ST7565_BlitLine(RxLine);
-    }
-#else
-    const unsigned int line = 3;
-#endif
+    const unsigned int line = isMainOnly() ? 5 : 3;
+    
     uint8_t           *p_line        = gFrameBuffer[line];
+    memset(p_line, 0, LCD_WIDTH);
     char               str[16];
 
 #ifndef ENABLE_FEAT_F4HWN
@@ -404,47 +287,13 @@ void DisplayRSSIBar(const bool now)
     };
 #endif
 
-    if ((gEeprom.KEY_LOCK && gKeypadLocked > 0) || center_line != CENTER_LINE_RSSI)
-    {
-#ifdef ENABLE_FEAT_F4HWN
-        // Даже при раннем выходе обновляем gSmeterLevel для статус-бара
-        if (isMainOnly() && FUNCTION_IsRx() && gScreenToDisplay == DISPLAY_MAIN
-            && gCurrentFunction != FUNCTION_TRANSMIT)
-        {
-            int16_t rssi_tmp = BK4819_GetRSSI_dBm() + dBmCorrTable[gRxVfo->Band];
-            rssi_tmp = -rssi_tmp;
-            if (rssi_tmp > 141) rssi_tmp = 141;
-            if (rssi_tmp < 53)  rssi_tmp = 53;
-            uint8_t sl = 0, ob = 0;
-            if (rssi_tmp >= 93) {
-                sl = map(rssi_tmp, 141, 93, 1, 9);
-            } else {
-                sl = 9;
-                uint8_t od = map(rssi_tmp, 93, 53, 0, 40);
-                ob = map(od, 0, 40, 0, 4);
-            }
-            gSmeterLevel = (int8_t)(sl + ob);
-        }
-#endif
-        return;     // display is in use
-    }
-
     if (gCurrentFunction == FUNCTION_TRANSMIT ||
         gScreenToDisplay != DISPLAY_MAIN
         )
         return;     // display is in use
 
-    if (now)
-        memset(p_line, 0, LCD_WIDTH);
-
-#ifdef ENABLE_FEAT_F4HWN
-    int16_t rssi_dBm =
-        BK4819_GetRSSI_dBm()
-
-        + dBmCorrTable[gRxVfo->Band];
-
+    int16_t rssi_dBm = BK4819_GetRSSI_dBm() + dBmCorrTable[gRxVfo->Band];
     rssi_dBm = -rssi_dBm;
-
     if(rssi_dBm > 141) rssi_dBm = 141;
     if(rssi_dBm < 53) rssi_dBm = 53;
 
@@ -460,71 +309,11 @@ void DisplayRSSIBar(const bool now)
         overS9dBm = map(rssi_dBm, 93, 53, 0, 40);
         overS9Bars = map(overS9dBm, 0, 40, 0, 4);
     }
-#else
-    const int16_t s0_dBm   = -gEeprom.S0_LEVEL;                  // S0 .. base level
-    const int16_t rssi_dBm =
-        BK4819_GetRSSI_dBm()
-
-        + dBmCorrTable[gRxVfo->Band];
-
-    int s0_9 = gEeprom.S0_LEVEL - gEeprom.S9_LEVEL;
-    const uint8_t s_level = MIN(MAX((int32_t)(rssi_dBm - s0_dBm)*100 / (s0_9*100/9), 0), 9); // S0 - S9
-    uint8_t overS9dBm = MIN(MAX(rssi_dBm + gEeprom.S9_LEVEL, 0), 99);
-    uint8_t overS9Bars = MIN(overS9dBm/10, 4);
-#endif
-
-#ifdef ENABLE_FEAT_F4HWN
-    // Всегда обновляем gSmeterLevel для статус-бара, независимо от режима
     gSmeterLevel = (int8_t)(s_level + overS9Bars);
-
-    if (isMainOnly()) {
-        // В main-only линия 5 занята аудископом — ничего не рисуем на ней
-    } else if (gSetting_set_gui) {
-        sprintf(str, "%3d", -rssi_dBm);
-        UI_PrintStringSmallNormal(str, LCD_WIDTH + 8, 0, line - 1);
-
-        DrawLevelBar(bar_x, line, s_level + overS9Bars, 13);
-        if (now) ST7565_BlitLine(line);
-    } else {
-        sprintf(str, "% 4d %s", -rssi_dBm, "dBm");
-        GUI_DisplaySmallest(str, 2, 25, false, true);
-
-        DrawLevelBar(bar_x, line, s_level + overS9Bars, 13);
-        if (now) ST7565_BlitLine(line);
-    }
-#else
-    if(overS9Bars == 0) {
-        sprintf(str, "% 4d S%d", -rssi_dBm, s_level);
-    }
-    else {
-        sprintf(str, "%4d S9+%d", -rssi_dBm, overS9dBm);
-    }
-
-    UI_PrintStringSmallNormal(str, 2, 0, line);
-#endif
-#else
-    int16_t rssi = BK4819_GetRSSI();
-    uint8_t Level;
-
-    if (rssi >= gEEPROM_RSSI_CALIB[gRxVfo->Band][3]) {
-        Level = 6;
-    } else if (rssi >= gEEPROM_RSSI_CALIB[gRxVfo->Band][2]) {
-        Level = 4;
-    } else if (rssi >= gEEPROM_RSSI_CALIB[gRxVfo->Band][1]) {
-        Level = 2;
-    } else if (rssi >= gEEPROM_RSSI_CALIB[gRxVfo->Band][0]) {
-        Level = 1;
-    } else {
-        Level = 0;
-    }
-
-    uint8_t *pLine = (gEeprom.RX_VFO == 0)? gFrameBuffer[2] : gFrameBuffer[6];
-    if (now) {
-        memset(pLine, 0, 23);
-        ST7565_BlitFullScreen();
-    }
-#endif
-
+    sprintf(str, "%3d", -rssi_dBm);
+    UI_PrintStringSmallNormal(str, LCD_WIDTH + 8, 0, line - 1);
+    DrawLevelBar(bar_x, line, s_level + overS9Bars, 13);
+    ST7565_BlitLine(line);
 }
 
 #ifdef ENABLE_AGC_SHOW_DATA
@@ -604,7 +393,7 @@ void UI_MAIN_TimeSlice500ms(void)
         return;
 #endif
 
-        // Update RSSI bar during reception (в main-only обновляет только gSmeterLevel, не рисует на линии 5)
+        // Update RSSI bar during reception
         if(FUNCTION_IsRx()) {
             DisplayRSSIBar(true);
         }

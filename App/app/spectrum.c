@@ -3046,7 +3046,10 @@ static void Render() {
 #ifdef ENABLE_SPECTRUM_LINES
             MyDrawFrameLines();
 #endif
-            if(isListening) { DrawF(peak.f);}
+            if(isListening) {
+                DrawF(peak.f);
+                ST7565_BlitLine(7);
+            }
             else {
                     if (SpectrumMonitor) DrawF(lastReceivingFreq);
                     else DrawF(scanInfo.f);
@@ -3447,6 +3450,7 @@ typedef struct {
     uint32_t RangeStart;
     uint32_t RangeStop;
     STEP_Setting_t scanStepIndex;
+#ifdef ENABLE_SAVE_REGISTERS
     uint16_t R40;                      // RF TX Deviation
     uint16_t R29;                      // AF TX noise compressor, AF TX 0dB compressor, AF TX compression ratio
     uint16_t R19;                      // Disable MIC AGC
@@ -3459,6 +3463,7 @@ typedef struct {
     uint16_t R3C;
     uint16_t R43;
     uint16_t R2B;
+#endif
     uint16_t SpectrumDelay;
     uint8_t IndexMaxLT;
     uint8_t IndexPS;
@@ -3476,111 +3481,120 @@ typedef struct {
 
 void LoadSettings()
 {
-  if(SettingsLoaded) return;
-  SettingsEEPROM  eepromData  = {0};
-  PY25Q16_ReadBuffer(ADRESS_PARAMS, &eepromData, sizeof(eepromData));
+    if(SettingsLoaded) return;
+    SettingsEEPROM  eepromData  = {0};
+    PY25Q16_ReadBuffer(ADRESS_PARAMS, &eepromData, sizeof(eepromData));
+
+    #ifdef ENABLE_SAVE_REGISTERS
+        BK4819_WriteRegister(BK4819_REG_10, eepromData.R10);
+        BK4819_WriteRegister(BK4819_REG_11, eepromData.R11);
+        BK4819_WriteRegister(BK4819_REG_12, eepromData.R12);
+        BK4819_WriteRegister(BK4819_REG_13, eepromData.R13);
+        BK4819_WriteRegister(BK4819_REG_14, eepromData.R14);
+    #endif
   
-  BK4819_WriteRegister(BK4819_REG_10, eepromData.R10);
-  BK4819_WriteRegister(BK4819_REG_11, eepromData.R11);
-  BK4819_WriteRegister(BK4819_REG_12, eepromData.R12);
-  BK4819_WriteRegister(BK4819_REG_13, eepromData.R13);
-  BK4819_WriteRegister(BK4819_REG_14, eepromData.R14);
-  
-  for (int i = 0; i < MR_CHANNELS_LIST; i++) {
-    settings.scanListEnabled[i] = (eepromData.scanListFlags >> i) & 0x01;
-  }
-  settings.rssiTriggerLevelUp = eepromData.Trigger;
-  settings.listenBw = eepromData.listenBw;
-  BK4819_SetFilterBandwidth(settings.listenBw, false);
-  if (eepromData.RangeStart >= 1400000) RangeStart = eepromData.RangeStart;
-  if (eepromData.RangeStop >= 1400000)  RangeStop = eepromData.RangeStop;
-  settings.scanStepIndex = eepromData.scanStepIndex;
-  for (int i = 0; i < MAX_BANDS; i++) {
-    settings.bandEnabled[i] = (eepromData.bandListFlags & ((uint64_t)1 << i)) != 0;
+    for (int i = 0; i < MR_CHANNELS_LIST; i++) {
+      settings.scanListEnabled[i] = (eepromData.scanListFlags >> i) & 0x01;
     }
-  IndexDelayRssi = eepromData.IndexDelayRssi;
-  DelayRssi = DelayRssiValues[eepromData.IndexDelayRssi];
-  PttEmission = eepromData.PttEmission;
-  validScanListCount = 0;
-  ShowLines = eepromData.ShowLines;
-  SpectrumDelay = eepromData.SpectrumDelay;
-  IndexMaxLT = eepromData.IndexMaxLT;
-  MaxListenTime = listenSteps[IndexMaxLT];
-  IndexPS = eepromData.IndexPS;
-  SpectrumSleepMs = PS_Steps[IndexPS];
-  Noislvl_OFF = eepromData.Noislvl_OFF;
-  Noislvl_ON  = Noislvl_OFF - NoiseHysteresis; 
-  UOO_trigger = eepromData.UOO_trigger;
-  osdPopupSetting = eepromData.osdPopupSetting;
-  Backlight_On = eepromData.Backlight_On;
-  GlitchMax = eepromData.GlitchMax;    
-  Spectrum_state = eepromData.Spectrum_state;    
-  SoundBoost = eepromData.SoundBoost;
-  gMonitorScan = eepromData.gMonitorScan;    
-  Light_Mode = eepromData.Light_Mode;    
-  BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
-  BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
-  BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
-  BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);
-  BK4819_WriteRegister(BK4819_REG_3C, eepromData.R3C);
-  BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
-  BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
+    settings.rssiTriggerLevelUp = eepromData.Trigger;
+    settings.listenBw = eepromData.listenBw;
+    BK4819_SetFilterBandwidth(settings.listenBw, false);
+    if (eepromData.RangeStart >= 1400000) RangeStart = eepromData.RangeStart;
+    if (eepromData.RangeStop >= 1400000)  RangeStop = eepromData.RangeStop;
+    settings.scanStepIndex = eepromData.scanStepIndex;
+    for (int i = 0; i < MAX_BANDS; i++) {
+      settings.bandEnabled[i] = (eepromData.bandListFlags & ((uint64_t)1 << i)) != 0;
+      }
+    IndexDelayRssi = eepromData.IndexDelayRssi;
+    DelayRssi = DelayRssiValues[eepromData.IndexDelayRssi];
+    PttEmission = eepromData.PttEmission;
+    validScanListCount = 0;
+    ShowLines = eepromData.ShowLines;
+    SpectrumDelay = eepromData.SpectrumDelay;
+    IndexMaxLT = eepromData.IndexMaxLT;
+    MaxListenTime = listenSteps[IndexMaxLT];
+    IndexPS = eepromData.IndexPS;
+    SpectrumSleepMs = PS_Steps[IndexPS];
+    Noislvl_OFF = eepromData.Noislvl_OFF;
+    Noislvl_ON  = Noislvl_OFF - NoiseHysteresis; 
+    UOO_trigger = eepromData.UOO_trigger;
+    osdPopupSetting = eepromData.osdPopupSetting;
+    Backlight_On = eepromData.Backlight_On;
+    GlitchMax = eepromData.GlitchMax;    
+    Spectrum_state = eepromData.Spectrum_state;    
+    SoundBoost = eepromData.SoundBoost;
+    gMonitorScan = eepromData.gMonitorScan;    
+    Light_Mode = eepromData.Light_Mode;   
+
+    #ifdef ENABLE_SAVE_REGISTERS
+        BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
+        BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
+        BK4819_WriteRegister(BK4819_REG_19, eepromData.R19);
+        BK4819_WriteRegister(BK4819_REG_73, eepromData.R73);
+        BK4819_WriteRegister(BK4819_REG_3C, eepromData.R3C);
+        BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
+        BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
+    #endif
   
- if (!historyLoaded) {
+    if (!historyLoaded) {
         LoadHistory();
         historyLoaded = true;
- }
-SettingsLoaded = true;
+    }
+    SettingsLoaded = true;
 }
 
 static void SaveSettings() 
 {
-  SettingsEEPROM  eepromData  = {0};
-  for (int i = 0; i < MR_CHANNELS_LIST; i++) {
-    if (settings.scanListEnabled[i]) eepromData.scanListFlags |= (1 << i);
-  }
-  eepromData.Trigger = settings.rssiTriggerLevelUp;
-  eepromData.listenBw = settings.listenBw;
-  eepromData.RangeStart = RangeStart;
-  eepromData.RangeStop =  RangeStop;
-  eepromData.IndexDelayRssi = IndexDelayRssi;
-  eepromData.PttEmission = PttEmission;
-  eepromData.scanStepIndex = settings.scanStepIndex;
-  eepromData.ShowLines = ShowLines;
-  eepromData.SpectrumDelay = SpectrumDelay;
-  eepromData.IndexMaxLT = IndexMaxLT;
-  eepromData.IndexPS = IndexPS;
-  eepromData.Backlight_On = Backlight_On;
-  eepromData.Noislvl_OFF = Noislvl_OFF;
-  eepromData.UOO_trigger = UOO_trigger;
-  eepromData.osdPopupSetting = osdPopupSetting;
-  eepromData.GlitchMax = 20;
-  eepromData.GlitchMax  = GlitchMax;   
-  eepromData.Spectrum_state = Spectrum_state;    
-  eepromData.SoundBoost = SoundBoost;
-  eepromData.gMonitorScan = gMonitorScan;
-  eepromData.Light_Mode = Light_Mode;
-  for (int i = 0; i < MAX_BANDS; i++) { 
-    if (settings.bandEnabled[i]) {
-        eepromData.bandListFlags |= ((uint64_t)1 << i);
+    SettingsEEPROM  eepromData  = {0};
+    for (int i = 0; i < MR_CHANNELS_LIST; i++) {
+      if (settings.scanListEnabled[i]) eepromData.scanListFlags |= (1 << i);
     }
+    eepromData.Trigger = settings.rssiTriggerLevelUp;
+    eepromData.listenBw = settings.listenBw;
+    eepromData.RangeStart = RangeStart;
+    eepromData.RangeStop =  RangeStop;
+    eepromData.IndexDelayRssi = IndexDelayRssi;
+    eepromData.PttEmission = PttEmission;
+    eepromData.scanStepIndex = settings.scanStepIndex;
+    eepromData.ShowLines = ShowLines;
+    eepromData.SpectrumDelay = SpectrumDelay;
+    eepromData.IndexMaxLT = IndexMaxLT;
+    eepromData.IndexPS = IndexPS;
+    eepromData.Backlight_On = Backlight_On;
+    eepromData.Noislvl_OFF = Noislvl_OFF;
+    eepromData.UOO_trigger = UOO_trigger;
+    eepromData.osdPopupSetting = osdPopupSetting;
+    eepromData.GlitchMax = 20;
+    eepromData.GlitchMax  = GlitchMax;   
+    eepromData.Spectrum_state = Spectrum_state;    
+    eepromData.SoundBoost = SoundBoost;
+    eepromData.gMonitorScan = gMonitorScan;
+    eepromData.Light_Mode = Light_Mode;
+    for (int i = 0; i < MAX_BANDS; i++) { 
+      if (settings.bandEnabled[i]) {
+          eepromData.bandListFlags |= ((uint64_t)1 << i);
+      }
     }
-  eepromData.R40 = BK4819_ReadRegister(BK4819_REG_40);
-  eepromData.R29 = BK4819_ReadRegister(BK4819_REG_29);
-  eepromData.R19 = BK4819_ReadRegister(BK4819_REG_19);
-  eepromData.R73 = BK4819_ReadRegister(BK4819_REG_73);
-  eepromData.R10 = BK4819_ReadRegister(BK4819_REG_10);
-  eepromData.R11 = BK4819_ReadRegister(BK4819_REG_11);
-  eepromData.R12 = BK4819_ReadRegister(BK4819_REG_12);
-  eepromData.R13 = BK4819_ReadRegister(BK4819_REG_13);
-  eepromData.R14 = BK4819_ReadRegister(BK4819_REG_14);
-  eepromData.R3C = BK4819_ReadRegister(BK4819_REG_3C);
-  eepromData.R43 = BK4819_ReadRegister(BK4819_REG_43);
-  eepromData.R2B = BK4819_ReadRegister(BK4819_REG_2B);
-  PY25Q16_WriteBuffer(ADRESS_PARAMS, ((uint8_t*)&eepromData),sizeof(eepromData),0);
-  if (Cleared)   ShowOSDPopup("DEFAULT SETTINGS");
-  else ShowOSDPopup("PARAMS SAVED");
-  Cleared = 0;
+
+    #ifdef ENABLE_SAVE_REGISTERS
+        eepromData.R40 = BK4819_ReadRegister(BK4819_REG_40);
+        eepromData.R29 = BK4819_ReadRegister(BK4819_REG_29);
+        eepromData.R19 = BK4819_ReadRegister(BK4819_REG_19);
+        eepromData.R73 = BK4819_ReadRegister(BK4819_REG_73);
+        eepromData.R10 = BK4819_ReadRegister(BK4819_REG_10);
+        eepromData.R11 = BK4819_ReadRegister(BK4819_REG_11);
+        eepromData.R12 = BK4819_ReadRegister(BK4819_REG_12);
+        eepromData.R13 = BK4819_ReadRegister(BK4819_REG_13);
+        eepromData.R14 = BK4819_ReadRegister(BK4819_REG_14);
+        eepromData.R3C = BK4819_ReadRegister(BK4819_REG_3C);
+        eepromData.R43 = BK4819_ReadRegister(BK4819_REG_43);
+        eepromData.R2B = BK4819_ReadRegister(BK4819_REG_2B);
+    #endif
+
+    PY25Q16_WriteBuffer(ADRESS_PARAMS, ((uint8_t*)&eepromData),sizeof(eepromData),0);
+    if (Cleared)   ShowOSDPopup("DEFAULT SETTINGS");
+    else ShowOSDPopup("PARAMS SAVED");
+    Cleared = 0;
 }
 
 static void ClearHistory(uint8_t mode) {
@@ -3613,47 +3627,51 @@ static void ClearHistory(uint8_t mode) {
 
 void ClearSettings() 
 {
-  for (int i = 1; i < MR_CHANNELS_LIST; i++) {settings.scanListEnabled[i] = 0;}
-  settings.scanListEnabled[0] = 1;
-  settings.rssiTriggerLevelUp = 5;
-  settings.listenBw = 0;
-  RangeStart = 43000000;
-  RangeStop  = 44000000;
-  DelayRssi = 2000;
-  IndexDelayRssi = 3;
-  PttEmission = 2;
-  settings.scanStepIndex = STEP_10kHz;
-  ShowLines = 1;
-  SpectrumDelay = 0;
-  MaxListenTime = 0;
-  IndexMaxLT = 0;
-  IndexPS = 0;
-  Backlight_On = 1;
-  Noislvl_OFF = NoisLvl; 
-  Noislvl_ON = NoisLvl - NoiseHysteresis;  
-  UOO_trigger = 5;
-  osdPopupSetting = 200;
-  GlitchMax = 10;  
-  Spectrum_state = 1; 
-  SoundBoost = 0;
-  gMonitorScan = false;
-  Light_Mode = false;
-  settings.bandEnabled[0] = 1;
-  for (int i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
-  BK4819_WriteRegister(BK4819_REG_10, 0x0145);
-  BK4819_WriteRegister(BK4819_REG_11, 0x01B5);
-  BK4819_WriteRegister(BK4819_REG_12, 0x0393);
-  BK4819_WriteRegister(BK4819_REG_13, 0x03FF);
-  BK4819_WriteRegister(BK4819_REG_14, 0x0019);
-  BK4819_WriteRegister(BK4819_REG_40, 13738);
-  BK4819_WriteRegister(BK4819_REG_29, 43840);
-  BK4819_WriteRegister(BK4819_REG_19, 4161);
-  BK4819_WriteRegister(BK4819_REG_73, 18066);
-  BK4819_WriteRegister(BK4819_REG_3C, 20360);
-  BK4819_WriteRegister(BK4819_REG_43, 13896);
-  BK4819_WriteRegister(BK4819_REG_2B, 49152);
-  Cleared = 1;
-  SaveSettings();
+    for (int i = 1; i < MR_CHANNELS_LIST; i++) {settings.scanListEnabled[i] = 0;}
+    settings.scanListEnabled[0] = 1;
+    settings.rssiTriggerLevelUp = 5;
+    settings.listenBw = 0;
+    RangeStart = 43000000;
+    RangeStop  = 44000000;
+    DelayRssi = 2000;
+    IndexDelayRssi = 3;
+    PttEmission = 2;
+    settings.scanStepIndex = STEP_10kHz;
+    ShowLines = 1;
+    SpectrumDelay = 0;
+    MaxListenTime = 0;
+    IndexMaxLT = 0;
+    IndexPS = 0;
+    Backlight_On = 1;
+    Noislvl_OFF = NoisLvl; 
+    Noislvl_ON = NoisLvl - NoiseHysteresis;  
+    UOO_trigger = 5;
+    osdPopupSetting = 200;
+    GlitchMax = 10;  
+    Spectrum_state = 1; 
+    SoundBoost = 0;
+    gMonitorScan = false;
+    Light_Mode = false;
+    settings.bandEnabled[0] = 1;
+    for (int i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
+    
+    #ifdef ENABLE_SAVE_REGISTERS
+        BK4819_WriteRegister(BK4819_REG_10, 0x0145);
+        BK4819_WriteRegister(BK4819_REG_11, 0x01B5);
+        BK4819_WriteRegister(BK4819_REG_12, 0x0393);
+        BK4819_WriteRegister(BK4819_REG_13, 0x03FF);
+        BK4819_WriteRegister(BK4819_REG_14, 0x0019);
+        BK4819_WriteRegister(BK4819_REG_40, 13738);
+        BK4819_WriteRegister(BK4819_REG_29, 43840);
+        BK4819_WriteRegister(BK4819_REG_19, 4161);
+        BK4819_WriteRegister(BK4819_REG_73, 18066);
+        BK4819_WriteRegister(BK4819_REG_3C, 20360);
+        BK4819_WriteRegister(BK4819_REG_43, 13896);
+        BK4819_WriteRegister(BK4819_REG_2B, 49152);
+    #endif
+
+    Cleared = 1;
+    SaveSettings();
 }
 
 // ============================================================

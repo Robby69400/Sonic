@@ -34,6 +34,16 @@
 
 static uint16_t gBK4819_GpioOutState;
 
+#define SHORT_DELAY()                                                          \
+  __asm volatile("nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n"                               \
+                 "nop\n nop\n nop\n nop\n nop\n")
+
 bool gRxIdleMode;
 
 static inline void CS_Assert()
@@ -90,7 +100,6 @@ void BK4819_Init(void)
 
     BK4819_WriteRegister(BK4819_REG_00, 0x8000);
     BK4819_WriteRegister(BK4819_REG_00, 0x0000);
-
     BK4819_WriteRegister(BK4819_REG_37, 0x9D1F);
     BK4819_WriteRegister(BK4819_REG_36, 0x0022);
     BK4819_WriteRegister(BK4819_REG_10, 0x0318);
@@ -99,10 +108,7 @@ void BK4819_Init(void)
     BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
     BK4819_WriteRegister(BK4819_REG_14, 0x0210);
     BK4819_WriteRegister(BK4819_REG_49, 0x2AB2);
-    BK4819_WriteRegister(BK4819_REG_7B, 0x8420);
-
-    // BK4819_WriteRegister(BK4819_REG_19, 0b0001000001000001);   // <15> MIC AGC  1 = disable  0 = enable
-
+    BK4819_WriteRegister(BK4819_REG_7B, 0x73DC); // was 0x8420
     BK4819_WriteRegister(BK4819_REG_7D, 0xE920);
 
     // REG_48 .. RX AF level
@@ -164,16 +170,16 @@ static uint16_t BK4819_ReadU16(void)
     uint16_t     Value;
 
     SDA_SetDir(false);
-    SYSTICK_DelayUs(1);
+    SHORT_DELAY();
     Value = 0;
     for (i = 0; i < 16; i++)
     {
         Value <<= 1;
         Value |= SDA_ReadInput();
         SCL_Set();
-        SYSTICK_DelayUs(1);
+        SHORT_DELAY();
         SCL_Reset();
-        SYSTICK_DelayUs(1);
+        SHORT_DELAY();
     }
     SDA_SetDir(true);
 
@@ -230,7 +236,8 @@ uint16_t BK4819_ReadRegister(BK4819_REGISTER_t Register)
     uint16_t Value;
     CS_Release();
     SCL_Reset();
-    SYSTICK_DelayUs(1);
+    SHORT_DELAY();
+
     CS_Assert();
     BK4819_WriteU8(Register | 0x80);
     Value = BK4819_ReadU16();
@@ -270,14 +277,18 @@ void BK4819_WriteRegister(BK4819_REGISTER_t Register, uint16_t Data)
 
     CS_Release();
     SCL_Reset();
-    SYSTICK_DelayUs(1);
+    SHORT_DELAY();
+
     CS_Assert();
     BK4819_WriteU8(Register);
-    SYSTICK_DelayUs(1);
+    SHORT_DELAY();
+
     BK4819_WriteU16(Data);
-    SYSTICK_DelayUs(1);
+    SHORT_DELAY();
+
     CS_Release();
-    SYSTICK_DelayUs(1);
+    SHORT_DELAY();
+
     SCL_Set();
     SDA_Set();
 }
@@ -302,17 +313,8 @@ void BK4819_InitAGC(ModulationMode_t modulation)
     BK4819_WriteRegister(BK4819_REG_12, 0x03DB);
     BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
     BK4819_WriteRegister(BK4819_REG_14, 0x0210);
-
-    if (modulation == MODULATION_AM) {
-        // AM: узкое окно AGC (high=50, low=20) - меньше hunting, нет эффекта вертолёта
-        // Особенно критично для авиадиапазона (AM DSB)
-        BK4819_WriteRegister(BK4819_REG_49, (0u << 14) | (50u << 7) | (20u << 0));
-        BK4819_WriteRegister(BK4819_REG_7B, 0x8420); // стабильный AGC для AM
-    } else {
-        // FM/USB: узкое окно как SU75 (high=84,low=66 = 18dB) — AGC дольше держит максимальное усиление
-        BK4819_WriteRegister(BK4819_REG_49, (0u << 14) | (84u << 7) | (66u << 0));
-        BK4819_WriteRegister(BK4819_REG_7B, 0x8420); // единое значение как в SU75
-    }
+    BK4819_WriteRegister(BK4819_REG_49, 0x2AB2);
+    BK4819_WriteRegister(BK4819_REG_7B, 0x73DC);
 }
 
 int8_t BK4819_GetRxGain_dB(void)
@@ -596,11 +598,11 @@ void BK4819_SetFilterBandwidth(const BK4819_FilterBandwidth_t Bandwidth, const b
             break;
 
         case BK4819_FILTER_BW_NARROWER: // 6.25kHz
-            // 0x205C = (0b010 << 12) | (0b000 << 9) | (0b001 << 6) |
-            //          (0b01 << 4)  | (1 << 3)     | (1 << 2)
+            // 0x2058 = (0b010 << 12) | (0b000 << 9) | (0b001 << 6) |
+            //          (0b01 << 4)  | (1 << 3)
             //        = RF 3.0 kHz, weak-RF 2.0 kHz, AF Tx LPF2 2.5 kHz,
-            //          6.25k mode, FM gain +6 dB.
-            val = 0x205C;
+            //          6.25k mode, FM gain 0 dB.
+            val = 0x2058;
             break;
 
         case BK4819_FILTER_BW_AM:   // Stock AM preset
@@ -1103,24 +1105,15 @@ void BK4819_GenTail(uint8_t Tail)
     //                          freq(Hz) * 20.64888 for XTAL 13M/26M or
     //                          freq(Hz)*20.97152 for XTAL 12.8M/19.2M/25.6M/38.4M
 
-    switch (Tail)
-    {
-        case 0: // 134.4Hz CTCSS Tail
-            BK4819_WriteRegister(BK4819_REG_52, 0x828F);   // 1 00 0 001010 001111
-            break;
-        case 1: // 120° phase shift
-            BK4819_WriteRegister(BK4819_REG_52, 0xA28F);   // 1 01 0 001010 001111
-            break;
-        case 2: // 180° phase shift
-            BK4819_WriteRegister(BK4819_REG_52, 0xC28F);   // 1 10 0 001010 001111
-            break;
-        case 3: // 240° phase shift
-            BK4819_WriteRegister(BK4819_REG_52, 0xE28F);   // 1 11 0 001010 001111
-            break;
-        case 4: // 55Hz tone freq
-            BK4819_WriteRegister(BK4819_REG_07, 0x046f);   // 0 00 0 010001 101111
-            break;
-    }
+    if (Tail <= 3)
+        // 0: 134.4Hz CTCSS Tail
+        // 1: 120° phase shift
+        // 2: 180° phase shift
+        // 3: 240° phase shift
+        BK4819_WriteRegister(BK4819_REG_52, 0x028F | (Tail << 13));
+    else if (Tail == 4)
+        // 4: 55Hz tone freq
+        BK4819_WriteRegister(BK4819_REG_07, 0x046F);
 }
 
 void BK4819_PlayCDCSSTail(void)
