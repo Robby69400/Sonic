@@ -1614,11 +1614,13 @@ switch(SpectrumMonitor) {
   
   len = sprintf(&String[pos],"%sms %s BW%s ", DelayRssiText[IndexDelayRssi], gModulationStr[settings.modulationType],bwNames[settings.listenBw]);
   pos += len;
-  int16_t afcVal = BK4819_GetAFCValue();
-  if (afcVal) {
-      len = sprintf(&String[pos],"A%+d ", afcVal);
-      pos += len;
-  } else {
+    if(isListening) {
+        int16_t afcVal = BK4819_GetAFCValue();
+        if (afcVal) {
+        len = sprintf(&String[pos],"A%+d ", afcVal);
+        pos += len;
+        } 
+    } else {
       len = sprintf(&String[pos], "ST%s", scanStepNames[settings.scanStepIndex]);
       pos += len;
     }
@@ -2329,7 +2331,17 @@ static void HandleKeySpectrum(uint8_t key) {
             } else {
                 switch (appMode) {
                     case SCAN_BAND_MODE:
-                        bandListSelectedIndex = (bandListSelectedIndex < 1 ? bandCount - 1 : bandListSelectedIndex - 1);
+                        // Déplacement vers le haut avec gestion du Scroll Offset
+                        if (bandListSelectedIndex > 0) {
+                            bandListSelectedIndex--;
+                            if (bandListSelectedIndex < bandListScrollOffset) {
+                                bandListScrollOffset = bandListSelectedIndex;
+                            }
+                        } else {
+                            bandListSelectedIndex = bandCount - 1;
+                            bandListScrollOffset = (bandCount > MAX_VISIBLE_LINES) ? bandCount - MAX_VISIBLE_LINES : 0;
+                        }
+
                         ToggleScanList(bandListSelectedIndex, 1);
                         settings.bandEnabled[bandListSelectedIndex] = true;
                         RelaunchScan();
@@ -2339,8 +2351,19 @@ static void HandleKeySpectrum(uint8_t key) {
                         break;
                     case CHANNEL_MODE:
                         BuildValidScanListIndices();
-                        scanListSelectedIndex = (scanListSelectedIndex < 1 ? validScanListCount - 1 : scanListSelectedIndex - 1);
-                        ToggleScanList(validScanListIndices[scanListSelectedIndex], 1);
+                        if (validScanListCount > 0) {
+                            // Déplacement vers le haut avec gestion du Scroll Offset
+                            if (scanListSelectedIndex > 0) {
+                                scanListSelectedIndex--;
+                                if (scanListSelectedIndex < scanListScrollOffset) {
+                                    scanListScrollOffset = scanListSelectedIndex;
+                                }
+                            } else {
+                                scanListSelectedIndex = validScanListCount - 1;
+                                scanListScrollOffset = (validScanListCount > MAX_VISIBLE_LINES) ? validScanListCount - MAX_VISIBLE_LINES : 0;
+                            }
+                            ToggleScanList(validScanListIndices[scanListSelectedIndex], 1);
+                        }
                         SetState(SPECTRUM);
                         ResetModifiers();
                         break;
@@ -2370,18 +2393,37 @@ static void HandleKeySpectrum(uint8_t key) {
             } else {
                 switch (appMode) {
                     case SCAN_BAND_MODE:
-                        bandListSelectedIndex = (bandListSelectedIndex + 1) % bandCount;
+                        // Déplacement vers le bas avec gestion du Scroll Offset
+                        if (bandListSelectedIndex < bandCount - 1) {
+                            bandListSelectedIndex++;
+                            if (bandListSelectedIndex >= bandListScrollOffset + MAX_VISIBLE_LINES) {
+                                bandListScrollOffset = bandListSelectedIndex - MAX_VISIBLE_LINES + 1;
+                            }
+                        } else {
+                            bandListSelectedIndex = 0;
+                            bandListScrollOffset = 0;
+                        }
+
                         ToggleScanList(bandListSelectedIndex, 1);
-                        settings.bandEnabled[bandListSelectedIndex]= true; //Inverted for K1
+                        settings.bandEnabled[bandListSelectedIndex] = true; //Inverted for K1
                         RelaunchScan();
-                        break;
+                        break;  
                     case FREQUENCY_MODE:
                         UpdateCurrentFreq(1);
                         break;
                     case CHANNEL_MODE:
                         BuildValidScanListIndices();
                         if (validScanListCount > 0) {
-                            scanListSelectedIndex = (scanListSelectedIndex + 1) % validScanListCount;
+                            // Déplacement vers le bas avec gestion du Scroll Offset
+                            if (scanListSelectedIndex < validScanListCount - 1) {
+                                scanListSelectedIndex++;
+                                if (scanListSelectedIndex >= scanListScrollOffset + MAX_VISIBLE_LINES) {
+                                    scanListScrollOffset = scanListSelectedIndex - MAX_VISIBLE_LINES + 1;
+                                }
+                            } else {
+                                scanListSelectedIndex = 0;
+                                scanListScrollOffset = 0;
+                            }
                             ToggleScanList(validScanListIndices[scanListSelectedIndex], 1);
                         }
                         SetState(SPECTRUM);
