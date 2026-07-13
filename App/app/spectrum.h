@@ -51,7 +51,7 @@ typedef enum {
     AUTOLOCK_30S
 } AUTOLOCK_t;
 
-static const uint8_t DrawingEndY = 50;
+static const uint8_t DrawingEndY = 47;
 static const uint8_t U8RssiMap[] = {
     121, 115, 109, 103, 97, 91, 85, 79, 73, 63,
 };

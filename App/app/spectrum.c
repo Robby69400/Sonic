@@ -205,7 +205,7 @@ static uint32_t cdcssFreq;
 static uint16_t ctcssFreq;
 //static uint8_t refresh = 0; // СУБТОНО ЗАПРОС ВСЕГДА
 #define F_MAX frequencyBandTable[ARRAY_SIZE(frequencyBandTable) - 1].upper
-#define Bottom_print 51 //Robby69
+#define Bottom_print 50
 static Mode appMode;
 //#define UHF_NOISE_FLOOR 0
 
@@ -1083,21 +1083,32 @@ static void FillfreqHistory()
 
 static void ToggleRX(bool on) {
     if (SPECTRUM_PAUSED || settings.rssiTriggerLevelUp == 50) return;
-    if(!on && SpectrumMonitor == 2) {isListening = 1;return;}
+    if(!on && SpectrumMonitor == 2) { isListening = 1; return; }
+    
+    if (!on && (on != audioState)) {
+        BK4819_WriteRegister(BK4819_REG_47, 0x0000);
+        SYSTEM_DelayMs(200);
+        ToggleAudio(false);
+        ToggleAFDAC(false);
+        ToggleAFBit(false);
+        audioState = false; // Assurez-vous de mettre à jour l'état si ce n'est pas fait dans les fonctions
+    }
+
     isListening = on;
     gChannel = BOARD_gMR_fetchChannel(scanInfo.f);
     isKnownChannel = (gChannel != 0xFFFF);
+    
     if (on && isKnownChannel) {
         LookupChannelModulation();
         settings.modulationType = channelModulation;
-        SETTINGS_FetchChannelName(channelName,gChannel );
+        SETTINGS_FetchChannelName(channelName, gChannel);
         if(!gForceModulation) settings.modulationType = channelModulation;
         RADIO_SetupAGC(settings.modulationType == MODULATION_AM, false);
     }
     if(on && appMode == SCAN_BAND_MODE) {
-            if (!gForceModulation) settings.modulationType = BParams[bl].modulationType;
-            RADIO_SetupAGC(settings.modulationType == MODULATION_AM, false);
-          }
+        if (!gForceModulation) settings.modulationType = BParams[bl].modulationType;
+        RADIO_SetupAGC(settings.modulationType == MODULATION_AM, false);
+    }
     
     if (on) { 
         Fmax = peak.f;
@@ -1106,18 +1117,20 @@ static void ToggleRX(bool on) {
         RADIO_SetModulation(settings.modulationType);
         BK4819_SetFilterBandwidth(settings.listenBw, false);
         BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_02_CxCSS_TAIL);
-
-    } else { 
+   } else { 
+ 
         RADIO_SetModulation(MODULATION_FM);
-        BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false); //Scan in 25K bandwidth
+        BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false); 
         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
         BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
         channelName[0] = '\0';
     }
-    if (on != audioState) {
-        ToggleAudio(on);
-        ToggleAFDAC(on);
-        ToggleAFBit(on);
+    
+    if (on && (on != audioState)) {
+        ToggleAudio(true);
+        ToggleAFDAC(true);
+        ToggleAFBit(true);
+        audioState = true;
     }
 }
 
@@ -1200,7 +1213,7 @@ static void ResetModifiers() {
 
 static void RelaunchScan() {
     InitScan();
-    ToggleRX(false);
+    //ToggleRX(false);
     scanInfo.rssiMin = RSSI_MAX_VALUE;
     gIsPeak = false;
 #ifdef ENABLE_BENCH
@@ -1719,6 +1732,31 @@ static void ScanProgress_DrawGaugeLine(uint8_t line)
     }
 }
 
+static void DrawNums() {
+if (appMode==CHANNEL_MODE) 
+{
+  uint8_t selectedCount = 0;
+  for (uint8_t i = 0; i < validScanListCount; i++) {
+      if (settings.scanListEnabled[validScanListIndices[i]]) selectedCount++;
+  }
+  sprintf(String, "SL:%u/%u", selectedCount, validScanListCount);
+  GUI_DisplaySmallest(String, 2, Bottom_print, false, true);
+  
+  sprintf(String, "CH:%u", scanChannelsCount);
+  GUI_DisplaySmallest(String, 101, Bottom_print, false, true);
+
+  return;
+}
+
+if(appMode!=CHANNEL_MODE){
+    sprintf(String, "%u.%05u", SpectrumRangeStart / 100000, SpectrumRangeStart % 100000);
+    GUI_DisplaySmallest(String, 2, Bottom_print, false, true);
+ 
+    sprintf(String, "%u.%05u", SpectrumRangeStop / 100000, SpectrumRangeStop % 100000);
+    GUI_DisplaySmallest(String, 90, Bottom_print, false, true);
+    }
+}
+
 static void DrawF(uint32_t f) {
     static uint32_t fprev;
     if ((f == 0) || f < 1400000 || f > 130000000) f=fprev;
@@ -1778,6 +1816,7 @@ static void DrawF(uint32_t f) {
     
     switch(ShowLines) {
             case 1: {       // BIG FREQUENCY
+                DrawNums();
                 if(isListening) { sprintf(Text, "%d dBm", Rssi2DBm(scanInfo.rssi)); }
                 else { 
                     if (lastReceivingFreq >= 1400000 && lastReceivingFreq <= 130000000) {
@@ -1859,31 +1898,6 @@ static void LookupChannelModulation() {
 
 
 
-
-static void DrawNums() {
-if (appMode==CHANNEL_MODE) 
-{
-  uint8_t selectedCount = 0;
-  for (uint8_t i = 0; i < validScanListCount; i++) {
-      if (settings.scanListEnabled[validScanListIndices[i]]) selectedCount++;
-  }
-  sprintf(String, "SL:%u/%u", selectedCount, validScanListCount);
-  GUI_DisplaySmallest(String, 2, Bottom_print, false, true);
-  
-  sprintf(String, "CH:%u", scanChannelsCount);
-  GUI_DisplaySmallest(String, 101, Bottom_print, false, true);
-
-  return;
-}
-
-if(appMode!=CHANNEL_MODE){
-    sprintf(String, "%u.%05u", SpectrumRangeStart / 100000, SpectrumRangeStart % 100000);
-    GUI_DisplaySmallest(String, 2, Bottom_print, false, true);
- 
-    sprintf(String, "%u.%05u", SpectrumRangeStop / 100000, SpectrumRangeStop % 100000);
-    GUI_DisplaySmallest(String, 90, Bottom_print, false, true);
-    }
-}
 
 static void NextScanStep() {
     spectrumElapsedCount = 0;
@@ -2765,10 +2779,9 @@ static void MyDrawFrameLines(void)
     if (ShowLines == 1) {
         MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
         MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
-        MyDrawHLine(50, true);  // Black horizontal line at y=49
-        MyDrawHLine(49, false);  // Black horizontal line at y=49
-        MyDrawVLine(0,   21, 49, 1);  // Left vertical solid line (bottom section)
-        MyDrawVLine(127, 21, 49, 1);  // Right vertical solid line (bottom section)
+        MyDrawHLine(47, true);  // Black horizontal line at y=49
+        MyDrawVLine(0,   21, 47, 1);  // Left vertical solid line (bottom section)
+        MyDrawVLine(127, 21, 47, 1);  // Right vertical solid line (bottom section)
     }
 }
 #endif
@@ -2998,11 +3011,11 @@ static void RenderSpectrum()
 #ifdef ENABLE_PERSIST
         uint8_t topY[128];
         BuildCurrentSpectrumTopY(topY);
-        DrawNums();
+        //DrawNums();
         UpdateDBMaxAuto();
         DrawSpectrumCurve(topY);
 #else
-        DrawNums();
+        //DrawNums();
         UpdateDBMaxAuto();
         DrawSpectrum();
 #endif
@@ -3106,7 +3119,7 @@ static void Render() {
 #endif
             if(isListening) {
                 DrawF(peak.f);
-                ST7565_BlitLine(7);
+                ST7565_BlitLine(6);
             }
             else {
                     if (SpectrumMonitor) DrawF(lastReceivingFreq);
