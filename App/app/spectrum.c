@@ -1278,7 +1278,7 @@ static void Measure() {
     } 
     if (!gIsPeak || !isListening) previousRssi = rssi;
     else if (rssi < previousRssi) previousRssi = rssi;
-    if (ShowLines == 2) return;
+    if (ShowLines == 2 || ShowLines == 4) return;
     
     uint16_t count = GetStepsCount();
     uint16_t i = scanInfo.i;
@@ -1746,6 +1746,21 @@ if(appMode!=CHANNEL_MODE){
     }
 }
 
+static void BlitLine(unsigned line) {
+    if (isListening && ShowLines == 4) return; //No refresh in low noise mode
+    ST7565_BlitLine(line);
+}
+
+static void BlitFullScreen(void) {
+    if (isListening && ShowLines == 4) return; //No refresh in low noise mode
+    ST7565_BlitFullScreen();
+}
+
+static void BlitStatusLine(void) {
+    if (isListening && ShowLines == 4) return; //No refresh in low noise mode
+    ST7565_BlitStatusLine();
+}
+
 static void DrawF(uint32_t f) {
     static uint32_t fprev;
     if ((f == 0) || f < 1400000 || f > 130000000) f=fprev;
@@ -1820,9 +1835,11 @@ static void DrawF(uint32_t f) {
                 ArrowLine = 3;
                 break;
             }
-            case 2: {       //SCAN
-                if(isListening) { sprintf(Text, "Signal %d dBm", Rssi2DBm(scanInfo.rssi)); }
-                else {switch(PttEmission) {
+            case 2:
+            case 4: {       //SCAN
+                if(isListening) {
+                    sprintf(Text, "Signal %d dBm", Rssi2DBm(scanInfo.rssi)); 
+                } else {switch(PttEmission) {
                     case 0:
                         snprintf(Text, sizeof(Text), "TX %s %u.%05u", gCurrentVfo->Name, gCurrentVfo->freq_config_TX.Frequency  / 100000, gCurrentVfo->freq_config_TX.Frequency  % 100000);
                         break;
@@ -1846,6 +1863,7 @@ static void DrawF(uint32_t f) {
                         break;
                     
                     }
+                if (ShowLines == 4) UI_PrintStringSmallbackground("Low Noise", 0, 127, 4, 0);
                 
                     
 #ifdef ENABLE_BENCH
@@ -1858,9 +1876,9 @@ static void DrawF(uint32_t f) {
                 if(isListening) DrawMeter(4);
                 UI_PrintStringSmallbackground(Text, 0, 127, 5, 0);
                 UI_PrintStringSmallbackground(line3, 0, 127, 6, 0);
-                ST7565_BlitLine(4); 
-                ST7565_BlitLine(5); 
-                ST7565_BlitLine(6);
+                BlitLine(4); 
+                BlitLine(5); 
+                BlitLine(6);
                 break;
             }
     }
@@ -2308,10 +2326,13 @@ static void HandleKeySpectrum(uint8_t key) {
             if (historyListActive) {SaveHistory();
             } else {
                 ShowLines++;
-                if (ShowLines > 3 || ShowLines < 1) ShowLines = 1;
+                if (ShowLines > 4 || ShowLines < 1) ShowLines = 1;
                 const char *viewName           = "SPECTRUM";
 				if (ShowLines == 2) viewName   = "SCAN";
 				if (ShowLines == 3) viewName   = "SMOOTH SPECTRUM";
+				if (ShowLines == 4) {
+                    viewName   = "LOW NOISE";
+                }
                 ShowOSDPopup(viewName);
                 spectrumElapsedCount = 0;
             }
@@ -2704,7 +2725,7 @@ static void RenderFreqInput() {
 static void RenderStatus() {
     memset(gStatusLine, 0, sizeof(gStatusLine));
     DrawStatus();
-    ST7565_BlitStatusLine();
+    BlitStatusLine();
 }
 #ifdef ENABLE_SPECTRUM_LINES
 
@@ -2766,7 +2787,7 @@ static void MyDrawFrameLines(void)
     MyDrawShortHLine(17, 0, 10, 1, false);    // Mid-top short horizontal line (left)
     MyDrawShortHLine(17, 120, 127, 1, false); // Mid-top short horizontal line (right)
     
-    if (ShowLines != 2) {
+    if (ShowLines ==1 || ShowLines ==3) {
         MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
         MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
         MyDrawHLine(47, true);  // Black horizontal line at y=49
@@ -2997,7 +3018,7 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
 
 static void RenderSpectrum()
 {
-    if (ShowLines != 2) {
+    if (ShowLines ==1 || ShowLines ==3) {
 #ifdef ENABLE_PERSIST
         uint8_t topY[128];
         BuildCurrentSpectrumTopY(topY);
@@ -3110,7 +3131,7 @@ static void Render() {
 #endif
             if(isListening) {
                 DrawF(peak.f);
-                ST7565_BlitLine(6);
+                BlitLine(6);
             }
             else {
                     if (SpectrumMonitor) DrawF(lastReceivingFreq);
@@ -3119,9 +3140,9 @@ static void Render() {
 
             if (spectrumElapsedCount < 500) {
                 RenderSpectrum();
-                ST7565_BlitLine(4);
-                ST7565_BlitLine(5);
-                ST7565_BlitLine(6);
+                BlitLine(4);
+                BlitLine(5);
+                BlitLine(6);
             } else return;
             break;
         case FREQ_INPUT:
@@ -3140,7 +3161,7 @@ static void Render() {
             RenderParametersSelect();
             return;
     }
-ST7565_BlitFullScreen();
+BlitFullScreen();
 }
 
 static void HandleUserInput(void) {
@@ -3330,7 +3351,7 @@ static void Tick() {
             osdPopupTimer -= 10; 
             if (osdPopupTimer <= 0) {osdPopupText[0] = '\0';}
             UI_DisplayPopup(osdPopupText);
-            ST7565_BlitFullScreen();
+            BlitFullScreen();
             return;
             }
     }
@@ -3890,7 +3911,7 @@ static void RenderUnifiedList(
         }
         currentLine += itemHeight;
     }
-    ST7565_BlitFullScreen();
+    BlitFullScreen();
 }
 
 // === Effectue un unique balayage pour les 6 lignes visibles au départ ===
