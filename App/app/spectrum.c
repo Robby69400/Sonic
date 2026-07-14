@@ -339,7 +339,7 @@ BK4819_FilterBandwidth_t ACTION_NextBandwidth(BK4819_FilterBandwidth_t currentBa
         (!increase && currentBandwidth == BK4819_FILTER_BW_WIDE)     ? BK4819_FILTER_BW_NARROWER :
         (increase ? currentBandwidth + 1 : currentBandwidth - 1);
 
-    BK4819_SetFilterBandwidth(nextBandwidth, dynamic);
+    //BK4819_SetFilterBandwidth(nextBandwidth, dynamic);
     gRequestSaveChannel = 1;
     return nextBandwidth;
 }
@@ -1085,15 +1085,6 @@ static void ToggleRX(bool on) {
     if (SPECTRUM_PAUSED || settings.rssiTriggerLevelUp == 50) return;
     if(!on && SpectrumMonitor == 2) { isListening = 1; return; }
     
-    if (!on && (on != audioState)) {
-        BK4819_WriteRegister(BK4819_REG_47, 0x0000);
-        SYSTEM_DelayMs(200);
-        ToggleAudio(false);
-        ToggleAFDAC(false);
-        ToggleAFBit(false);
-        audioState = false; // Assurez-vous de mettre à jour l'état si ce n'est pas fait dans les fonctions
-    }
-
     isListening = on;
     gChannel = BOARD_gMR_fetchChannel(scanInfo.f);
     isKnownChannel = (gChannel != 0xFFFF);
@@ -1118,7 +1109,6 @@ static void ToggleRX(bool on) {
         BK4819_SetFilterBandwidth(settings.listenBw, false);
         BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_02_CxCSS_TAIL);
    } else { 
- 
         RADIO_SetModulation(MODULATION_FM);
         BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false); 
         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
@@ -1126,7 +1116,7 @@ static void ToggleRX(bool on) {
         channelName[0] = '\0';
     }
     
-    if (on && (on != audioState)) {
+    if (on != audioState) {
         ToggleAudio(true);
         ToggleAFDAC(true);
         ToggleAFBit(true);
@@ -1349,14 +1339,14 @@ static void ToggleModulation() {
   } else {
     settings.modulationType = MODULATION_FM;
   }
-  RADIO_SetModulation(settings.modulationType);
+  //RADIO_SetModulation(settings.modulationType);
   BK4819_InitAGC(settings.modulationType);
   gForceModulation = 1;
 }
 
 static void ToggleListeningBW(bool inc) {
   settings.listenBw = ACTION_NextBandwidth(settings.listenBw, false, inc);
-  BK4819_SetFilterBandwidth(settings.listenBw, false);
+  //BK4819_SetFilterBandwidth(settings.listenBw, false);
   
 }
 
@@ -2265,6 +2255,7 @@ static void HandleKeySpectrum(uint8_t key) {
             if (historyListActive) {
                 DeleteHistoryItem();
             } else {
+                RelaunchScan();
                 ToggleListeningBW(1);
                 char bwText[32];
                 sprintf(bwText, "BW: %s", bwNames[settings.listenBw]);
@@ -2272,6 +2263,7 @@ static void HandleKeySpectrum(uint8_t key) {
             }
             break;
         case KEY_9: {
+            RelaunchScan();
             ToggleModulation();
             char modText[32];
             sprintf(modText, "MOD: %s", gModulationStr[settings.modulationType]);
