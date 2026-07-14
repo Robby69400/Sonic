@@ -84,28 +84,10 @@
         "EDITION_STRING": "RS232",
         "TARGET": "SONIC.RS232.V37"
     }
-},
-{
-    "name": "USB_SMOOTH_SPECTRUM","inherits": "default","cacheVariables": {
-        "ENABLE_USB": true,
-        "ENABLE_ADVANCED_SPECTRUM":true,
-        "EDITION_STRING": "USB",
-        "TARGET": "SONIC.USB_SMOOTH_SPECTRUM.V37"
-    }
-},
-{
-    "name": "RS232_SMOOTH_SPECTRUM","inherits": "default","cacheVariables": {
-        "ENABLE_UART": true,
-        "ENABLE_ADVANCED_SPECTRUM":true,
-        "EDITION_STRING": "RS232",
-        "TARGET": "SONIC.RS232_SMOOTH_SPECTRUM.V37"
-    }
 }
 ],
 "buildPresets": [
     {"name": "USB","configurePreset": "USB"},
-    {"name": "RS232","configurePreset": "RS232"},
-    {"name": "USB_SMOOTH_SPECTRUM","configurePreset": "USB_SMOOTH_SPECTRUM"},
-    {"name": "RS232_SMOOTH_SPECTRUM","configurePreset": "RS232_SMOOTH_SPECTRUM"}
+    {"name": "RS232","configurePreset": "RS232"}
 ]
 }

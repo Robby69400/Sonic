@@ -1514,8 +1514,7 @@ static int16_t Rssi2Y(uint16_t rssi) {
   return DrawingEndY + delta -Rssi2PX(rssi, delta, DrawingEndY);
 }
 
-    #ifdef ENABLE_ADVANCED_SPECTRUM
-static void DrawSpectrum(void) {
+static void DrawSpectrumSmooth(void) {
     // Build topY[] with rssi → Y-coordinate conversion
     uint8_t topY[128];
     for (uint8_t x = 0; x < 128; x++) {
@@ -1561,7 +1560,7 @@ static void DrawSpectrum(void) {
                 gFrameBuffer[y >> 3][x] |= 1 << (y & 7);
     }
 }
-    #else
+
     static void DrawSpectrum(void) {
         int16_t y_baseline = Rssi2Y(0); 
         for (uint8_t i = 0; i < 128; i++) {
@@ -1571,7 +1570,7 @@ static void DrawSpectrum(void) {
                 }
             }
     }
-    #endif
+
 #endif
 
 
@@ -1762,7 +1761,7 @@ static void DrawF(uint32_t f) {
     if (appMode == SCAN_BAND_MODE) {
         snprintf(prefix, sizeof(prefix), "B%u ", bl + 1);
         if (isListening && isKnownChannel) {
-            snprintf(line2, sizeof(line2), " %-3s%s %s ", prefix, channelName, StringCode);
+            snprintf(line2, sizeof(line2), " %s %s ", channelName, StringCode);
         } else {
             snprintf(line2, sizeof(line2), " %s%s %s ", prefix, BParams[bl].BandName, StringCode);
         }
@@ -1805,7 +1804,9 @@ static void DrawF(uint32_t f) {
     static char Text[20]="";
     
     switch(ShowLines) {
-            case 1: {       // BIG FREQUENCY
+            case 1:
+            case 3:
+                {           //SPECTRUM
                 DrawNums();
                 if(isListening) { sprintf(Text, "%d dBm", Rssi2DBm(scanInfo.rssi)); }
                 else { 
@@ -2309,12 +2310,11 @@ static void HandleKeySpectrum(uint8_t key) {
             if (historyListActive) {SaveHistory();
             } else {
                 ShowLines++;
-                if (ShowLines > 2 || ShowLines < 1) ShowLines = 1;
-                char viewText[15];
+                if (ShowLines > 3 || ShowLines < 1) ShowLines = 1;
                 const char *viewName           = "SPECTRUM";
 				if (ShowLines == 2) viewName   = "SCAN";
-                sprintf(viewText, "VIEW: %s", viewName);
-                ShowOSDPopup(viewText);
+				if (ShowLines == 3) viewName   = "SMOOTH SPECTRUM";
+                ShowOSDPopup(viewName);
                 spectrumElapsedCount = 0;
             }
             break;
@@ -2768,7 +2768,7 @@ static void MyDrawFrameLines(void)
     MyDrawShortHLine(17, 0, 10, 1, false);    // Mid-top short horizontal line (left)
     MyDrawShortHLine(17, 120, 127, 1, false); // Mid-top short horizontal line (right)
     
-    if (ShowLines == 1) {
+    if (ShowLines != 2) {
         MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
         MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
         MyDrawHLine(47, true);  // Black horizontal line at y=49
@@ -2999,7 +2999,7 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
 
 static void RenderSpectrum()
 {
-    if (ShowLines < 2) {
+    if (ShowLines != 2) {
 #ifdef ENABLE_PERSIST
         uint8_t topY[128];
         BuildCurrentSpectrumTopY(topY);
@@ -3009,7 +3009,8 @@ static void RenderSpectrum()
 #else
         //DrawNums();
         UpdateDBMaxAuto();
-        DrawSpectrum();
+        if (ShowLines == 1) DrawSpectrum();
+        else DrawSpectrumSmooth();
 #endif
     }
 

@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
       CLEAN_BUILD=true
       shift
       ;;
-    USB|RS232|USB_SMOOTH_SPECTRUM|RS232_SMOOTH_SPECTRUM|All)
+    USB|RS232|All)
       PRESET="$1"
       shift
       ;;
@@ -51,9 +51,9 @@ fi
 # ---------------------------------------------
 # Validate preset name
 # ---------------------------------------------
-if [[ ! "$PRESET" =~ ^(USB|RS232|USB_SMOOTH_SPECTRUM|RS232_SMOOTH_SPECTRUM|All)$ ]]; then
+if [[ ! "$PRESET" =~ ^(USB|RS232|All)$ ]]; then
   echo "❌ Unknown preset: '$PRESET'"
-  echo "Valid presets are: USB RS232 USB_SMOOTH_SPECTRUM RS232_SMOOTH_SPECTRUM All"
+  echo "Valid presets are: USB RS232 All"
   exit 1
 fi
 
@@ -97,7 +97,7 @@ build_preset() {
 # Handle 'All' preset
 # ---------------------------------------------
 if [[ "$PRESET" == "All" ]]; then
-  PRESETS=(USB RS232 USB_SMOOTH_SPECTRUM RS232_SMOOTH_SPECTRUM)
+  PRESETS=(USB RS232)
   for p in "${PRESETS[@]}"; do
     build_preset "$p"
   done
