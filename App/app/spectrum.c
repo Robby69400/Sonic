@@ -1117,10 +1117,10 @@ static void ToggleRX(bool on) {
     }
     
     if (on != audioState) {
-        ToggleAudio(true);
-        ToggleAFDAC(true);
-        ToggleAFBit(true);
-        audioState = true;
+        ToggleAudio(on);
+        ToggleAFDAC(on);
+        ToggleAFBit(on);
+        audioState = on;
     }
 }
 
@@ -2256,7 +2256,6 @@ static void HandleKeySpectrum(uint8_t key) {
             if (historyListActive) {
                 DeleteHistoryItem();
             } else {
-                RelaunchScan();
                 ToggleListeningBW(1);
                 char bwText[32];
                 sprintf(bwText, "BW: %s", bwNames[settings.listenBw]);
@@ -2264,7 +2263,6 @@ static void HandleKeySpectrum(uint8_t key) {
             }
             break;
         case KEY_9: {
-            RelaunchScan();
             ToggleModulation();
             char modText[32];
             sprintf(modText, "MOD: %s", gModulationStr[settings.modulationType]);
