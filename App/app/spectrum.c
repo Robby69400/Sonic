@@ -99,6 +99,7 @@ static uint8_t  GlitchMax = 20;
 static bool     SoundBoost = 0;             
 static uint8_t  PttEmission = 0;            
 static bool     gMonitorScan = true;       
+static bool     LowNoise = false;       
 
 // Configuration des index du menu des paramètres
 #define PARAM_LIGHT_MODE       0
@@ -178,6 +179,7 @@ static uint8_t prevSpectrumMonitor = 0;
 static bool Key_1_pressed = 0;
 static uint16_t WaitSpectrum = 0; 
 static uint8_t ArrowLine = 1;
+static void DrawF(uint32_t f);
 static void ToggleRX(bool on);
 static void NextScanStep();
 static void BuildValidScanListIndices();
@@ -1084,7 +1086,6 @@ static void FillfreqHistory()
 static void ToggleRX(bool on) {
     if (SPECTRUM_PAUSED || settings.rssiTriggerLevelUp == 50) return;
     if(!on && SpectrumMonitor == 2) { isListening = 1; return; }
-    
     isListening = on;
     gChannel = BOARD_gMR_fetchChannel(scanInfo.f);
     isKnownChannel = (gChannel != 0xFFFF);
@@ -1103,6 +1104,7 @@ static void ToggleRX(bool on) {
     
     if (on) { 
         Fmax = peak.f;
+        DrawF(peak.f);
         BK4819_RX_TurnOn();
         SYSTEM_DelayMs(20);
         RADIO_SetModulation(settings.modulationType);
@@ -1178,6 +1180,8 @@ static bool InitScan() {
 
         case FREQUENCY_MODE:
             currentFreq = gTxVfo->pRX->Frequency;
+            scanInfo.scanStep = scanStepValues[gTxVfo->STEP_SETTING];
+            settings.scanStepIndex = gTxVfo->STEP_SETTING; 
             SpectrumRangeStart = currentFreq - (GetBW() >> 1);
             SpectrumRangeStop  = currentFreq + (GetBW() >> 1);
             break;
@@ -1278,7 +1282,7 @@ static void Measure() {
     } 
     if (!gIsPeak || !isListening) previousRssi = rssi;
     else if (rssi < previousRssi) previousRssi = rssi;
-    if (ShowLines == 2 || ShowLines == 4) return;
+    if (ShowLines == 2) return;
     
     uint16_t count = GetStepsCount();
     uint16_t i = scanInfo.i;
@@ -1747,17 +1751,17 @@ if(appMode!=CHANNEL_MODE){
 }
 
 static void BlitLine(unsigned line) {
-    if (isListening && ShowLines == 4) return; //No refresh in low noise mode
+    if (isListening && LowNoise && spectrumElapsedCount > 200) return; //No refresh in low noise mode
     ST7565_BlitLine(line);
 }
 
 static void BlitFullScreen(void) {
-    if (isListening && ShowLines == 4) return; //No refresh in low noise mode
+    if (isListening && LowNoise && spectrumElapsedCount > 200) return; //No refresh in low noise mode
     ST7565_BlitFullScreen();
 }
 
 static void BlitStatusLine(void) {
-    if (isListening && ShowLines == 4) return; //No refresh in low noise mode
+    if (isListening && LowNoise && spectrumElapsedCount > 200) return; //No refresh in low noise mode
     ST7565_BlitStatusLine();
 }
 
@@ -1817,7 +1821,7 @@ static void DrawF(uint32_t f) {
         }
     } else ArrowLine = 2;
     static char Text[20]="";
-    
+    if (LowNoise) UI_PrintStringSmallbackground("LN", 112, 127, 1, 0);
     switch(ShowLines) {
             case 1:
             case 3:
@@ -1836,7 +1840,7 @@ static void DrawF(uint32_t f) {
                 break;
             }
             case 2:
-            case 4: {       //SCAN
+                {       //SCAN
                 if(isListening) {
                     sprintf(Text, "Signal %d dBm", Rssi2DBm(scanInfo.rssi)); 
                 } else {switch(PttEmission) {
@@ -1863,8 +1867,6 @@ static void DrawF(uint32_t f) {
                         break;
                     
                     }
-                if (ShowLines == 4) UI_PrintStringSmallbackground("Low Noise", 0, 127, 4, 0);
-                
                     
 #ifdef ENABLE_BENCH
                 snprintf(line3, sizeof(line3), "Rate: %u/s", benchRatePerSec);
@@ -2235,8 +2237,15 @@ static void HandleKeyParameters(uint8_t key) {
       }
 }
 
+typedef enum {
+    EV_NONE,
+    EV_SHORT_PRESS,
+    EV_LONG_PRESS,
+    EV_REPEAT
+} KEY_Event_t;
+
 /* --- SPECTRUM state: main spectrum view keys, including list entry shortcuts --- */
-static void HandleKeySpectrum(uint8_t key) {
+static void HandleKeySpectrum(uint8_t key, KEY_Event_t event) {
 
     switch (key) {
         case KEY_5: {
@@ -2325,14 +2334,12 @@ static void HandleKeySpectrum(uint8_t key) {
         case KEY_8:
             if (historyListActive) {SaveHistory();
             } else {
-                ShowLines++;
-                if (ShowLines > 4 || ShowLines < 1) ShowLines = 1;
+                if(event == EV_LONG_PRESS) {LowNoise = !LowNoise;break;}
+                else {ShowLines++;}
+                if (ShowLines > 3 || ShowLines < 1) ShowLines = 1;
                 const char *viewName           = "SPECTRUM";
 				if (ShowLines == 2) viewName   = "SCAN";
 				if (ShowLines == 3) viewName   = "SMOOTH SPECTRUM";
-				if (ShowLines == 4) {
-                    viewName   = "LOW NOISE";
-                }
                 ShowOSDPopup(viewName);
                 spectrumElapsedCount = 0;
             }
@@ -2546,7 +2553,7 @@ static void HandleKeySpectrum(uint8_t key) {
 // SECTION: Main keyboard dispatcher
 // ============================================================
 
-static void OnKeyDown(uint8_t key) {
+static void OnKeyDown(uint8_t key, KEY_Event_t event) {
     /* Key-lock guard: only KEY_F unlocks */
     if (gIsKeylocked) {
         if (key == KEY_F) {
@@ -2565,7 +2572,7 @@ static void OnKeyDown(uint8_t key) {
         case BAND_LIST_SELECT:  HandleKeyBandList(key);         break;
         case SCANLIST_SELECT:   HandleKeyScanList(key);         break;
         case PARAMETERS_SELECT: HandleKeyParameters(key);       break;
-        default:                HandleKeySpectrum(key);         break;
+        default:                HandleKeySpectrum(key,event);         break;
     }
 }
 
@@ -3165,31 +3172,93 @@ BlitFullScreen();
 }
 
 static void HandleUserInput(void) {
-    
+    // 1. Mise à jour standard de kbd (inchangée)
     kbd.prev = kbd.current;
     kbd.current = GetKey();
-    // ---- Anti-rebond + répétition ----
-    if (kbd.current != KEY_INVALID && kbd.current == kbd.prev) {
-        kbd.counter++;
-    } else kbd.counter =0;
 
-    if (kbd.counter == 2 || (kbd.counter > 30 && (kbd.counter % 10 == 0))) {
-        if(Backlight_On && !backlightOn && gEeprom.BACKLIGHT_TIME) {
-            BACKLIGHT_TurnOn();
-            return;
+    // ---- Variables statiques pour mémoriser l'état entre les appels ----
+    static uint16_t press_duration = 0;
+    static bool long_press_dispatched = false;
+    static KEY_Code_t last_active_key = KEY_INVALID;
+
+    KEY_Event_t event = EV_NONE;
+    KEY_Code_t key_to_process = KEY_INVALID;
+
+    // ---- Machine à états locale ----
+    if (kbd.current != KEY_INVALID) {
+        // Une touche est enfoncée
+        if (kbd.current == kbd.prev) {
+            press_duration++;
+            last_active_key = kbd.current;
+
+            // Détection Appui Long (ex: ~500ms si la fonction est appelée toutes les 10ms)
+            if (press_duration >= 50 && !long_press_dispatched) {
+                event = EV_LONG_PRESS;
+                key_to_process = kbd.current;
+                long_press_dispatched = true; // On verrouille pour ne le déclencher qu'une fois
+            }
+            // Détection Auto-repeat (après l'appui long, toutes les 10 boucles)
+            else if (press_duration > 80 && (press_duration % 10 == 0)) {
+                event = EV_REPEAT;
+                key_to_process = kbd.current;
+            }
+        } else {
+            // Transition d'une touche à une autre sans relâchement
+            press_duration = 0;
+            long_press_dispatched = false;
+            last_active_key = kbd.current;
         }
+        
+        // On synchronise kbd.counter pour que le reste du firmware (si besoin) 
+        // ne soit pas perturbé par notre logique interne.
+        kbd.counter = press_duration; 
+    } 
+    else {
+        // Aucune touche n'est enfoncée (relâchement ou repos)
+        if (last_active_key != KEY_INVALID) {
+            // L'utilisateur vient de relâcher la touche.
+            // Si la durée était supérieure à l'anti-rebond (ex: 2) mais inférieure 
+            // au seuil d'appui long, et qu'aucun appui long n'a été envoyé : c'est un APPUI COURT.
+            if (press_duration >= 2 && press_duration < 50 && !long_press_dispatched) {
+                event = EV_SHORT_PRESS;
+                key_to_process = last_active_key;
+            }
+        }
+        // Reset des états locaux pour le prochain appui
+        press_duration = 0;
+        long_press_dispatched = false;
+        last_active_key = KEY_INVALID;
+        
+        kbd.counter = 0;
+    }
+
+    // ---- Traitement de l'événement qualifié ----
+    if (event != EV_NONE && key_to_process != KEY_INVALID) {
+        
+        // Gestion du rétroéclairage
+        if (Backlight_On) {
+            if (!backlightOn && gEeprom.BACKLIGHT_TIME) {
+                BACKLIGHT_TurnOn();
+                return; // Consomme l'appui pour allumer l'écran
+            }
+            BACKLIGHT_TurnOn();
+        }
+
+        // Distribution de la touche et de son type d'événement
         switch (currentState) {
             case SPECTRUM:
             case BAND_LIST_SELECT:
             case SCANLIST_SELECT:
             case PARAMETERS_SELECT:
-                OnKeyDown(kbd.current);
+                OnKeyDown(key_to_process, event);
                 break;
             case FREQ_INPUT:
-                OnKeyDownFreqInput(kbd.current);
+                OnKeyDownFreqInput(key_to_process);
                 break;
             case STILL:
-                OnKeyDownStill(kbd.current);
+                OnKeyDownStill(key_to_process);
+                break;
+            default:
                 break;
         }
     }
@@ -3559,6 +3628,7 @@ typedef struct {
     bool SoundBoost;  
     bool gMonitorScan;
     bool Light_Mode;
+    bool LowNoise;
 } SettingsEEPROM;
 
 
@@ -3593,6 +3663,7 @@ void LoadSettings()
     PttEmission = eepromData.PttEmission;
     validScanListCount = 0;
     ShowLines = eepromData.ShowLines;
+    LowNoise = eepromData.LowNoise;
     SpectrumDelay = eepromData.SpectrumDelay;
     IndexMaxLT = eepromData.IndexMaxLT;
     MaxListenTime = listenSteps[IndexMaxLT];
@@ -3640,6 +3711,7 @@ static void SaveSettings()
     eepromData.PttEmission = PttEmission;
     eepromData.scanStepIndex = settings.scanStepIndex;
     eepromData.ShowLines = ShowLines;
+    eepromData.LowNoise = LowNoise;
     eepromData.SpectrumDelay = SpectrumDelay;
     eepromData.IndexMaxLT = IndexMaxLT;
     eepromData.IndexPS = IndexPS;
@@ -3721,6 +3793,7 @@ void ClearSettings()
     PttEmission = 2;
     settings.scanStepIndex = STEP_10kHz;
     ShowLines = 1;
+    LowNoise = 0;
     SpectrumDelay = 0;
     MaxListenTime = 0;
     IndexMaxLT = 0;
