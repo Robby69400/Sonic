@@ -462,11 +462,14 @@ static void CheckRadioInterrupts(void)
                 uint16_t fskRxSync : 1;
                 uint16_t sqlLost : 1;
                 uint16_t sqlFound : 1;
+                uint16_t voxLost : 1;
+                uint16_t voxFound : 1;
                 uint16_t ctcssLost : 1;
                 uint16_t ctcssFound : 1;
                 uint16_t cdcssLost : 1;
                 uint16_t cdcssFound : 1;
                 uint16_t cssTailFound : 1;
+                uint16_t dtmf5ToneFound : 1;
                 uint16_t fskFifoAlmostFull : 1;
                 uint16_t fskRxFinied : 1;
                 uint16_t fskFifoAlmostEmpty : 1;
@@ -879,6 +882,54 @@ void CheckKeys(void)
     }
 }
 
+typedef enum 
+{
+    SCAN_CSS_STATE_OFF,
+    SCAN_CSS_STATE_SCANNING,
+    SCAN_CSS_STATE_FOUND,
+    SCAN_CSS_STATE_FAILED
+} SCAN_CssState_t;
+
+uint8_t           gScanCssResultCode;
+DCS_CodeType_t    gScanCssResultType;
+SCAN_CssState_t   gScanCssState;
+uint8_t           scanHitCount;
+
+void Tone_TimeSlice10ms(void)
+{
+            uint32_t cdcssFreq;
+            uint16_t ctcssFreq;
+            BK4819_CssScanResult_t scanResult = BK4819_GetCxCSSScanResult(&cdcssFreq, &ctcssFreq);
+            if (scanResult == BK4819_CSS_RESULT_NOT_FOUND) return;
+
+            if (scanResult == BK4819_CSS_RESULT_CDCSS) {
+                const uint8_t Code = DCS_GetCdcssCode(cdcssFreq);
+                if (Code != 0xFF)
+                {
+                    gScanCssResultCode = Code;
+                    gScanCssResultType = CODE_TYPE_DIGITAL;
+                    gScanCssState      = SCAN_CSS_STATE_FOUND;
+                    gUpdateStatus      = true;
+                }
+            }
+            else if (scanResult == BK4819_CSS_RESULT_CTCSS) {
+                const uint8_t Code = DCS_GetCtcssCode(ctcssFreq);
+                if (Code != 0xFF) {
+                    if (Code == gScanCssResultCode && gScanCssResultType == CODE_TYPE_CONTINUOUS_TONE) {
+                        if (++scanHitCount >= 2) {
+                            gScanCssState     = SCAN_CSS_STATE_FOUND;
+                            gUpdateStatus     = true;
+                        }
+                    }
+                    else
+                        scanHitCount = 0;
+
+                    gScanCssResultType = CODE_TYPE_CONTINUOUS_TONE;
+                    gScanCssResultCode = Code;
+                }
+            }
+}
+
 void APP_TimeSlice10ms(void)
 {
     gNextTimeslice = false;
@@ -963,7 +1014,7 @@ void APP_TimeSlice10ms(void)
         }
     }
 #endif
-
+    Tone_TimeSlice10ms();
     CheckKeys();
 }
 

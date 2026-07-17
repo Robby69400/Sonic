@@ -138,8 +138,8 @@ uint16_t GetMaxVisualRows(void) {
 ////////////////////////////////////////////////////////////////////
 
 static uint8_t IndexDelayRssi = 3;
-static const char *DelayRssiText[] =       {".75",".8",".9","1","2","4"};
-static const uint16_t DelayRssiValues[] =   {750,800,900,1000,2000,4000}; //in ms
+static const char       *DelayRssiText[]  = {".6"   ,".75" ,"1"    ,"3"    ,"6"    ,"12"};
+static const uint16_t   DelayRssiValues[] = {600    ,750   ,1000   ,3000   ,6000   ,12000}; //in ms
 
 static bool     Backlight_On = 1;
 uint8_t osdPopupIndex = 3;
