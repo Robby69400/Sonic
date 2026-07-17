@@ -56,11 +56,11 @@ static const uint8_t U8RssiMap[] = {
     121, 115, 109, 103, 97, 91, 85, 79, 73, 63,
 };
 static const char* const scanStepNames[] = {
-  "10Hz","50Hz","100Hz","250Hz","500Hz",
-  "1kHz","1k25Hz","2k5Hz","5kHz","6k25Hz",
-  "8k33Hz","9kHz","10kHz","12k5Hz","15kHz",
-  "20kHz","25kHz","30kHz","50kHz","100kHz",
-  "125kHz","200kHz","250kHz","500kHz"};
+  "10","50","100","250","500",
+  "1k","1k25","2k5","5k","6k25",
+  "8k33","9k","10k","12k5","15k",
+  "20k","25k","30k","50k","100k",
+  "125k","200k","250k","500k"};
 
 static const uint16_t scanStepValues[] = {
     1, 5, 10, 25, 50,
