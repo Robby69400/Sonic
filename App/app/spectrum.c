@@ -138,12 +138,12 @@ uint16_t GetMaxVisualRows(void) {
 ////////////////////////////////////////////////////////////////////
 
 static uint8_t IndexDelayRssi = 3;
-static const char       *DelayRssiText[]  = {".6"   ,".75" ,"1"    ,"3"    ,"6"    ,"12"};
-static const uint16_t   DelayRssiValues[] = {600    ,750   ,1000   ,3000   ,6000   ,12000}; //in ms
+static const char       *DelayRssiText[]  = {"0",".75" ,".9" ,"1"  ,"2"  ,"3"};
+static const uint16_t   DelayRssiValues[] = {0  ,750   ,900  ,1000 ,2000 ,3000}; //in ms
 
 static bool     Backlight_On = 1;
 uint8_t osdPopupIndex = 3;
-
+static const int osdPopupTimes[] = {0, 200, 500, 1000, 2000, 3000};
 #ifdef ENABLE_BENCH
     static uint32_t benchTickMs = 0;      
     static uint16_t benchStepsThisSec = 0;
@@ -2180,10 +2180,9 @@ static void HandleKeyParameters(uint8_t key) {
                       Noislvl_ON = Noislvl_OFF - NoiseHysteresis;                      
                       break;
                 case PARAM_OSD_POPUP:
-                      static const int osdPopupTimes[] = {0, 200, 300, 500, 1000, 2000, 3000};
                       osdPopupIndex = isKey3 ? 
-                                      (osdPopupIndex >= 6 ? 0 : osdPopupIndex + 1):
-                                      (osdPopupIndex <= 0 ? 6 : osdPopupIndex - 1);
+                                      (osdPopupIndex >= 5 ? 0 : osdPopupIndex + 1):
+                                      (osdPopupIndex <= 0 ? 5 : osdPopupIndex - 1);
                       osdPopupSetting = osdPopupTimes[osdPopupIndex];
                       break;
                 case PARAM_RECORD_TRIGGER:
@@ -3621,7 +3620,7 @@ typedef struct {
     uint8_t IndexPS;
     uint8_t Noislvl_OFF;
     uint16_t UOO_trigger;
-    uint16_t osdPopupSetting;
+    uint8_t osdPopupIndex;
     uint8_t GlitchMax;  
     uint8_t Spectrum_state;  
     bool Backlight_On;
@@ -3672,7 +3671,8 @@ void LoadSettings()
     Noislvl_OFF = eepromData.Noislvl_OFF;
     Noislvl_ON  = Noislvl_OFF - NoiseHysteresis; 
     UOO_trigger = eepromData.UOO_trigger;
-    osdPopupSetting = eepromData.osdPopupSetting;
+    osdPopupIndex = eepromData.osdPopupIndex;
+    osdPopupSetting = osdPopupTimes[osdPopupIndex];
     Backlight_On = eepromData.Backlight_On;
     GlitchMax = eepromData.GlitchMax;    
     Spectrum_state = eepromData.Spectrum_state;    
@@ -3718,7 +3718,7 @@ static void SaveSettings()
     eepromData.Backlight_On = Backlight_On;
     eepromData.Noislvl_OFF = Noislvl_OFF;
     eepromData.UOO_trigger = UOO_trigger;
-    eepromData.osdPopupSetting = osdPopupSetting;
+    eepromData.osdPopupIndex = osdPopupIndex;
     eepromData.GlitchMax = 20;
     eepromData.GlitchMax  = GlitchMax;   
     eepromData.Spectrum_state = Spectrum_state;    
@@ -3788,8 +3788,8 @@ void ClearSettings()
     settings.listenBw = 0;
     RangeStart = 43000000;
     RangeStop  = 44000000;
-    DelayRssi = 2000;
-    IndexDelayRssi = 3;
+    DelayRssi = 1000;
+    IndexDelayRssi = 2;
     PttEmission = 2;
     settings.scanStepIndex = STEP_10kHz;
     ShowLines = 1;
@@ -3802,7 +3802,8 @@ void ClearSettings()
     Noislvl_OFF = NoisLvl; 
     Noislvl_ON = NoisLvl - NoiseHysteresis;  
     UOO_trigger = 5;
-    osdPopupSetting = 200;
+    osdPopupIndex = 3;
+    osdPopupSetting = osdPopupTimes[osdPopupIndex];
     GlitchMax = 10;  
     Spectrum_state = 1; 
     SoundBoost = 0;
