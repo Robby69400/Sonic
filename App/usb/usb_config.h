@@ -14,7 +14,7 @@
 #define usb_free(ptr)    free(ptr)
 
 #ifndef CONFIG_USB_DBG_LEVEL
-#define CONFIG_USB_DBG_LEVEL USB_DBG_ERROR
+#define CONFIG_USB_DBG_LEVEL USB_DBG_NONE
 #endif
 
 /* Enable print with color */
@@ -31,52 +31,7 @@
 /* ================= USB Device Stack Configuration ================ */
 
 /* Ep0 max transfer buffer, specially for receiving data from ep0 out */
-#define CONFIG_USBDEV_REQUEST_BUFFER_LEN 256
-
-/* Setup packet log for debug */
-// #define CONFIG_USBDEV_SETUP_LOG_PRINT
-
-/* Check if the input descriptor is correct */
-// #define CONFIG_USBDEV_DESC_CHECK
-
-/* Enable test mode */
-// #define CONFIG_USBDEV_TEST_MODE
-
-#ifndef CONFIG_USBDEV_MSC_BLOCK_SIZE
-#define CONFIG_USBDEV_MSC_BLOCK_SIZE 512
-#endif
-
-#ifndef CONFIG_USBDEV_MSC_MANUFACTURER_STRING
-#define CONFIG_USBDEV_MSC_MANUFACTURER_STRING ""
-#endif
-
-#ifndef CONFIG_USBDEV_MSC_PRODUCT_STRING
-#define CONFIG_USBDEV_MSC_PRODUCT_STRING ""
-#endif
-
-#ifndef CONFIG_USBDEV_MSC_VERSION_STRING
-#define CONFIG_USBDEV_MSC_VERSION_STRING "0.01"
-#endif
-
-// #define CONFIG_USBDEV_MSC_THREAD
-
-#ifdef CONFIG_USBDEV_MSC_THREAD
-#ifndef CONFIG_USBDEV_MSC_STACKSIZE
-#define CONFIG_USBDEV_MSC_STACKSIZE 2048
-#endif
-
-#ifndef CONFIG_USBDEV_MSC_PRIO
-#define CONFIG_USBDEV_MSC_PRIO 4
-#endif
-#endif
-
-#ifndef CONFIG_USBDEV_AUDIO_VERSION
-#define CONFIG_USBDEV_AUDIO_VERSION 0x0100
-#endif
-
-#ifndef CONFIG_USBDEV_AUDIO_MAX_CHANNEL
-#define CONFIG_USBDEV_AUDIO_MAX_CHANNEL 8
-#endif
+#define CONFIG_USBDEV_REQUEST_BUFFER_LEN 80
 
 
 /* ================ USB Device Port Configuration ================*/

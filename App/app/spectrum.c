@@ -61,7 +61,7 @@ typedef struct {
 } HistoryStruct;
 
 #if defined(ENABLE_USB)
-    #define HISTORY_SIZE 100
+    #define HISTORY_SIZE 200
 #elif defined(ENABLE_UART)
     #define HISTORY_SIZE 200
 #endif
@@ -348,9 +348,8 @@ BK4819_FilterBandwidth_t ACTION_NextBandwidth(BK4819_FilterBandwidth_t currentBa
 
 const char *bwNames[5] = {"25k", "12.5k", "8.33k", "6.25k", "5k"};
 
-int16_t BK4819_GetAFCValue() { //from Hawk5
-  int16_t signedAfc = (int16_t)BK4819_ReadRegister(0x6D);
-  return (signedAfc * 10) / 3;
+int16_t BK4819_GetAFCValue() { //from FAGCI K1
+  return ((int16_t)BK4819_ReadRegister(0x6D) * 5) / 6;
 }
 
 typedef struct
@@ -3689,7 +3688,7 @@ void LoadSettings()
         BK4819_WriteRegister(BK4819_REG_43, eepromData.R43);
         BK4819_WriteRegister(BK4819_REG_2B, eepromData.R2B);
     #endif
-  
+    BK4819_WriteRegister(BK4819_REG_73,0x6141 ); //TEST FROM KOLYAN
     if (!historyLoaded) {
         LoadHistory();
         historyLoaded = true;
