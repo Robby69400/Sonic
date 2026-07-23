@@ -60,11 +60,7 @@ typedef struct {
     uint16_t    HTimeS;
 } HistoryStruct;
 
-#if defined(ENABLE_USB)
-    #define HISTORY_SIZE 200
-#elif defined(ENABLE_UART)
-    #define HISTORY_SIZE 200
-#endif
+#define HISTORY_SIZE 200
 
 static uint16_t historyListIndex = 0;
 static int historyScrollOffset = 0;
@@ -1103,7 +1099,7 @@ static void ToggleRX(bool on) {
     
     if (on) { 
         Fmax = peak.f;
-        DrawF(peak.f);
+        if(!historyListActive) DrawF(peak.f);
         BK4819_RX_TurnOn();
         SYSTEM_DelayMs(20);
         RADIO_SetModulation(settings.modulationType);
