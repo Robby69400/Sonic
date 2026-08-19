@@ -1,93 +1,96 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "default",
-            "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build/${presetName}",
-            "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "ENABLE_LTO": false,
-                "ENABLE_NO_HEAP": false,
-                "ENABLE_FMRADIO": true,
-                "ENABLE_UART": false,
-                "ENABLE_USB": false,
-                "ENABLE_SAVE_REGISTERS": false,
-                "ENABLE_ADVANCED_SPECTRUM":false,
-                "ENABLE_PERSIST": false,
-                "ENABLE_BENCH": false,
-                "ENABLE_VERSION": false,
-                "ENABLE_ALARM": false,
-                "ENABLE_FLASHLIGHT": true,
-                "ENABLE_SPECTRUM": true,
-                "ENABLE_BIG_FREQ": true,
-                "ENABLE_SMALL_BOLD": true,
-                "ENABLE_CUSTOM_MENU_LAYOUT": true,
-                "ENABLE_KEEP_MEM_NAME": true,
-                "ENABLE_TX_WHEN_AM": false,
-                "ENABLE_CTCSS_TAIL_PHASE_SHIFT": false,
-                "ENABLE_BOOT_BEEPS": false,
-                "ENABLE_SHOW_CHARGE_LEVEL": false,
-                "ENABLE_REVERSE_BAT_SYMBOL": false,
-                "ENABLE_NO_CODE_SCAN_TIMEOUT": true,
-                "ENABLE_SQUELCH_MORE_SENSITIVE": true,
-                "ENABLE_FASTER_CHANNEL_SCAN": true,
-                "ENABLE_RSSI_BAR": true,
-                "ENABLE_AUDIO_BAR": true,
-                "ENABLE_COPY_CHAN_TO_VFO": true,
-                "ENABLE_REDUCE_LOW_MID_TX_POWER": false,
-                "ENABLE_BYP_RAW_DEMODULATORS": false,
-                "ENABLE_BLMIN_TMP_OFF": false,
-                "ENABLE_REGA": false,
-                "ENABLE_EXTRA_UART_CMD": false,
-                "ENABLE_FEAT_F4HWN": true,
-                "ENABLE_FEAT_F4HWN_SPECTRUM": true,
-                "ENABLE_SPECTRUM_LINES": true,
-                "ENABLE_FEAT_F4HWN_RX_TX_TIMER": true,
-                "ENABLE_FEAT_F4HWN_CHARGING_C": false,
-                "ENABLE_FEAT_F4HWN_SLEEP": true,
-                "ENABLE_FEAT_F4HWN_RESUME_STATE": true,
-                "ENABLE_FEAT_F4HWN_NARROWER": true,
-                "ENABLE_FEAT_F4HWN_INV": true,
-                "ENABLE_FEAT_F4HWN_CTR": true,
-                "ENABLE_FEAT_F4HWN_VOL": true,
-                "ENABLE_FEAT_F4HWN_AUDIO": true,
-                "ENABLE_FEAT_F4HWN_RESET_VFO": true,
-                "ENABLE_FEAT_F4HWN_PMR": true,
-                "ENABLE_FEAT_F4HWN_GMRS_FRS_MURS": false,
-                "ENABLE_FEAT_F4HWN_CA": true,
-                "ENABLE_FEAT_F4HWN_DEBUG": false,
-                "ENABLE_FEAT_F4HWN_MEM": false,
-                "ENABLE_FEAT_F4HWN_AUDIO_SCOPE": true,
-                "ENABLE_FEAT_F4HWN_MULTIBOOT": true,
-                "ENABLE_FEAT_F4HWN_MULTIBOOT_OVERLAY": true,
-                "ENABLE_AGC_SHOW_DATA": false,
-                "ENABLE_UART_RW_BK_REGS": false,
-                "ENABLE_SWD": false,
-                "VERSION_STRING_1": "v50",
-                "VERSION_STRING_2": "v50"
-            }
-        },
-       
-{
-    "name": "NOCOM","inherits": "default","cacheVariables": {
-        "EDITION_STRING": "NOCOM",
-        "TARGET": "f4hwn.sonic.nocom.v50"
-    }
-},
-{
-    "name": "CHIRP","inherits": "default","cacheVariables": {
+  "version": 3,
+  "configurePresets": [{
+      "name": "default",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_LTO": false,
+        "ENABLE_NO_HEAP": false,
+        "ENABLE_FMRADIO": true,
+        "ENABLE_UART": false,
+        "ENABLE_USB": false,
+        "ENABLE_SAVE_REGISTERS": false,
+        "ENABLE_ADVANCED_SPECTRUM": false,
+        "ENABLE_PERSIST": false,
+        "ENABLE_BENCH": false,
+        "ENABLE_VERSION": false,
+        "ENABLE_ALARM": false,
+        "ENABLE_FLASHLIGHT": true,
+        "ENABLE_SPECTRUM": true,
+        "ENABLE_BIG_FREQ": true,
+        "ENABLE_SMALL_BOLD": true,
+        "ENABLE_CUSTOM_MENU_LAYOUT": true,
+        "ENABLE_KEEP_MEM_NAME": true,
+        "ENABLE_TX_WHEN_AM": false,
+        "ENABLE_CTCSS_TAIL_PHASE_SHIFT": false,
+        "ENABLE_BOOT_BEEPS": false,
+        "ENABLE_SHOW_CHARGE_LEVEL": false,
+        "ENABLE_REVERSE_BAT_SYMBOL": false,
+        "ENABLE_NO_CODE_SCAN_TIMEOUT": true,
+        "ENABLE_SQUELCH_MORE_SENSITIVE": true,
+        "ENABLE_FASTER_CHANNEL_SCAN": true,
+        "ENABLE_RSSI_BAR": true,
+        "ENABLE_AUDIO_BAR": true,
+        "ENABLE_COPY_CHAN_TO_VFO": true,
+        "ENABLE_REDUCE_LOW_MID_TX_POWER": false,
+        "ENABLE_BYP_RAW_DEMODULATORS": false,
+        "ENABLE_BLMIN_TMP_OFF": false,
+        "ENABLE_REGA": false,
+        "ENABLE_EXTRA_UART_CMD": false,
+        "ENABLE_FEAT_F4HWN": true,
+        "ENABLE_FEAT_F4HWN_SPECTRUM": true,
+        "ENABLE_SPECTRUM_LINES": true,
+        "ENABLE_FEAT_F4HWN_RX_TX_TIMER": true,
+        "ENABLE_FEAT_F4HWN_CHARGING_C": false,
+        "ENABLE_FEAT_F4HWN_SLEEP": true,
+        "ENABLE_FEAT_F4HWN_RESUME_STATE": true,
+        "ENABLE_FEAT_F4HWN_NARROWER": true,
+        "ENABLE_FEAT_F4HWN_INV": true,
+        "ENABLE_FEAT_F4HWN_CTR": true,
+        "ENABLE_FEAT_F4HWN_VOL": true,
+        "ENABLE_FEAT_F4HWN_AUDIO": true,
+        "ENABLE_FEAT_F4HWN_RESET_VFO": true,
+        "ENABLE_FEAT_F4HWN_PMR": true,
+        "ENABLE_FEAT_F4HWN_GMRS_FRS_MURS": false,
+        "ENABLE_FEAT_F4HWN_CA": true,
+        "ENABLE_FEAT_F4HWN_DEBUG": false,
+        "ENABLE_FEAT_F4HWN_MEM": false,
+        "ENABLE_FEAT_F4HWN_AUDIO_SCOPE": true,
+        "ENABLE_FEAT_F4HWN_MULTIBOOT": true,
+        "ENABLE_FEAT_F4HWN_MULTIBOOT_OVERLAY": true,
+        "ENABLE_AGC_SHOW_DATA": false,
+        "ENABLE_UART_RW_BK_REGS": false,
+        "ENABLE_SWD": false
+      }
+    },
+    {
+      "name": "NOCOM",
+      "inherits": "default",
+      "cacheVariables": {
+        "EDITION_STRING": "NOCOM"
+      }
+    },
+    {
+      "name": "CHIRP",
+      "inherits": "default",
+      "cacheVariables": {
         "ENABLE_USB": true,
         "ENABLE_UART": true,
-        "EDITION_STRING": "Sonic",
-        "TARGET": "f4hwn.sonic.chirp.v50"
+        "EDITION_STRING": "Sonic"
+      }
     }
-}
-],
-"buildPresets": [
-    {"name": "NOCOM","configurePreset": "NOCOM"},
-    {"name": "CHIRP","configurePreset": "CHIRP"}
-]
+  ],
+  "buildPresets": [{
+      "name": "NOCOM",
+      "configurePreset": "NOCOM"
+    },
+    {
+      "name": "CHIRP",
+      "configurePreset": "CHIRP"
+    }
+  ]
 }

@@ -15,7 +15,7 @@ jobs:
     - name: Compile firmware
       run: |
         chmod +x compile-with-docker.sh
-        ./compile-with-docker.sh
+        ./compile-with-docker.sh --no-auto-flash
 
     - name: Upload firmware artifact
       uses: actions/upload-artifact@v4

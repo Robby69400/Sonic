@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
-python flash.py  /c/Perso/Sonic/build/CHIRP/f4hwn.sonic.chirp.v50.bin -p COM14
+
+source load_settings.sh
+
+python flash.py $DEFAULT_LOAD_FILE -p $UPLOAD_PORT

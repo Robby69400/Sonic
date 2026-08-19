@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:3.10-bookworm
+FROM python:3.14-slim-bookworm
 
 # ---------------------------------------------
 # Base build tools
