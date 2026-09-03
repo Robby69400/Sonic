@@ -56,7 +56,9 @@ struct {
   freq_reverse:1;
 
   // 0x0D
-  u8 __UNUSED02:8;
+  u8 __UNUSED02:4,
+  dtmf_pttid:3,
+  dtmf_decode:1;
 
   // 0x0E
   u8 step;
@@ -117,7 +119,9 @@ struct {
   freq_reverse:1;
 
   // 0x0D
-  u8 __UNUSED06:8;
+  u8 __UNUSED06:4,
+  dtmf_pttid:3,
+  dtmf_decode:1;
 
   // 0x0E
   u8 step;
@@ -952,23 +956,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                 return bnd
         return False
 
-    def _get_vfo_channel_names(self):
-        """generates VFO_CHANNEL_NAMES"""
-        bands = self._get_bands()
-        names = []
-        for bnd, rng in bands.items():
-            name = f"F{bnd + 1}({round(rng[0])}M-{round(rng[1])}M)"
-            names.append(name + "A")
-            names.append(name + "B")
-        return names
-
-    def _get_specials(self):
-        """generates SPECIALS"""
-        specials = {}
-        for idx, name in enumerate(self._get_vfo_channel_names()):
-            specials[name] = MR_CHANNELS_MAX + idx
-        return specials
-
     @classmethod
     def get_prompts(cls):
         rp = chirp_common.RadioPrompts()
@@ -1008,7 +995,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         rf.has_comment = False
         rf.valid_name_length = 10
         rf.valid_power_levels = UVK5_POWER_LEVELS
-        rf.valid_special_chans = self._get_vfo_channel_names()
         rf.valid_duplexes = ["", "-", "+"]
 
         steps = STEPS.copy()
@@ -1181,13 +1167,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
     def get_memory(self, number):
 
         mem = chirp_common.Memory()
-
-        if isinstance(number, str):
-            ch_num = self._get_specials()[number]
-            mem.extd_number = number
-        else:
-            ch_num = number - 1
-
+        ch_num = number - 1
         mem.number = ch_num + 1
 
         # Access the correct structure based on channel type
@@ -1241,16 +1221,12 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
 
             return mem
 
-        if ch_num > MR_CHANNELS_MAX - 1:
-            mem.name = self._get_vfo_channel_names()[ch_num-MR_CHANNELS_MAX]
-            mem.immutable = ["name", "scanlists"]
-        else:
-            _mem2 = self._memobj.channelname[ch_num]
-            for char in _mem2.name:
-                if str(char) == "\xFF" or str(char) == "\x00":
-                    break
-                mem.name += str(char)
-            mem.name = mem.name.rstrip()
+        _mem2 = self._memobj.channelname[ch_num]
+        for char in _mem2.name:
+            if str(char) == "\xFF" or str(char) == "\x00":
+                break
+            mem.name += str(char)
+        mem.name = mem.name.rstrip()
 
         # Convert your low-level frequency to Hertz
         mem.freq = int(_mem.freq)*10
