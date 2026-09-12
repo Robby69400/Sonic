@@ -64,14 +64,14 @@ struct {
   u8 step;
   u8 __UNUSED03;
 
-} channel[8192];
+} channel[4096];
 
 // --------------------
 
 #seekto 0x132000;
 struct {
 char name[16];
-} channelname[8192];
+} channelname[4096];
 
 
 // --------------------
@@ -82,7 +82,7 @@ struct {
      compander:2,
      band:3;
   u8 scanlist;
-} ch_attr[8199];
+} ch_attr[4103];
 
 // MR_CHANNELS_LIST
 

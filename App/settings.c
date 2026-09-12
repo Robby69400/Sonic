@@ -467,14 +467,6 @@ void SETTINGS_FactoryReset(bool bIsAll)
         for (uint32_t addr = 0x122000; addr < 0x144000; addr += 0x1000) {PY25Q16_SectorErase(addr);}
 #endif
 
-#ifndef ENABLE_FEAT_F4HWN_MULTIBOOT
-        /* Legacy Sonic reset also wiped the otherwise unused external flash.
-         * With multiboot enabled this range contains the shared logo, firmware
-         * slots, private profile banks and redundant active-profile marker. */
-        for (uint32_t addr = 0x011000; addr < 0x1FE000; addr += 0x1000) {
-            PY25Q16_SectorErase(addr);
-        }
-#endif
     }
 
     // Reset VFO defaults
