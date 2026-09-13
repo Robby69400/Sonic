@@ -47,6 +47,7 @@ uint16_t          gFM_RestoreCountdown_10ms;
 bool              gFM_ManualMode = false;
 bool              gFM_Mute       = false;
 bool              gFM_No_Rx      = false;
+bool              gFmNameDisplay = true;
 
 // ── FM nine-slot memory ──────────────────────────────────────────────────
 // 0 = empty; otherwise, frequency (875..1080)
@@ -57,6 +58,52 @@ bool              gFM_No_Rx      = false;
 #define FM_MEMORY_EEPROM_ADDR2  0xA080
 
 uint16_t gFM_Memory[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+// ── FM radios list (50 × 15 bytes, written by CHIRP) ────────────────────
+// Record: ul16 freq (0.1 MHz units, 0 = empty) + char name[15]
+#define FM_RADIOS_MAX           50
+#define FM_RADIOS_EEPROM_ADDR   0x008AF4
+#define FM_RADIO_NAME_LEN       15
+#define FM_RADIO_RECORD         (2 + FM_RADIO_NAME_LEN)
+
+static char gFM_RadioName[FM_RADIO_NAME_LEN + 1];  // zero-terminated copy
+
+const char *FM_FindRadioName(uint16_t freq)
+{
+    uint8_t buf[2];
+
+    for (uint8_t i = 0; i < FM_RADIOS_MAX; i++) {
+        PY25Q16_ReadBuffer(FM_RADIOS_EEPROM_ADDR + (uint16_t)i * FM_RADIO_RECORD,
+                           buf, 2);
+
+        uint16_t f = buf[0] | ((uint16_t)buf[1] << 8);
+        if (f != freq)
+            continue;
+
+        // Frequency match — load only this station's name
+        PY25Q16_ReadBuffer(FM_RADIOS_EEPROM_ADDR + (uint16_t)i * FM_RADIO_RECORD + 2,
+                           (uint8_t *)gFM_RadioName, FM_RADIO_NAME_LEN);
+
+        uint8_t j;
+        for (j = 0; j < FM_RADIO_NAME_LEN; j++) {
+            char c = gFM_RadioName[j];
+            if (c == '\0' || c == (char)0xFF)
+                break;
+            if (c < 32 || c > 126)
+                gFM_RadioName[j] = ' ';
+        }
+        gFM_RadioName[j] = '\0';
+
+        while (j > 0 && gFM_RadioName[j - 1] == ' ')
+            j--;
+        gFM_RadioName[j] = '\0';
+
+        if (gFM_RadioName[0] != '\0')
+            return gFM_RadioName;
+        return NULL;
+    }
+    return NULL;
+}
 
 void FM_Memory_Load(void)
 {
@@ -349,6 +396,9 @@ void FM_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             if (state == BUTTON_EVENT_SHORT)
                 ACTION_FM();
             break;
+        case KEY_MENU:
+            if (state == BUTTON_EVENT_SHORT) gFmNameDisplay = !gFmNameDisplay;
+            break;
         case KEY_F:
             GENERIC_Key_F(bKeyPressed, bKeyHeld);
             break;
@@ -422,7 +472,6 @@ void FM_Start(void)
     BK4819_PickRXFilterPathBasedOnFrequency(10320000);
 
     FM_Memory_Load();   // load memory slots from EEPROM
-
     GPIO_EnableAudioPath();
     gEnableSpeaker = true;
     gUpdateStatus  = true;

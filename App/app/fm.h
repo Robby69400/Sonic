@@ -39,6 +39,7 @@ extern uint8_t           gFM_ChannelPosition;
 // Doubts about          whether this should be signed or not
 extern uint16_t          gFM_FrequencyDeviation;
 extern bool              gFM_FoundFrequency;
+extern bool              gFmNameDisplay;
 extern uint16_t          gFM_RestoreCountdown_10ms;
 extern bool              gFM_ManualMode;   // false = AUTO seek, true = MANUAL step
 extern bool              gFM_Mute;         // true = RX does not interrupt radio
@@ -62,6 +63,8 @@ void    FM_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld);
 
 void    FM_Play(void);
 void    FM_Start(void);
+
+const char *FM_FindRadioName(uint16_t freq);
 
 #endif
 

@@ -547,9 +547,10 @@ static void LoadActiveScanFrequencies(void)
         else
             sprintf(str, "CHANNELS:%d", scanChannelsCount);
     }
-uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
-SETTINGS_FetchChannelName(TxChannelName, ch);
-Spectrum_Prepare_Tx(); //to display ch correctly
+    ShowOSDPopup(str);
+    uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
+    SETTINGS_FetchChannelName(TxChannelName, ch);
+    Spectrum_Prepare_Tx(); //to display ch correctly
 }
 
 static void LoadMonitorFrequencies(void)

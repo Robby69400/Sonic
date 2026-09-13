@@ -25,53 +25,70 @@ void UI_DisplayFM(void)
 {
     char String[16];
     char memoryString[8];
-
     memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
     
-    for (uint8_t i = 2; i < FRAME_LINES; i++) 
-    {
-        gFrameBuffer[i][40] = 0xAA; 
-        gFrameBuffer[i][41] = 0xAA; 
-        gFrameBuffer[i][84] = 0xAA; 
-        gFrameBuffer[i][85] = 0xAA; 
-    }
-
-    for (uint8_t x = 0; x < LCD_WIDTH; x+=2) 
-    {
-        gFrameBuffer[3][x] |= 0x08;
-        gFrameBuffer[5][x] |= 0x08;
-    }
     // Frequency in a large digital font, centered in the top area.
     memset(String, 0, sizeof(String));
-    sprintf(String, "%3d.%d",
+    sprintf(String, "%3d.%d MHz",
             gEeprom.FM_FrequencyPlaying / 10,
             gEeprom.FM_FrequencyPlaying % 10);
-    UI_PrintString(String, 0, 128, 0, 10);
-
+    
+    UI_PrintString(String,40,127,1,8);
+    
     // Keep the current scan and receiver states visible without borders.
-    if (gFM_ManualMode)
-        GUI_DisplaySmallestDark("MAN", 102, 6, false, true);
-    else
-        GUI_DisplaySmallestDark("AUTO", 102, 6, false, true);
+    #define LINE 1
+    //#define LINE 24
     if (gFM_No_Rx)
-        GUI_DisplaySmallestDark("NO RX", 3, 6, false, true);
+        //GUI_DisplaySmallestDark("NO RX", 3, LINE, false, true);
+        UI_PrintStringSmallBold("NO RX",3,3,LINE);
     else
-        GUI_DisplaySmallestDark("RX ON", 3, 6, false, true);
+        //GUI_DisplaySmallestDark("RX ON", 3, LINE, false, true);
+        UI_PrintStringSmallBold("RX ON",3,3,LINE);
+    if (gFM_ManualMode)
+        //GUI_DisplaySmallestDark("MAN", 102, LINE, false, true);
+        UI_PrintStringSmallBold("MAN",3,3,LINE+1);
+    else
+        //GUI_DisplaySmallestDark("AUTO", 102, LINE, false, true);
+        UI_PrintStringSmallBold("AUTO",3,3,LINE+1);
+    // Station name for the selected frequency, e.g. "FRANCE INTER".
+    const char *stationName = FM_FindRadioName(gEeprom.FM_FrequencyPlaying);
 
-    // Nine frequency memory slots in a 3 x 3 grid.  The normal font polarity
-    // leaves the LCD background clear and avoids separator lines.
-    static const uint8_t memoryX[9] = {2, 44, 88, 2, 44, 88, 2, 44, 88};
-    static const uint8_t memoryPage[9] = {2, 2, 2, 4, 4, 4, 6, 6, 6};
+    if (stationName != NULL && gFmNameDisplay)
+        UI_PrintString(stationName,0,127,4,8);
+    else {
+        // Nine frequency memory slots in a 3 x 3 grid.  The normal font polarity
+        // leaves the LCD background clear and avoids separator lines.
+        static const uint8_t memoryX[9] = {2, 44, 88, 2, 44, 88, 2, 44, 88};
+        static const uint8_t memoryPage[9] = {4, 4, 4, 5, 5, 5, 6, 6, 6};
 
-    for (uint8_t i = 0; i < 9; i++) {
-        uint16_t frequency = gFM_Memory[i];
-        if (frequency != 0)
-            sprintf(memoryString, "%03d.%d", frequency / 10, frequency % 10);
-        else
-            sprintf(memoryString, " M%d",i+1);
-        UI_PrintStringSmallBold(memoryString, memoryX[i], 0, memoryPage[i]);
+        for (uint8_t i = 0; i < 9; i++) {
+            uint16_t frequency = gFM_Memory[i];
+            if (frequency != 0)
+                sprintf(memoryString, "%03d.%d", frequency / 10, frequency % 10);
+            else
+                sprintf(memoryString, " M%d",i+1);
+            UI_PrintStringSmallBold(memoryString, memoryX[i], 0, memoryPage[i]);
+        }
+
+        for (uint8_t i = 4; i < FRAME_LINES; i++) //Vertical lines
+        {
+            gFrameBuffer[i][40] = 0xAA; 
+            gFrameBuffer[i][41] = 0xAA; 
+            gFrameBuffer[i][84] = 0xAA; 
+            gFrameBuffer[i][85] = 0xAA; 
+        }
+
+        for (uint8_t x = 38; x < 43; x++) //Horizontal lines
+        {
+            gFrameBuffer[4][x] |= 0x80;
+            gFrameBuffer[5][x] |= 0x80;
+        }
+        for (uint8_t x = 82; x < 87; x++) //Horizontal lines
+        {
+            gFrameBuffer[4][x] |= 0x80;
+            gFrameBuffer[5][x] |= 0x80;
+        }
     }
-
     ST7565_BlitFullScreen();
 }
 

@@ -91,6 +91,13 @@ struct {
     char name[10];
 } listname[50];
 
+// FM_RADIOS_LIST
+
+#seekto 0x008AF4;
+struct {
+  ul16 freq;
+  char name[15];
+} fmradiolist[50];
 // --------------------
 
 #seekto 0x009000;
@@ -405,6 +412,9 @@ struct {
 
 """
 FM_CHANNELS_MAX = 9
+FM_RADIOS_MAX = 50
+FM_RADIOS_RECORD = 21   # ul16 freq + char name[10]
+
 MR_CHANNELS_MAX = 4096 # CHANNEL_LOCATION
 MR_CHANNELS_LIST = 51
 
@@ -953,6 +963,22 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             if rng[0] <= mhz <= rng[1]:
                 return bnd
         return False
+    
+    def _get_fmlist_name(self, index):
+        if not hasattr(self, "_memobj") or not 0 <= index < FM_RADIOS_MAX:
+            return ""
+        try:
+            name_obj = self._memobj.fmradiolist[index].name
+        except AttributeError:
+            return ""
+        chars = []
+        for char_element in name_obj:
+            val = int(char_element)
+            if val in (0x00, 0xFF):
+                break
+            if 32 <= val <= 126:
+                chars.append(val)
+        return bytes(chars).decode("ascii", errors="ignore").strip()
 
     def _get_scanlist_name(self, index):
         if not hasattr(self, "_memobj") or not 0 <= index < MR_CHANNELS_LIST - 1:
@@ -1595,6 +1621,30 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             elif elname == "set_menu_lock":
                 _mem.set_menu_lock = int(element.value)
 
+            # FM radios list (freq + name, inspired by scan lists)
+            elif elname.startswith("FMFreq_"):
+                idx = int(elname.split("_")[1])
+                if 0 <= idx < FM_RADIOS_MAX:
+                    val = str(element.value).strip()
+                    try:
+                        val2 = int(float(val) * 10)
+                    except Exception:
+                        val2 = 0
+                    if val2 < FMMIN * 10 or val2 > FMMAX * 10:
+                        val2 = 0
+                    _mem.fmradiolist[idx].freq = val2
+
+            elif elname.startswith("FMName_"):
+                idx = int(elname.split("_")[1])
+                if 0 <= idx < FM_RADIOS_MAX:
+                    val_str = str(element.value)
+                    if val_str:
+                        val_bytes = val_str.encode('ascii', 'ignore')[:15]
+                        val_bytes = val_bytes + b'\x20' * (15 - len(val_bytes))
+                    else:
+                        val_bytes = b'\x20' * 15
+                    _mem.fmradiolist[idx].name = val_bytes
+
             # fm radio
             for i in range(1, FM_CHANNELS_MAX + 1):
                 freqname = "FM_" + str(i)
@@ -2064,7 +2114,25 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
                        'To listen the FM Broadcast band, Long press the 5 key, then if you want to scan for\n' + \
                        'stations around, press *. Scan result will erase the existing FM broadcast list.')
             fmradio.append(rs)
+        append_label(fmradio, "=" * 6 + " FM Radios List (50) " + "=" * 300, "=" * 300)
 
+        for i in range(FM_RADIOS_MAX):
+            rec_freq = int(_mem.fmradiolist[i].freq) / 10.0
+            freq_name = str(rec_freq)
+            if rec_freq < FMMIN or rec_freq > FMMAX:
+                freq_name = ""
+            rs = RadioSetting(f"FMFreq_{i}", f"Radio {i+1} Freq",
+                              RadioSettingValueString(0, 5, freq_name))
+            rs.set_doc('FM Broadcast frequency in MHz, example: 87.8\n' +
+                       'Leave empty (or 0) to clear the slot.')
+            fmradio.append(rs)
+
+            station_name = self._get_fmlist_name(i)
+            rs = RadioSetting(f"FMName_{i}", f"Radio {i+1} Name",
+                              RadioSettingValueString(0, 15, station_name))
+            rs.set_doc('Station name displayed on the FM screen when this ' +
+                       'frequency is selected. Maximum 15 characters.')
+            fmradio.append(rs)
         # ----------------- Unlock settings
 
         # F-LOCK
