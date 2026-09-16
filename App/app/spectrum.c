@@ -256,7 +256,7 @@ static void Skip();
     #define MAX_SCAN_CHANNELS 8143
 #elif defined(ENABLE_4096)
     #define MAX_SCAN_CHANNELS 4047
-#else
+#elif defined(ENABLE_1024)
     #define MAX_SCAN_CHANNELS 975
 #endif
 
@@ -1016,20 +1016,20 @@ static void Spectrum_Prepare_Tx(void) {
     if(PttEmission == 1) return;
     
     uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
-    RADIO_SelectVfos();
+/*     RADIO_SelectVfos();
     gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
-    gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO];
+    gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO]; */
     
     gEeprom.ScreenChannel[0] = ch;
     gEeprom.MrChannel[0] = ch;
     gEeprom.FreqChannel[0] = GetScanFrequency(TX_Channel);
     RADIO_ConfigureChannel(0,VFO_CONFIGURE_RELOAD);
     
-    gEeprom.ScreenChannel[1] = ch;
+/*     gEeprom.ScreenChannel[1] = ch;
     gEeprom.MrChannel[1] = ch;
     gEeprom.FreqChannel[1] = GetScanFrequency(TX_Channel);
     RADIO_ConfigureChannel(1,VFO_CONFIGURE_RELOAD);
-    RADIO_SetupRegisters(false);
+    RADIO_SetupRegisters(false); */
 }
 
 static void Spectrum_TX()
@@ -1077,8 +1077,12 @@ static void SpectrumTransmit() {
                 if (rndfreq) {
                     gCurrentVfo->freq_config_TX.Frequency = rndfreq;
                     lastReceivingFreq = rndfreq;
-                    uint16_t TX_Channel = BOARD_gMR_fetchChannel(GetScanFrequency(rndfreq));
-                    SETTINGS_FetchChannelName(TxChannelName, TX_Channel);
+                    TX_Channel = BOARD_gMR_fetchChannel(rndfreq);
+                    if (TX_Channel != 0xFFFF) {
+                        SETTINGS_FetchChannelName(TxChannelName, TX_Channel);
+                    } else {
+                        snprintf(TxChannelName, sizeof(TxChannelName), "NINJA");
+                    }
                     gCurrentVfo->Modulation   = MODULATION_FM;
                 }
             }

@@ -43,7 +43,7 @@
     #define MR_CHANNELS_MAX 8192
 #elif defined(ENABLE_4096)
     #define MR_CHANNELS_MAX 4096
-#else
+#elif defined(ENABLE_1024)
     #define MR_CHANNELS_MAX 1024
 #endif
 

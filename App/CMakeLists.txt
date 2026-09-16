@@ -115,6 +115,7 @@ enable_feature(ENABLE_FMRADIO
 enable_feature(ENABLE_BENCH)
 enable_feature(ENABLE_8192)
 enable_feature(ENABLE_4096)
+enable_feature(ENABLE_1024)
 enable_feature(ENABLE_LARGE_HISTORY)
 enable_feature(ENABLE_SAVE_REGISTERS)
 enable_feature(ENABLE_SET_TOT_EOT)

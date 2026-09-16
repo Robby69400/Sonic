@@ -13,6 +13,7 @@
         "ENABLE_FMRADIO": true,
         "ENABLE_UART": false,
         "ENABLE_USB": false,
+        "ENABLE_1024": false,
         "ENABLE_4096": false,
         "ENABLE_8192": false,
         "ENABLE_SAVE_REGISTERS": false,
@@ -79,6 +80,7 @@
       "name": "S1K",
       "inherits": "default",
       "cacheVariables": {
+        "ENABLE_1024": true,
         "ENABLE_UART": true,
         "ENABLE_USB": true,
         "EDITION_STRING": "Sonic 1K"

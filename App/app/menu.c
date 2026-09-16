@@ -284,7 +284,7 @@ void MENU_AcceptSetting(void)
         else
         if (gSubMenuSelection > Max) gSubMenuSelection = Max;
     }
-
+    gRequestSaveSettings = true;
     switch (UI_MENU_GetCurrentMenuId())
     {
         default:

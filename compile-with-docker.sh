@@ -121,7 +121,7 @@ flash_preset() {
 # Handle Build & Flash
 # ---------------------------------------------
 if [[ "$PRESET" == "All" ]]; then
-  PRESETS=(S1K NC4K S4K)
+  PRESETS=(S1K S4K)
   for p in "${PRESETS[@]}"; do
     build_preset "$p"
   done

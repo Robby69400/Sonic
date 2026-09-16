@@ -32,7 +32,7 @@
     #define ADRESS_CHANNELS             0x122000
     #define ADRESS_CHANNELS_NAMES       0x132000
     #define ADRESS_CHANNELS_ATTRIBUTES  0x142000
-#else
+#elif defined(ENABLE_1024)
     #define ADRESS_CHANNELS             0x000000
     #define ADRESS_CHANNELS_NAMES       0x004000
     #define ADRESS_CHANNELS_ATTRIBUTES  0x008000
