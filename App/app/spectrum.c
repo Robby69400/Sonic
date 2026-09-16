@@ -1013,21 +1013,23 @@ static void Spectrum_END_TX(void)
 }
 
 static void Spectrum_Prepare_Tx(void) {
-                uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
-                RADIO_SelectVfos();
-                gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
-                gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO];
-                
-                gEeprom.ScreenChannel[0] = ch;
-                gEeprom.MrChannel[0] = ch;
-                gEeprom.FreqChannel[0] = GetScanFrequency(TX_Channel);
-                RADIO_ConfigureChannel(0,VFO_CONFIGURE_RELOAD);
-                
-                gEeprom.ScreenChannel[1] = ch;
-                gEeprom.MrChannel[1] = ch;
-                gEeprom.FreqChannel[1] = GetScanFrequency(TX_Channel);
-                RADIO_ConfigureChannel(1,VFO_CONFIGURE_RELOAD);
-                RADIO_SetupRegisters(false);
+    if(PttEmission == 1) return;
+    
+    uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
+    RADIO_SelectVfos();
+    gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
+    gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO];
+    
+    gEeprom.ScreenChannel[0] = ch;
+    gEeprom.MrChannel[0] = ch;
+    gEeprom.FreqChannel[0] = GetScanFrequency(TX_Channel);
+    RADIO_ConfigureChannel(0,VFO_CONFIGURE_RELOAD);
+    
+    gEeprom.ScreenChannel[1] = ch;
+    gEeprom.MrChannel[1] = ch;
+    gEeprom.FreqChannel[1] = GetScanFrequency(TX_Channel);
+    RADIO_ConfigureChannel(1,VFO_CONFIGURE_RELOAD);
+    RADIO_SetupRegisters(false);
 }
 
 static void Spectrum_TX()
@@ -1037,9 +1039,7 @@ static void Spectrum_TX()
         ShowOSDPopup("TX DISABLE");
         return;
     }
-    
     Spectrum_Prepare_Tx();
-
     RADIO_SetTxParameters();
     // turn the RED LED on
     BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, true);
