@@ -121,7 +121,7 @@ static uint8_t mb_copy_slot_version(char *dst, uint8_t cap, const mb_slot_header
 static void mb_status_bar(void)
 {
     UI_StatusClear();
-    GUI_DisplaySmallestInverse("F4HWN MULTIBOOT", 34, 0, true, true, 94);
+    GUI_DisplaySmallestInverse("SONIC MULTIBOOT", 34, 0, true, true, 94);
 
     /* Thin line dressing up the otherwise blank row between the status bar and
      * the first content row. Drawn on gFrameBuffer[0] (line 0), which every

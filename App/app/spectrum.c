@@ -995,11 +995,21 @@ void SaveHistory(void) {
 static void Spectrum_END_TX(void)
 {
     if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0) {
-        // TX frequency not allowed
         ShowOSDPopup("TX DISABLE");
         return;
     }
     RADIO_SendEndOfTransmission();
+    
+    SPECTRUM_PAUSED = false;
+    SpectrumPauseCount = 0;
+    WaitSpectrum = 0;
+    
+    Skip();
+    
+    /*if (PttEmission == 2 && lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
+        scanInfo.f = lastReceivingFreq;
+        peak.f = lastReceivingFreq;
+    }*/
 }
 
 static void Spectrum_Prepare_Tx(void) {
@@ -1067,6 +1077,8 @@ static void SpectrumTransmit() {
                 if (rndfreq) {
                     gCurrentVfo->freq_config_TX.Frequency = rndfreq;
                     lastReceivingFreq = rndfreq;
+                    uint16_t TX_Channel = BOARD_gMR_fetchChannel(GetScanFrequency(rndfreq));
+                    SETTINGS_FetchChannelName(TxChannelName, TX_Channel);
                     gCurrentVfo->Modulation   = MODULATION_FM;
                 }
             }
@@ -1934,7 +1946,12 @@ static void DrawF(uint32_t f) {
     if ((f == 0) || f < FMIN || f > FMAX) f=fprev;
     else fprev = f;
     char freqStr[18];
-    snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
+    
+    if (!last_ptt_state) {
+        snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
+    } else {
+        snprintf(freqStr, sizeof(freqStr), "%u.%05u", gTxVfo->freq_config_TX.Frequency / 100000, gTxVfo->freq_config_TX.Frequency % 100000);
+    }
     char line1[19] = "";
     char line2[19] = "";
     sprintf(line1, "%s", freqStr);
@@ -1964,6 +1981,7 @@ static void DrawF(uint32_t f) {
     ArrowLine = 2;
     static char Text[20]="";
     DrawNums();
+
     if(f < 100000000) {
         UI_PrintStringSmallBold(line1 + 7, 86, 0, 1);
         line1[7] = 0;
@@ -1973,6 +1991,7 @@ static void DrawF(uint32_t f) {
         line1[8] = 0;
         UI_DisplayFrequency(line1, 2, 0, 1);
     }
+     
     GUI_DisplaySmallest(StringCode, 128, 2, false, true);
     switch(ShowLines) {
             case 1:
@@ -1992,9 +2011,11 @@ static void DrawF(uint32_t f) {
                 switch(PttEmission) {
                     case 1:
                     case 2:
+                    if (appMode == SCAN_BAND_MODE) {
                         if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
                             snprintf(Text, sizeof(Text), "%u.%05u", lastReceivingFreq / 100000U, lastReceivingFreq % 100000U);
                         }
+                    } else snprintf(Text, sizeof(Text), "%s",TxChannelName);
                         const char *status = last_ptt_state ? "TX>" : "TX";
                         UI_PrintString(status, 2, 2, 4, 8);
                         break;
@@ -3586,6 +3607,10 @@ static void UpdateListening(void) {
     }
     if (peak.f == stableFreq) {
         if (++stableCount >= 2) {  
+            if(appMode == CHANNEL_MODE && PttEmission == 2) {
+                TX_Channel = gChannel;
+                SETTINGS_FetchChannelName(TxChannelName, TX_Channel);
+            }
             if (!SpectrumMonitor) FillfreqHistory();
             if (gEeprom.BACKLIGHT_MAX > 5){
                 BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
