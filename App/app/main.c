@@ -364,6 +364,8 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                 if (Key == KEY_3) {
                     gVfoConfigureMode = VFO_CONFIGURE;
                     COMMON_SwitchVFOMode();
+                    gScheduleVfoSave = true;
+                    SETTINGS_SaveVfoIndices();
                     return;
                 }
                 if (Key == KEY_4) {
