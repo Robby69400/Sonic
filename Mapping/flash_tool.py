@@ -139,6 +139,7 @@ def restore_file(ser, addr, infile):
         if not write_memory(ser, addr + pos, chunk):
             print(f"\n✗ FAIL write at 0x{addr+pos:06X}")
             return False
+
         pos += len(chunk)
         print(f"\r  Restore: {pos*100//size}% | {pos}/{size}", end='', flush=True)
     

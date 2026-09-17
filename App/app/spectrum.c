@@ -1101,7 +1101,6 @@ static void SpectrumTransmit() {
     SPECTRUM_PAUSED = true;
     SpectrumPauseCount = 2000;
     Spectrum_TX();
-    SYSTEM_DelayMs(50);
 }
 
 static uint16_t GetRssi(void) {
