@@ -195,6 +195,7 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
                 uint16_t freqCh = FREQ_CHANNEL_FIRST + mrBand;
                 gEeprom.ScreenChannel[Vfo1] = freqCh;
                 gEeprom.FreqChannel[Vfo1]   = freqCh;
+                SETTINGS_SaveVfoIndices();
                 RADIO_SelectVfos();            
                 gTxVfo->pRX->Frequency = mrFreq;
                 gTxVfo->pTX->Frequency = mrFreq;
