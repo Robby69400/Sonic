@@ -280,7 +280,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
     if (IS_MR_CHANNEL(channel))
         base = ADRESS_CHANNELS + channel * 16;
     else
-        base = 0x009000 + ((channel - FREQ_CHANNEL_FIRST) * 32) + (VFO * 16);
+        base = 0x009000;
 
     if (configure == VFO_CONFIGURE_RELOAD || IS_FREQ_CHANNEL(channel))
     {

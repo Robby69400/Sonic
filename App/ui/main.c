@@ -476,12 +476,9 @@ void UI_DisplayMain(void)
     // RENDER VFO
     // ================================================================
     
-    // Determine which VFO is active for TX
-    unsigned int activeTxVFO = gRxVfoIsActive ? gEeprom.RX_VFO : gEeprom.TX_VFO;
-
     // GUI style: CLASSIC in main-only, MODERN in dual-screen
     gSetting_set_gui = 1;
-    const unsigned int vfo_num = activeTxVFO;
+    const unsigned int vfo_num = 0;
     const VFO_Info_t  *vfoInfo = &gEeprom.VfoInfo[vfo_num];
     uint32_t frequency = vfoInfo->pRX->Frequency;
     if (gCurrentFunction == FUNCTION_TRANSMIT)

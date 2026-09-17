@@ -107,8 +107,7 @@ void Main(void)
     SETTINGS_LoadCalibration();
 
     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
-    RADIO_ConfigureChannel(1, VFO_CONFIGURE_RELOAD);
-
+    
     RADIO_SelectVfos();
 
     RADIO_SetupRegisters(true);

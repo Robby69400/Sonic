@@ -360,9 +360,12 @@ uint32_t APP_SetFreqByStepAndLimits(VFO_Info_t *pInfo, int8_t direction, uint32_
     return Frequency;
 }
 
+#define BX4819_band1_lower 1400000
+#define BX4819_band2_upper 116000000
+
 uint32_t APP_SetFrequencyByStep(VFO_Info_t *pInfo, int8_t direction)
 {
-    return APP_SetFreqByStepAndLimits(pInfo, direction, frequencyBandTable[pInfo->Band].lower, frequencyBandTable[pInfo->Band].upper);
+    return APP_SetFreqByStepAndLimits(pInfo, direction,BX4819_band1_lower, BX4819_band2_upper);
 }
 
 static void CheckRadioInterrupts(void)
@@ -1308,10 +1311,9 @@ Skip:
     if (gVfoConfigureMode != VFO_CONFIGURE_NONE) {
         if (gFlagResetVfos) {
             RADIO_ConfigureChannel(0, gVfoConfigureMode);
-            RADIO_ConfigureChannel(1, gVfoConfigureMode);
         }
         else
-            RADIO_ConfigureChannel(gEeprom.TX_VFO, gVfoConfigureMode);
+            RADIO_ConfigureChannel(0, gVfoConfigureMode);
 
         if (gRequestDisplayScreen == DISPLAY_INVALID)
             gRequestDisplayScreen = DISPLAY_MAIN;
