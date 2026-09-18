@@ -193,11 +193,10 @@ void SETTINGS_InitEEPROM(void)
     #endif
 
 // 0x00A010 .. 0x00A01F
-uint16_t Data16[3];
+uint16_t Data16[2];
 PY25Q16_ReadBuffer(0x00A010, Data16, sizeof(Data16));
 gEeprom.ScreenChannel = Data16[0];
-gEeprom.FreqChannel   = Data16[1];
-gEeprom.MrChannel     = Data16[2];
+gEeprom.MrChannel     = Data16[1];
 
 #ifdef ENABLE_FMRADIO
     {   // 0E88..0E8F
@@ -282,11 +281,6 @@ gEeprom.MrChannel     = Data16[2];
         gSetting_mic_bar       = !!(Data[7] & (1u << 4));
     #endif
     gSetting_backlight_on_tx_rx = (Data[7] >> 6) & 3u;
-
-    if (!gEeprom.VFO_OPEN)
-    {
-        gEeprom.ScreenChannel = gEeprom.MrChannel;
-    }
 
     // Init list name
     PY25Q16_ReadBuffer(0x008900, gListName, sizeof(gListName));
@@ -465,12 +459,11 @@ void SETTINGS_FactoryReset(bool bIsAll)
     }
 
     // Reset VFO defaults
-    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL + BAND3_137MHz, 14550000);
+    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL, 14550000);
     
-    gEeprom.ScreenChannel = FREQ_CHANNEL + BAND3_137MHz;
+    gEeprom.ScreenChannel = FREQ_CHANNEL;
     gEeprom.MrChannel     = MR_CHANNEL_FIRST;
-    gEeprom.FreqChannel   = FREQ_CHANNEL + BAND3_137MHz;
-    SETTINGS_SaveChannel(FREQ_CHANNEL + BAND3_137MHz, 0, &gEeprom.VfoInfo[0], 2);
+    SETTINGS_SaveChannel(FREQ_CHANNEL, 0, &gEeprom.VfoInfo[0], 2);
     gVfoStateChanged = true;
     gScheduleVfoSave = true;
     SETTINGS_SaveVfoIndicesFlush();
@@ -519,12 +512,9 @@ void SETTINGS_SaveVfoIndicesFlush(void)
         
         if (gVfoStateChanged) {
             gVfoStateChanged = false;
-            uint16_t Data16[3];
+            uint16_t Data16[2];
             Data16[0] = gEeprom.ScreenChannel;
-            PY25Q16_ReadBuffer(0x00A010, Data16, sizeof(Data16));
-            Data16[0] = gEeprom.ScreenChannel;
-            Data16[1] = gEeprom.FreqChannel;
-            Data16[2] = gEeprom.MrChannel;
+            Data16[1] = gEeprom.MrChannel;
             PY25Q16_WriteBuffer(0x00A010, Data16, sizeof(Data16), false);
         }
     }

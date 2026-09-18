@@ -508,6 +508,10 @@ void UI_DisplayMain(void)
                 UI_PrintString(dispName, 40, 0, 1, 8);
             }
         }
+        else {
+            sprintf(String, "M%u", gEeprom.ScreenChannel + 1);
+            UI_PrintStringSmallBold(String, 0, 0, 1);
+        }
 
         if (INPUTBOX_FrequencyIsActive())
         {

@@ -43,8 +43,7 @@ void COMMON_SwitchVFOMode()
 
         if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE))
         {   // swap to frequency mode
-            //gEeprom.ScreenChannel = gEeprom.FreqChannel;
-            gEeprom.ScreenChannel = 4097;
+            gEeprom.ScreenChannel = FREQ_CHANNEL;
             gRequestSaveVFO            = true;
             gVfoConfigureMode          = VFO_CONFIGURE_RELOAD;
             return;

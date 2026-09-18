@@ -193,7 +193,7 @@ void RADIO_InitInfo(VFO_Info_t *pInfo, const uint16_t ChannelSave, const uint32_
     pInfo->pTX                      = &pInfo->freq_config_TX;
     pInfo->Compander                = 0;  // off
 
-    if (ChannelSave == (FREQ_CHANNEL + BAND2_108MHz))
+    if (ChannelSave == FREQ_CHANNEL)
         pInfo->Modulation = MODULATION_AM;
     else
         pInfo->Modulation = MODULATION_FM;
@@ -233,8 +233,8 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         if (IS_MR_CHANNEL(channel)) {
             channel = RADIO_FindNextChannel(channel, RADIO_CHANNEL_UP, false, VFO);
             if (channel == 0xFFFF) {
-                channel               = gEeprom.FreqChannel;
-                gEeprom.ScreenChannel = gEeprom.FreqChannel;
+                channel               = FREQ_CHANNEL;
+                gEeprom.ScreenChannel = FREQ_CHANNEL;
             }
             else {
                 gEeprom.ScreenChannel = channel;
@@ -248,12 +248,10 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
     ChannelAttributes_t* att = MR_GetChannelAttributes(channel);
     if (att->__val == 0xFFFF) { // invalid/unused channel
         if (IS_MR_CHANNEL(channel)) {
-            channel                     = gEeprom.FreqChannel;
-            gEeprom.ScreenChannel       = channel;
+            gEeprom.ScreenChannel       = FREQ_CHANNEL;
         }
 
-        uint16_t bandIdx = channel - FREQ_CHANNEL;
-        RADIO_InitInfo(pVfo, channel, frequencyBandTable[bandIdx].lower);
+        RADIO_InitInfo(pVfo, channel, frequencyBandTable[0].lower);
         return;
     }
 
@@ -263,7 +261,6 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         bParticipation = att->scanlist;
     }
     else {
-        band = channel - FREQ_CHANNEL;
         bParticipation = MR_CHANNELS_LIST + 1;
     }
     pVfo->SCANLIST_PARTICIPATION = bParticipation;
@@ -338,7 +335,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         } __attribute__((packed)) info;
         PY25Q16_ReadBuffer(base, &info, sizeof(info));
         if(info.Frequency==0xFFFFFFFF)
-            pVfo->freq_config_RX.Frequency = frequencyBandTable[band].lower;
+            pVfo->freq_config_RX.Frequency = frequencyBandTable[0].lower;
         else
             pVfo->freq_config_RX.Frequency = info.Frequency;
 
@@ -351,15 +348,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
     }
 
     uint32_t frequency = pVfo->freq_config_RX.Frequency;
-
-    // fix previously set incorrect band
-    band = FREQUENCY_GetBand(frequency);
-
-    if (frequency < frequencyBandTable[band].lower)
-        frequency = frequencyBandTable[band].lower;
-    else if (frequency > frequencyBandTable[band].upper)
-        frequency = frequencyBandTable[band].upper;
-    else if (channel >= FREQ_CHANNEL)
+    if (channel == FREQ_CHANNEL)
         frequency = FREQUENCY_RoundToStep(frequency, pVfo->StepFrequency);
 
     pVfo->freq_config_RX.Frequency = frequency;

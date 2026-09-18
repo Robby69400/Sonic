@@ -192,15 +192,13 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
                 uint32_t mrFreq = gTxVfo->pRX->Frequency;
                 uint8_t  mrBand = gTxVfo->Band;
-                uint16_t freqCh = FREQ_CHANNEL + mrBand;
-                gEeprom.ScreenChannel = freqCh;
-                gEeprom.FreqChannel   = freqCh;
+                gEeprom.ScreenChannel = FREQ_CHANNEL;
                 SETTINGS_SaveVfoIndices();
                 RADIO_SelectVfos();            
                 gTxVfo->pRX->Frequency = mrFreq;
                 gTxVfo->pTX->Frequency = mrFreq;
                 gTxVfo->Band           = mrBand;
-                SETTINGS_SaveChannel(freqCh, Vfo1, gTxVfo, 2); 
+                SETTINGS_SaveChannel(FREQ_CHANNEL, Vfo1, gTxVfo, 2); 
                 RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
                 RADIO_SetupRegisters(true);
                 gVfoConfigureMode     = VFO_CONFIGURE_RELOAD;
@@ -286,8 +284,6 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 
 void channelMove(uint16_t Channel)
 {
-    const uint8_t Vfo = 0;
-
     if (!RADIO_CheckValidChannel(Channel, false, 0)) {
         return;
     }
@@ -523,12 +519,10 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
         if (INPUTBOX_FrequencyIsActive()) {
             const uint32_t frequency = INPUTBOX_FrequencyValue();
             if (frequency <= frequencyBandTable[BAND_N_ELEM - 1].upper) {
-                const uint8_t Vfo = gEeprom.TX_VFO;
                 const FREQUENCY_Band_t band = FREQUENCY_GetBand(frequency);
                 if (gTxVfo->Band != band) {
                     gTxVfo->Band = band;
                     gEeprom.ScreenChannel = FREQ_CHANNEL;
-                    gEeprom.FreqChannel = FREQ_CHANNEL;
                     SETTINGS_SaveVfoIndices();
                     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
                 }
@@ -605,8 +599,6 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
                 return;
             gEeprom.MrChannel    = Next;
             gEeprom.ScreenChannel = Next;
-            if (!bKeyHeld) {
-            }
         }
         gRequestSaveVFO   = true;
         gVfoConfigureMode = VFO_CONFIGURE_RELOAD;
