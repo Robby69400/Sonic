@@ -43,17 +43,17 @@ void COMMON_SwitchVFOMode()
 
         if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE))
         {   // swap to frequency mode
-            //gEeprom.ScreenChannel[gEeprom.TX_VFO] = gEeprom.FreqChannel[gEeprom.TX_VFO];
-            gEeprom.ScreenChannel[0] = 4097;
+            //gEeprom.ScreenChannel = gEeprom.FreqChannel;
+            gEeprom.ScreenChannel = 4097;
             gRequestSaveVFO            = true;
             gVfoConfigureMode          = VFO_CONFIGURE_RELOAD;
             return;
         }
 
-        uint16_t Channel = RADIO_FindNextChannel(gEeprom.MrChannel[0], 1, false, 0);
+        uint16_t Channel = RADIO_FindNextChannel(gEeprom.MrChannel, 1, false, 0);
         if (Channel != 0xFFFF)
         {   // swap to channel mode
-            gEeprom.ScreenChannel[0] = Channel;
+            gEeprom.ScreenChannel = Channel;
             gRequestSaveVFO     = true;
             gVfoConfigureMode   = VFO_CONFIGURE_RELOAD;
             return;

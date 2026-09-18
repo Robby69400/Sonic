@@ -192,9 +192,9 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
                 uint32_t mrFreq = gTxVfo->pRX->Frequency;
                 uint8_t  mrBand = gTxVfo->Band;
-                uint16_t freqCh = FREQ_CHANNEL_FIRST + mrBand;
-                gEeprom.ScreenChannel[Vfo1] = freqCh;
-                gEeprom.FreqChannel[Vfo1]   = freqCh;
+                uint16_t freqCh = FREQ_CHANNEL + mrBand;
+                gEeprom.ScreenChannel = freqCh;
+                gEeprom.FreqChannel   = freqCh;
                 SETTINGS_SaveVfoIndices();
                 RADIO_SelectVfos();            
                 gTxVfo->pRX->Frequency = mrFreq;
@@ -292,8 +292,8 @@ void channelMove(uint16_t Channel)
         return;
     }
 
-    gEeprom.MrChannel[Vfo]     = (uint16_t)Channel;
-    gEeprom.ScreenChannel[Vfo] = (uint16_t)Channel;
+    gEeprom.MrChannel     = (uint16_t)Channel;
+    gEeprom.ScreenChannel = (uint16_t)Channel;
     gVfoConfigureMode           = VFO_CONFIGURE_RELOAD;
 
     RADIO_ConfigureChannel(0, gVfoConfigureMode);
@@ -527,8 +527,8 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
                 const FREQUENCY_Band_t band = FREQUENCY_GetBand(frequency);
                 if (gTxVfo->Band != band) {
                     gTxVfo->Band = band;
-                    gEeprom.ScreenChannel[0] = FREQ_CHANNEL_FIRST;
-                    gEeprom.FreqChannel[0] = FREQ_CHANNEL_FIRST;
+                    gEeprom.ScreenChannel = FREQ_CHANNEL;
+                    gEeprom.FreqChannel = FREQ_CHANNEL;
                     SETTINGS_SaveVfoIndices();
                     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
                 }
@@ -570,7 +570,7 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
     }
 #endif
 
-    uint16_t Channel = gEeprom.ScreenChannel[0];
+    uint16_t Channel = gEeprom.ScreenChannel;
 
     if (bKeyHeld || !bKeyPressed) {
         if (gInputBoxIndex > 0)
@@ -603,8 +603,8 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
                 return;
             if (Channel == Next)
                 return;
-            gEeprom.MrChannel[0]    = Next;
-            gEeprom.ScreenChannel[0] = Next;
+            gEeprom.MrChannel    = Next;
+            gEeprom.ScreenChannel = Next;
             if (!bKeyHeld) {
             }
         }

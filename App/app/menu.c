@@ -379,7 +379,7 @@ void MENU_AcceptSetting(void)
 
         case MENU_MEM_CH:
             gTxVfo->CHANNEL_SAVE = gSubMenuSelection;
-            gEeprom.MrChannel[0] = gSubMenuSelection;
+            gEeprom.MrChannel = gSubMenuSelection;
             gRequestSaveChannel = 2;
             gVfoConfigureMode   = VFO_CONFIGURE_RELOAD;
             gFlagResetVfos      = true;
@@ -653,10 +653,10 @@ void MENU_ShowCurrentSetting(void)
             gSubMenuSelection = gEeprom.SCRAMBLING_TYPE;
             break;
         case MENU_MEM_CH:
-                gSubMenuSelection = gEeprom.MrChannel[0];
+                gSubMenuSelection = gEeprom.MrChannel;
             break;
         case MENU_MEM_NAME:
-            gSubMenuSelection = gEeprom.MrChannel[0];
+            gSubMenuSelection = gEeprom.MrChannel;
             break;
 
         case MENU_SAVE:
@@ -737,7 +737,7 @@ void MENU_ShowCurrentSetting(void)
             break;
         
         case MENU_DEL_CH:
-            gSubMenuSelection = RADIO_FindNextChannel(gEeprom.MrChannel[0], 1, false, 1);
+            gSubMenuSelection = RADIO_FindNextChannel(gEeprom.MrChannel, 1, false, 1);
             break;
         case MENU_F_LOCK:
             gSubMenuSelection = gSetting_F_LOCK;

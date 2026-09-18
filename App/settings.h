@@ -106,9 +106,9 @@ enum CHANNEL_DisplayMode_t {
 typedef enum CHANNEL_DisplayMode_t CHANNEL_DisplayMode_t;
 
 typedef struct {
-    uint16_t               ScreenChannel[2]; // current channels set in the radio (memory or frequency channels)
-    uint16_t               FreqChannel[2]; // last frequency channels used
-    uint16_t               MrChannel[2]; // last memory channels used
+    uint16_t               ScreenChannel; // current channels set in the radio (memory or frequency channels)
+    uint16_t               FreqChannel; // last frequency channels used
+    uint16_t               MrChannel; // last memory channels used
 
     // The actual VFO index (0-upper/1-lower) that is now used for RX, 
     // It is being alternated by dual watch, and flipped by crossband

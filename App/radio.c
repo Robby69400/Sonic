@@ -193,7 +193,7 @@ void RADIO_InitInfo(VFO_Info_t *pInfo, const uint16_t ChannelSave, const uint32_
     pInfo->pTX                      = &pInfo->freq_config_TX;
     pInfo->Compander                = 0;  // off
 
-    if (ChannelSave == (FREQ_CHANNEL_FIRST + BAND2_108MHz))
+    if (ChannelSave == (FREQ_CHANNEL + BAND2_108MHz))
         pInfo->Modulation = MODULATION_AM;
     else
         pInfo->Modulation = MODULATION_FM;
@@ -226,40 +226,35 @@ void RADIO_ValidateAndSetCode(FREQ_Config_t *pFreq_Config, uint8_t tmp) {
 void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure)
 {
     VFO_Info_t *pVfo = &gEeprom.VfoInfo[VFO];
-    uint16_t channel = gEeprom.ScreenChannel[VFO];
+    uint16_t channel = gEeprom.ScreenChannel;
 
     if (IS_VALID_CHANNEL(channel)) {
 
         if (IS_MR_CHANNEL(channel)) {
             channel = RADIO_FindNextChannel(channel, RADIO_CHANNEL_UP, false, VFO);
             if (channel == 0xFFFF) {
-                channel                    = gEeprom.FreqChannel[VFO];
-                gEeprom.ScreenChannel[VFO] = gEeprom.FreqChannel[VFO];
+                channel               = gEeprom.FreqChannel;
+                gEeprom.ScreenChannel = gEeprom.FreqChannel;
             }
             else {
-                gEeprom.ScreenChannel[VFO] = channel;
-                gEeprom.MrChannel[VFO]     = channel;
+                gEeprom.ScreenChannel = channel;
+                gEeprom.MrChannel     = channel;
             }
         }
     }
     else
-        channel = FREQ_CHANNEL_LAST - 1;
+        channel = FREQ_CHANNEL;
 
     ChannelAttributes_t* att = MR_GetChannelAttributes(channel);
     if (att->__val == 0xFFFF) { // invalid/unused channel
         if (IS_MR_CHANNEL(channel)) {
-            channel                    = gEeprom.FreqChannel[VFO];
-            gEeprom.ScreenChannel[VFO] = channel;
+            channel                     = gEeprom.FreqChannel;
+            gEeprom.ScreenChannel       = channel;
         }
 
-        uint16_t bandIdx = channel - FREQ_CHANNEL_FIRST;
+        uint16_t bandIdx = channel - FREQ_CHANNEL;
         RADIO_InitInfo(pVfo, channel, frequencyBandTable[bandIdx].lower);
         return;
-    }
-
-    uint8_t band = att->band;
-    if (band > BAND7_470MHz) {
-        band = BAND1_50MHz;
     }
 
     uint8_t bParticipation;
@@ -268,11 +263,9 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         bParticipation = att->scanlist;
     }
     else {
-        band = channel - FREQ_CHANNEL_FIRST;
+        band = channel - FREQ_CHANNEL;
         bParticipation = MR_CHANNELS_LIST + 1;
     }
-
-    pVfo->Band                    = band;
     pVfo->SCANLIST_PARTICIPATION = bParticipation;
     pVfo->CHANNEL_SAVE            = channel;
 
@@ -366,7 +359,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         frequency = frequencyBandTable[band].lower;
     else if (frequency > frequencyBandTable[band].upper)
         frequency = frequencyBandTable[band].upper;
-    else if (channel >= FREQ_CHANNEL_FIRST)
+    else if (channel >= FREQ_CHANNEL)
         frequency = FREQUENCY_RoundToStep(frequency, pVfo->StepFrequency);
 
     pVfo->freq_config_RX.Frequency = frequency;

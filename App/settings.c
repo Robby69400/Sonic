@@ -193,11 +193,11 @@ void SETTINGS_InitEEPROM(void)
     #endif
 
 // 0x00A010 .. 0x00A01F
-uint16_t Data16[1];
+uint16_t Data16[3];
 PY25Q16_ReadBuffer(0x00A010, Data16, sizeof(Data16));
-gEeprom.ScreenChannel[0] = Data16[0];
-gEeprom.FreqChannel[0]   = Data16[0];
-gEeprom.MrChannel[0]     = Data16[0];
+gEeprom.ScreenChannel = Data16[0];
+gEeprom.FreqChannel   = Data16[1];
+gEeprom.MrChannel     = Data16[2];
 
 #ifdef ENABLE_FMRADIO
     {   // 0E88..0E8F
@@ -285,7 +285,7 @@ gEeprom.MrChannel[0]     = Data16[0];
 
     if (!gEeprom.VFO_OPEN)
     {
-        gEeprom.ScreenChannel[0] = gEeprom.MrChannel[0];
+        gEeprom.ScreenChannel = gEeprom.MrChannel;
     }
 
     // Init list name
@@ -465,12 +465,12 @@ void SETTINGS_FactoryReset(bool bIsAll)
     }
 
     // Reset VFO defaults
-    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL_FIRST + BAND3_137MHz, 14550000);
+    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL + BAND3_137MHz, 14550000);
     
-    gEeprom.ScreenChannel[0] = FREQ_CHANNEL_FIRST + BAND3_137MHz;
-    gEeprom.MrChannel[0]     = MR_CHANNEL_FIRST;
-    gEeprom.FreqChannel[0]   = FREQ_CHANNEL_FIRST + BAND3_137MHz;
-    SETTINGS_SaveChannel(FREQ_CHANNEL_FIRST + BAND3_137MHz, 0, &gEeprom.VfoInfo[0], 2);
+    gEeprom.ScreenChannel = FREQ_CHANNEL + BAND3_137MHz;
+    gEeprom.MrChannel     = MR_CHANNEL_FIRST;
+    gEeprom.FreqChannel   = FREQ_CHANNEL + BAND3_137MHz;
+    SETTINGS_SaveChannel(FREQ_CHANNEL + BAND3_137MHz, 0, &gEeprom.VfoInfo[0], 2);
     gVfoStateChanged = true;
     gScheduleVfoSave = true;
     SETTINGS_SaveVfoIndicesFlush();
@@ -519,8 +519,12 @@ void SETTINGS_SaveVfoIndicesFlush(void)
         
         if (gVfoStateChanged) {
             gVfoStateChanged = false;
-            uint16_t Data16[1];
-            Data16[0] = gEeprom.ScreenChannel[0];
+            uint16_t Data16[3];
+            Data16[0] = gEeprom.ScreenChannel;
+            PY25Q16_ReadBuffer(0x00A010, Data16, sizeof(Data16));
+            Data16[0] = gEeprom.ScreenChannel;
+            Data16[1] = gEeprom.FreqChannel;
+            Data16[2] = gEeprom.MrChannel;
             PY25Q16_WriteBuffer(0x00A010, Data16, sizeof(Data16), false);
         }
     }

@@ -1020,9 +1020,9 @@ static void Spectrum_Prepare_Tx(void) {
     gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
     gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO]; */
     
-    gEeprom.ScreenChannel[0] = ch;
-    gEeprom.MrChannel[0] = ch;
-    gEeprom.FreqChannel[0] = GetScanFrequency(TX_Channel);
+    gEeprom.ScreenChannel = ch;
+    gEeprom.MrChannel = ch;
+    gEeprom.FreqChannel = GetScanFrequency(TX_Channel);
     RADIO_ConfigureChannel(0,VFO_CONFIGURE_RELOAD);
     
 }
