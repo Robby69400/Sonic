@@ -444,7 +444,6 @@ void SETTINGS_FetchChannelName(char *s, const uint16_t channel)
 void SETTINGS_FactoryReset(bool bIsAll)
 {    
     PY25Q16_SectorErase(0x00A000);
-
     if (bIsAll)
     {
         for (uint32_t addr = 0x000000; addr < 0x00E000; addr += 0x1000) {
@@ -455,12 +454,9 @@ void SETTINGS_FactoryReset(bool bIsAll)
 #elif defined(ENABLE_4096)
         for (uint32_t addr = 0x122000; addr < 0x144000; addr += 0x1000) {PY25Q16_SectorErase(addr);}
 #endif
-
     }
-
     // Reset VFO defaults
     RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL, 14550000);
-    
     gEeprom.ScreenChannel = FREQ_CHANNEL;
     gEeprom.MrChannel     = MR_CHANNEL_FIRST;
     SETTINGS_SaveChannel(FREQ_CHANNEL, 0, &gEeprom.VfoInfo[0], 2);
@@ -468,7 +464,6 @@ void SETTINGS_FactoryReset(bool bIsAll)
     gScheduleVfoSave = true;
     SETTINGS_SaveVfoIndicesFlush();
     ClearSettings();
-    
 }
 
 #ifdef ENABLE_FMRADIO

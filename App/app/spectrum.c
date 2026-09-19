@@ -70,7 +70,7 @@ static int lastHistoryScrollOffset = -1;
 // ============================================================
 
 static uint16_t indexFs = 0;
-static uint16_t TX_Channel = 0;
+static uint16_t TxChannel = 0;
 static uint8_t MonitorIndex = 0;
 #define MONITOR_SIZE 20
 #define FMIN 1400000
@@ -165,7 +165,9 @@ static void RenderHistoryList();
 static void RenderScanListSelect();
 static void RenderParametersSelect();
 static void RenderHistoryMenuSelect(void);
-static void MyDrawFrameLines(void);
+#ifdef ENABLE_SPECTRUM_LINES
+    static void MyDrawFrameLines(void);
+#endif
 typedef struct {
     char left[20];
     char right[20];
@@ -512,6 +514,8 @@ uint8_t CountActiveBands(void) {
     return activeCount;
 }
 
+uint16_t TxChNum = 0;
+
 static void LoadActiveScanFrequencies(void)
 {
     char str[32];
@@ -549,8 +553,8 @@ static void LoadActiveScanFrequencies(void)
             sprintf(str, "CHANNELS:%d", scanChannelsCount);
     }
     ShowOSDPopup(str);
-    uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
-    SETTINGS_FetchChannelName(TxChannelName, ch);
+    TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
+    SETTINGS_FetchChannelName(TxChannelName, TxChNum);
     Spectrum_Prepare_Tx(); //to display ch correctly
 }
 
@@ -1016,7 +1020,7 @@ static void Spectrum_END_TX(void)
 static void Spectrum_Prepare_Tx(void) {
     if(PttEmission == 1) return;
     
-    uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
+    uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
 /*     RADIO_SelectVfos();
     gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
     gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO]; */
@@ -1073,9 +1077,9 @@ static void SpectrumTransmit() {
                 if (rndfreq) {
                     gCurrentVfo->freq_config_TX.Frequency = rndfreq;
                     lastReceivingFreq = rndfreq;
-                    TX_Channel = BOARD_gMR_fetchChannel(rndfreq);
-                    if (TX_Channel != 0xFFFF) {
-                        SETTINGS_FetchChannelName(TxChannelName, TX_Channel);
+                    TxChannel = BOARD_gMR_fetchChannel(rndfreq);
+                    if (TxChannel != 0xFFFF) {
+                        SETTINGS_FetchChannelName(TxChannelName, TxChannel);
                     } else {
                         snprintf(TxChannelName, sizeof(TxChannelName), "NINJA");
                     }
@@ -1097,7 +1101,7 @@ static void SpectrumTransmit() {
     SPECTRUM_PAUSED = true;
     gIsPeak = false;
     isListening = false;
-    //SpectrumPauseCount = 2000;
+    SpectrumPauseCount = 2000;
 
     Spectrum_TX();
 }
@@ -1307,8 +1311,8 @@ static void ToggleRX(bool on) {
 }
 
 static void UpdateSpectrumMonitorLeds(void) {
+    if (!last_ptt_state) return;
     static uint8_t appliedSpectrumMonitor = 0xff;
-
     if (SpectrumMonitor == 1) {
         BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, true);
         BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, true);
@@ -2006,9 +2010,9 @@ static void DrawF(uint32_t f) {
             }
             case 2:
                 {       //SCAN
-                UI_PrintString(line2, 35, 35, 2, 8);
-                if (isListening)    UI_PrintString("RX>", 2, 2, 2, 8);
-                else                UI_PrintString("RX", 2, 2, 2, 8);
+                UI_PrintString(line2, 45, 45, 2, 8);
+                if (isListening)    UI_PrintStringSmallNormal("RX>", 0, 0, 2);
+                else                UI_PrintStringSmallNormal("RX", 0, 0, 2);
 
                 switch(PttEmission) {
                     case 1:
@@ -2018,8 +2022,14 @@ static void DrawF(uint32_t f) {
                             snprintf(Text, sizeof(Text), "%u.%05u", lastReceivingFreq / 100000U, lastReceivingFreq % 100000U);
                         }
                     } else snprintf(Text, sizeof(Text), "%s",TxChannelName);
+                        UI_PrintString(Text, 45, 45, 4, 8);
                         const char *status = last_ptt_state ? "TX>" : "TX";
-                        UI_PrintString(status, 2, 2, 4, 8);
+                        UI_PrintStringSmallNormal(status, 0, 0, 4);
+                        if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
+                            TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
+                            snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
+                            UI_PrintStringSmallBold(Text, 12, 12, 5);
+                        }
                         break;
                     case 0:
                     case 3:
@@ -2028,30 +2038,39 @@ static void DrawF(uint32_t f) {
                     case 6:
                     case 7:
                     case 8:
+                        TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
+                        snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
+                        UI_PrintStringSmallBold(Text, 12, 12, 5);
                         snprintf(Text, sizeof(Text), "%s", TxChannelName);
+                        UI_PrintString(Text, 45, 45, 4, 8);
                         const char dir_list[][4] = {"TX", "TX+", "TX-"};
                         int i = 0;
                         if (gTxVfo->freq_config_RX.Frequency != gTxVfo->freq_config_TX.Frequency)
                             {   // show the TX offset symbol
                                 i = gTxVfo->TX_OFFSET_FREQUENCY_DIRECTION % 3;
                             }
-                        if (last_ptt_state) UI_PrintString("TX>", 2, 2, 4, 8);
-                        else                UI_PrintString(dir_list[i], 2, 2, 4, 8);
+                        if (last_ptt_state) UI_PrintStringSmallNormal("TX>", 0, 0, 4);
+                        else                UI_PrintStringSmallNormal(dir_list[i], 0, 0, 4);
                         break;
                     
                     }
-                }
                 if(isListening) DrawMeter(6);
                 else ScanProgress_DrawGaugeLine(6);
-                UI_PrintString(Text, 35, 35, 4, 8);
-                break;
-            }
+                
+                if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
+                    uint16_t RxChannel = BOARD_gMR_fetchChannel(lastReceivingFreq) + 1;
+                    snprintf(Text, sizeof(Text), "%d", RxChannel);
+                    UI_PrintStringSmallBold(Text, 12, 12, 3);
+                }
 #ifdef ENABLE_SPECTRUM_LINES
-    MyDrawFrameLines();
+                MyDrawFrameLines();
 #endif
-    BlitLine(4); 
-    BlitLine(5); 
-    BlitLine(6);
+                BlitLine(4); 
+                BlitLine(5); 
+                BlitLine(6);
+                break;
+                }
+    }
 }
 
 static void LookupChannelModulation() {
@@ -2641,8 +2660,8 @@ static void HandleKeySpectrum(uint8_t key) {
                         break;
                     case CHANNEL_MODE:
                         if(!PttEmission || PttEmission >2) {// Channel OR ROGER
-                            TX_Channel = TX_Channel <= 0 ? scanChannelsCount - 1 : TX_Channel - 1;
-                            uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
+                            TxChannel = TxChannel <= 0 ? scanChannelsCount - 1 : TxChannel - 1;
+                            uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
                             SETTINGS_FetchChannelName(TxChannelName, ch);
                             //Spectrum_Prepare_Tx();
                             return;
@@ -2710,8 +2729,8 @@ static void HandleKeySpectrum(uint8_t key) {
                         break;
                     case CHANNEL_MODE:
                         if(!PttEmission || PttEmission >2) {// Channel OR ROGER
-                            TX_Channel = TX_Channel >= scanChannelsCount - 1 ? 0 : TX_Channel + 1;
-                            uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TX_Channel));
+                            TxChannel = TxChannel >= scanChannelsCount - 1 ? 0 : TxChannel + 1;
+                            uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
                             SETTINGS_FetchChannelName(TxChannelName, ch);
                             //Spectrum_Prepare_Tx();
                             return;
@@ -3065,7 +3084,7 @@ static void MyDrawFrameLines(void)
 {
     if (currentState == STILL || currentState == FREQ_INPUT) return;
     if (ShowLines ==1 || ShowLines ==3) {
-        MyDrawVLine(0,   0, 17, 1);   // Left vertical solid line (top section)
+/*         MyDrawVLine(0,   0, 17, 1);   // Left vertical solid line (top section)
         MyDrawVLine(127, 0, 17, 1);   // Right vertical solid line (top section)
         MyDrawShortHLine(17, 0, 10, 1, false);    // Mid-top short horizontal line (left)
         MyDrawShortHLine(17, 120, 127, 1, false); // Mid-top short horizontal line (right)
@@ -3073,14 +3092,14 @@ static void MyDrawFrameLines(void)
         MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
         MyDrawHLine(47,0);  // Black horizontal line 
         MyDrawVLine(0,   21, 47, 1);  // Left vertical solid line (bottom section)
-        MyDrawVLine(127, 21, 47, 1);  // Right vertical solid line (bottom section)
+        MyDrawVLine(127, 21, 47, 1);  // Right vertical solid line (bottom section) */
     }
     else {
-        MyDrawHLine(16,0);
-        MyDrawHLine(30,0);
-        MyDrawHLine(46,0);
-        MyDrawVLine(28, 16, 46, 1);  // Left vertical solid line (bottom section)
-        MyDrawVLine(29, 16, 46, 1);  // Left vertical solid line (bottom section)
+        //MyDrawHLine(15,0);
+        //MyDrawHLine(30,0);
+        //MyDrawHLine(46,0);
+        MyDrawVLine(28, 15, 46, 1);  // Left vertical solid line (bottom section)
+        MyDrawVLine(29, 15, 46, 1);  // Left vertical solid line (bottom section)
     }
 }
 #endif
@@ -3608,8 +3627,8 @@ static void UpdateListening(void) {
     if (peak.f == stableFreq) {
         if (++stableCount >= 2) {  
             if(appMode == CHANNEL_MODE && PttEmission == 2) {
-                TX_Channel = gChannel;
-                SETTINGS_FetchChannelName(TxChannelName, TX_Channel);
+                TxChannel = gChannel;
+                SETTINGS_FetchChannelName(TxChannelName, TxChannel);
             }
             if (!SpectrumMonitor) FillfreqHistory();
             if (gEeprom.BACKLIGHT_MAX > 5){
@@ -3672,7 +3691,7 @@ static void Tick() {
         HandleUserInput();
         BACKLIGHT_Update();
         if (CloseCallActive) SCANNER_CustomScanFrequency();
-        if (osdPopupTimer && last_ptt_state) {
+        if (osdPopupTimer) {
             osdPopupTimer -= 20; 
             UI_DisplayPopup(osdPopupText);
             if (osdPopupTimer <= 0) {osdPopupText[0] = '\0';Render();}
@@ -3776,7 +3795,7 @@ static void Tick() {
 
     if (gNextTimeslice_AutoPtt && PttEmission >= 3) {
         gNextTimeslice_AutoPtt = 0;
-        gCurrentVfo->freq_config_TX.Frequency = GetScanFrequency(TX_Channel);
+        gCurrentVfo->freq_config_TX.Frequency = GetScanFrequency(TxChannel);
         gCurrentVfo->Modulation   = MODULATION_FM;
         gCurrentVfo->OUTPUT_POWER = OUTPUT_POWER_HIGH;
         Spectrum_TX();
@@ -3933,7 +3952,7 @@ typedef struct {
     uint8_t osdPopupIndex;
     uint8_t Spectrum_state;
     uint8_t gSetting_set_audio_am;
-    uint16_t TX_Channel;
+    uint16_t TxChannel;
     bool Backlight_On;
     bool SoundBoost;  
     bool gMonitorScan;
@@ -3993,7 +4012,7 @@ void LoadSettings()
     Spectrum_state = eepromData.Spectrum_state;    
     SoundBoost = eepromData.SoundBoost;
     gMonitorScan = eepromData.gMonitorScan;   
-    TX_Channel = eepromData.TX_Channel;   
+    TxChannel = eepromData.TxChannel;   
     gSetting_set_audio_am = eepromData.gSetting_set_audio_am;
 
     #ifdef ENABLE_SAVE_REGISTERS
@@ -4040,7 +4059,7 @@ static void SaveSettings()
     eepromData.Spectrum_state = Spectrum_state;    
     eepromData.SoundBoost = SoundBoost;
     eepromData.gMonitorScan = gMonitorScan;
-    eepromData.TX_Channel = TX_Channel;
+    eepromData.TxChannel = TxChannel;
     eepromData.gSetting_set_audio_am = gSetting_set_audio_am;
   
     for (int i = 0; i < MAX_BANDS; i++) { 
@@ -4131,7 +4150,7 @@ void ClearSettings()
     Spectrum_state = 1; 
     SoundBoost = 0;
     gMonitorScan = false;
-    TX_Channel = 0;
+    TxChannel = 0;
     settings.bandEnabled[0] = 1;
     gSetting_set_audio_am = 1;
     for (uint8_t i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}

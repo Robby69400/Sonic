@@ -44,7 +44,7 @@
         "ENABLE_EXTRA_UART_CMD": false,
         "ENABLE_FEAT_F4HWN": true,
         "ENABLE_FEAT_F4HWN_SPECTRUM": true,
-        "ENABLE_SPECTRUM_LINES": true,
+        "ENABLE_SPECTRUM_LINES": false,
         "ENABLE_FEAT_F4HWN_RX_TX_TIMER": true,
         "ENABLE_FEAT_F4HWN_CHARGING_C": false,
         "ENABLE_FEAT_F4HWN_SLEEP": true,
