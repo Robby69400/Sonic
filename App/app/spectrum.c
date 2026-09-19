@@ -165,6 +165,7 @@ static void RenderHistoryList();
 static void RenderScanListSelect();
 static void RenderParametersSelect();
 static void RenderHistoryMenuSelect(void);
+static void MyDrawFrameLines(void);
 typedef struct {
     char left[20];
     char right[20];
@@ -1037,6 +1038,7 @@ static void Spectrum_TX()
     RADIO_SetTxParameters();
     // turn the RED LED on
     BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, true);
+    BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
     if (gEeprom.SCRAMBLING_TYPE > 0)
         BK4819_EnableScramble(gEeprom.SCRAMBLING_TYPE - 1);
     else
@@ -1093,7 +1095,10 @@ static void SpectrumTransmit() {
             break;
     }
     SPECTRUM_PAUSED = true;
-    SpectrumPauseCount = 2000;
+    gIsPeak = false;
+    isListening = false;
+    //SpectrumPauseCount = 2000;
+
     Spectrum_TX();
 }
 
@@ -1924,7 +1929,7 @@ static void DrawNums() {
 }
 
 static void BlitLine(unsigned line) {
-    if (isListening && spectrumElapsedCount > 200 + + osdPopupTimer) return; //No refresh in low noise mode
+    if (isListening && (spectrumElapsedCount > 200 + osdPopupTimer)) return; //No refresh in low noise mode
     ST7565_BlitLine(line);
 }
 
@@ -2039,10 +2044,11 @@ static void DrawF(uint32_t f) {
                 if(isListening) DrawMeter(6);
                 else ScanProgress_DrawGaugeLine(6);
                 UI_PrintString(Text, 35, 35, 4, 8);
-
                 break;
             }
-
+#ifdef ENABLE_SPECTRUM_LINES
+    MyDrawFrameLines();
+#endif
     BlitLine(4); 
     BlitLine(5); 
     BlitLine(6);
@@ -3418,9 +3424,6 @@ static void Render() {
 
             if (spectrumElapsedCount < 500 + osdPopupTimer) {
                 RenderSpectrum();
-#ifdef ENABLE_SPECTRUM_LINES
-                MyDrawFrameLines();
-#endif
                 ST7565_BlitFullScreen();
             }
             break;
@@ -3669,7 +3672,7 @@ static void Tick() {
         HandleUserInput();
         BACKLIGHT_Update();
         if (CloseCallActive) SCANNER_CustomScanFrequency();
-        if (osdPopupTimer) {
+        if (osdPopupTimer && last_ptt_state) {
             osdPopupTimer -= 20; 
             UI_DisplayPopup(osdPopupText);
             if (osdPopupTimer <= 0) {osdPopupText[0] = '\0';Render();}
@@ -3749,23 +3752,25 @@ static void Tick() {
         RenderStatus();
         Render();
     } 
-    if (gNextTimeslice_SCAN_LED) {
-        gNextTimeslice_SCAN_LED = 0;
-        if (!isListening && gEeprom.BACKLIGHT_MAX > 5) {
-            BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 1);
-            BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
-        } 
-        stringCodeTimer -= 1;
-        if (stringCodeTimer <= 0) {
-                StringCode[0] = '\0'; // Efface la chaîne après 10s d'inactivité
+    if(!last_ptt_state) {
+        if (gNextTimeslice_SCAN_LED) {
+            gNextTimeslice_SCAN_LED = 0;
+            if (!isListening && gEeprom.BACKLIGHT_MAX > 5) {
+                BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 1);
+                BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 1);
+            } 
+            stringCodeTimer -= 1;
+            if (stringCodeTimer <= 0) {
+                    StringCode[0] = '\0'; // Efface la chaîne après 10s d'inactivité
+                }
+        }
+
+        if (gNextTimeslice_SCAN_LED_OFF) {
+            gNextTimeslice_SCAN_LED_OFF = 0;
+            if (!isListening && gEeprom.BACKLIGHT_MAX > 5) {
+            BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
+            BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
             }
-    }
-    
-    if (gNextTimeslice_SCAN_LED_OFF) {
-        gNextTimeslice_SCAN_LED_OFF = 0;
-        if (!isListening && gEeprom.BACKLIGHT_MAX > 5) {
-        BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, 0);
-        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, 0);
         }
     }
 
@@ -3927,6 +3932,7 @@ typedef struct {
     uint16_t UOO_trigger;
     uint8_t osdPopupIndex;
     uint8_t Spectrum_state;
+    uint8_t gSetting_set_audio_am;
     uint16_t TX_Channel;
     bool Backlight_On;
     bool SoundBoost;  
@@ -3988,6 +3994,7 @@ void LoadSettings()
     SoundBoost = eepromData.SoundBoost;
     gMonitorScan = eepromData.gMonitorScan;   
     TX_Channel = eepromData.TX_Channel;   
+    gSetting_set_audio_am = eepromData.gSetting_set_audio_am;
 
     #ifdef ENABLE_SAVE_REGISTERS
         BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
@@ -4034,6 +4041,7 @@ static void SaveSettings()
     eepromData.SoundBoost = SoundBoost;
     eepromData.gMonitorScan = gMonitorScan;
     eepromData.TX_Channel = TX_Channel;
+    eepromData.gSetting_set_audio_am = gSetting_set_audio_am;
   
     for (int i = 0; i < MAX_BANDS; i++) { 
       if (settings.bandEnabled[i]) {
@@ -4125,6 +4133,7 @@ void ClearSettings()
     gMonitorScan = false;
     TX_Channel = 0;
     settings.bandEnabled[0] = 1;
+    gSetting_set_audio_am = 1;
     for (uint8_t i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
     
     #ifdef ENABLE_SAVE_REGISTERS

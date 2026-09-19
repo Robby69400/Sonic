@@ -70,9 +70,9 @@ build_preset() {
 
   local target
   case "$preset" in
-    S1K) target="Sonic_1K.${VERSION_NO}" ;;
-    NC4K) target="NoChirpSonic_4K.${VERSION_NO}" ;;
-    *)     target="Sonic_4K.${VERSION_NO}" ;; # Default value
+    S1K) target="f4hwn.sonic1k.${VERSION_NO}" ;;
+    NC4K) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
+    *)     target="f4hwn.sonic4k.${VERSION_NO}" ;; # Default value
   esac
   echo -e "\n 🚀 Building: ${preset}"
   docker run \
@@ -100,9 +100,9 @@ flash_preset() {
   local preset="$1"
   local target
   case "$preset" in
-    S1K) target="Sonic_1K.${VERSION_NO}" ;;
-    NC4K) target="NoChirpSonic_4K.${VERSION_NO}" ;;
-    *)     target="Sonic_4K.${VERSION_NO}" ;; # Default value
+    S1K) target="f4hwn.sonic1k.${VERSION_NO}" ;;
+    NC4K) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
+    *)     target="f4hwn.sonic4k.${VERSION_NO}" ;; # Default value
   esac
   local ifile="./build/${preset}/${target}.bin"
 
