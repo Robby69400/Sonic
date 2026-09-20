@@ -95,6 +95,16 @@
         "ENABLE_4096": true,
         "EDITION_STRING": "Sonic 4K"
       }
+    },
+    {
+      "name": "S8K",
+      "inherits": "default",
+      "cacheVariables": {
+        "ENABLE_USB": true,
+        "ENABLE_UART": true,
+        "ENABLE_8192": true,
+        "EDITION_STRING": "Sonic 8K"
+      }
     }
   ],
   "buildPresets": [
@@ -109,6 +119,10 @@
     {
       "name": "S4K",
       "configurePreset": "S4K"
+    },
+    {
+      "name": "S8K",
+      "configurePreset": "S8K"
     }
   ]
 }
