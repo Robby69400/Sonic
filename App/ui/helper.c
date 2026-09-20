@@ -254,15 +254,18 @@ void UI_PrintStringSmallbackground(const char *pString, uint8_t Start, uint8_t E
 
 void UI_PrintStringSmallBold(const char *pString, uint8_t Start, uint8_t End, uint8_t Line)
 {
-#ifdef ENABLE_SMALL_BOLD
     const uint8_t *font = (uint8_t *)gFontSmallBold;
     const uint8_t char_width = ARRAY_SIZE(gFontSmallBold[0]);
-#else
-    const uint8_t *font = (uint8_t *)gFontSmall;
-    const uint8_t char_width = ARRAY_SIZE(gFontSmall[0]);
-#endif
-
     UI_PrintStringSmall(pString, Start, End, Line, char_width, font);
+}
+
+void UI_PrintStringSmallBoldRight(const char *pString, uint8_t End, uint8_t Line)
+{
+    const uint8_t char_width = ARRAY_SIZE(gFontSmallBold[0]);
+    uint8_t text_len = strlen(pString);
+    uint16_t text_pixel_width = (uint16_t)text_len * char_width;
+    uint8_t Start = End - (uint8_t)text_pixel_width;
+    UI_PrintStringSmallBold(pString, Start, End, Line);
 }
 
 // Inverted bold font: draw first, then XOR

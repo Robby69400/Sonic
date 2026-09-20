@@ -553,8 +553,8 @@ static void LoadActiveScanFrequencies(void)
             sprintf(str, "CHANNELS:%d", scanChannelsCount);
     }
     ShowOSDPopup(str);
-    TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
-    SETTINGS_FetchChannelName(TxChannelName, TxChNum);
+    uint16_t TxCh = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
+    SETTINGS_FetchChannelName(TxChannelName, TxCh);
     Spectrum_Prepare_Tx(); //to display ch correctly
 }
 
@@ -2015,8 +2015,8 @@ static void DrawF(uint32_t f) {
                 else                UI_PrintStringSmallNormal("RX", 0, 0, 2);
 
                 switch(PttEmission) {
-                    case 1:
-                    case 2:
+                    case 1://NINJA
+                    case 2://LASTRX
                     if (appMode == SCAN_BAND_MODE) {
                         if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
                             snprintf(Text, sizeof(Text), "%u.%05u", lastReceivingFreq / 100000U, lastReceivingFreq % 100000U);
@@ -2026,9 +2026,9 @@ static void DrawF(uint32_t f) {
                         const char *status = last_ptt_state ? "TX>" : "TX";
                         UI_PrintStringSmallNormal(status, 0, 0, 4);
                         if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
-                            TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
+                            TxChNum = BOARD_gMR_fetchChannel(lastReceivingFreq);
                             snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
-                            UI_PrintStringSmallBold(Text, 12, 12, 5);
+                            UI_PrintStringSmallBoldRight(Text, 38, 5);
                         }
                         break;
                     case 0:
@@ -2040,7 +2040,7 @@ static void DrawF(uint32_t f) {
                     case 8:
                         TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
                         snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
-                        UI_PrintStringSmallBold(Text, 12, 12, 5);
+                        UI_PrintStringSmallBoldRight(Text, 38, 5);
                         snprintf(Text, sizeof(Text), "%s", TxChannelName);
                         UI_PrintString(Text, 45, 45, 4, 8);
                         const char dir_list[][4] = {"TX", "TX+", "TX-"};
@@ -2060,7 +2060,7 @@ static void DrawF(uint32_t f) {
                 if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
                     uint16_t RxChannel = BOARD_gMR_fetchChannel(lastReceivingFreq) + 1;
                     snprintf(Text, sizeof(Text), "%d", RxChannel);
-                    UI_PrintStringSmallBold(Text, 12, 12, 3);
+                    UI_PrintStringSmallBoldRight(Text, 38, 3);
                 }
 #ifdef ENABLE_SPECTRUM_LINES
                 MyDrawFrameLines();
@@ -2200,6 +2200,23 @@ static void SwitchToPreset(uint8_t newPreset) {
     }
 }
 
+uint8_t GetBandIndexForRow(uint8_t row) {
+    uint8_t pos = 0;
+    for (uint8_t i = 0; i < bandCount; i++) {
+        if (settings.bandEnabled[i]) {
+            if (pos == row) return i;
+            pos++;
+        }
+    }
+    for (uint8_t i = 0; i < bandCount; i++) {
+        if (!settings.bandEnabled[i]) {
+            if (pos == row) return i;
+            pos++;
+        }
+    }
+    return 0;
+}
+
 // ============================================================
 // SECTION: Per-state keyboard handlers
 // ============================================================
@@ -2233,16 +2250,18 @@ static void HandleKeyBandList(uint8_t key) {
                 break;
             case KEY_4: /* toggle selected band */
                 if (bandListSelectedIndex < bandCount) {
-                    settings.bandEnabled[bandListSelectedIndex] = !settings.bandEnabled[bandListSelectedIndex]; 
-                    nextBandToScanIndex = bandListSelectedIndex; 
+                    uint8_t bandIndex = GetBandIndexForRow(bandListSelectedIndex);
+                    settings.bandEnabled[bandIndex] = !settings.bandEnabled[bandIndex];
+                    nextBandToScanIndex = bandIndex;
                     bandListSelectedIndex++;
                 }
                 break;
             case KEY_5: /* select only this band */
                 if (bandListSelectedIndex < bandCount) {
+                    uint8_t bandIndex = GetBandIndexForRow(bandListSelectedIndex);
                     memset(settings.bandEnabled, 0, sizeof(settings.bandEnabled));
-                    settings.bandEnabled[bandListSelectedIndex] = true;
-                    nextBandToScanIndex = bandListSelectedIndex; 
+                    settings.bandEnabled[bandIndex] = true;
+                    nextBandToScanIndex = bandIndex;
                 }
                 break;
             case KEY_7:
@@ -2484,6 +2503,7 @@ static void HandleKeyParameters(uint8_t key) {
                         PttEmission = isKey3 ?
                             (PttEmission >= 8 ? 0 : PttEmission + 1) :
                             (PttEmission <= 0 ? 8 : PttEmission - 1);
+                            if(!PttEmission) TxChannel = 1;
                       } else {
                             PttEmission = 2;
                             ShowOSDPopup("CH MODE ONLY");
@@ -3037,7 +3057,7 @@ static void RenderStatus() {
 }
 #ifdef ENABLE_SPECTRUM_LINES
 #define ST 2
-static void MyDrawHLine(uint8_t y, bool white)
+/* static void MyDrawHLine(uint8_t y, bool white)
 {
     if (y >= 64) return;
     uint8_t byte_idx = y / 8;
@@ -3049,7 +3069,7 @@ static void MyDrawHLine(uint8_t y, bool white)
             gFrameBuffer[byte_idx][x] |= bit_mask;
         }
     }
-}
+} */
 
 
 static void MyDrawShortHLine(uint8_t y, uint8_t x_start, uint8_t x_end, uint8_t step, bool white)
@@ -3098,8 +3118,10 @@ static void MyDrawFrameLines(void)
         //MyDrawHLine(15,0);
         //MyDrawHLine(30,0);
         //MyDrawHLine(46,0);
-        MyDrawVLine(28, 15, 46, 1);  // Left vertical solid line (bottom section)
-        MyDrawVLine(29, 15, 46, 1);  // Left vertical solid line (bottom section)
+        MyDrawShortHLine(16,41, 127,1,false);
+        MyDrawShortHLine(30,41, 127,1,false);
+        MyDrawShortHLine(46,41, 127,1,false);
+        MyDrawVLine(41, 16, 46, 1);  // Left vertical solid line (bottom section)
     }
 }
 #endif
@@ -3441,7 +3463,7 @@ static void Render() {
                     else DrawF(scanInfo.f);
             }
 
-            if (spectrumElapsedCount < 500 + osdPopupTimer) {
+            if (spectrumElapsedCount < 2000 + osdPopupTimer) {
                 RenderSpectrum();
                 ST7565_BlitFullScreen();
             }
@@ -4426,9 +4448,10 @@ static void GetScanListRow(uint16_t displayIndex, ListRow *row) {
 }
 
 static void GetBandRow(uint16_t index, ListRow *row) {
-    snprintf(row->left, sizeof(row->left), "%d:%s", index + 1, BParams[index].BandName);
-    if (settings.bandEnabled[index]) { snprintf(row->right, sizeof(row->right), "<====");}
-    else                               row->right[0] = '\0';
+    uint8_t bandIndex = GetBandIndexForRow((uint8_t)index);
+    snprintf(row->left, sizeof(row->left), "%d:%s", bandIndex + 1, BParams[bandIndex].BandName);
+    if (settings.bandEnabled[bandIndex]) { snprintf(row->right, sizeof(row->right), "<====");}
+    else                                   row->right[0] = '\0';
 }
 
 static void GetParametersRow(uint16_t index, ListRow *row) {
