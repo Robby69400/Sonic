@@ -489,7 +489,7 @@ void UI_DisplayMain(void)
         {
             const bool inputting = (gInputBoxIndex != 0 && gEeprom.TX_VFO == vfo_num);
             if (!inputting)
-                sprintf(String, "M%u", gEeprom.ScreenChannel + 1);
+                sprintf(String, "%u", gEeprom.ScreenChannel + 1);
             else
                 sprintf(String, "M%.4s", INPUTBOX_GetAscii());
             UI_PrintStringSmallBold(String, 0, 0, 2);

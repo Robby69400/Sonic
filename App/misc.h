@@ -39,8 +39,8 @@
 #define FM_CHANNELS_MAX 48
 
 // CHANNEL_LOCATION
-#if defined(ENABLE_8192)
-    #define MR_CHANNELS_MAX 8192
+#if defined(ENABLE_10K)
+    #define MR_CHANNELS_MAX 10050
 #elif defined(ENABLE_4096)
     #define MR_CHANNELS_MAX 4096
 #elif defined(ENABLE_1024)

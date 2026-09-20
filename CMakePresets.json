@@ -15,7 +15,7 @@
         "ENABLE_USB": false,
         "ENABLE_1024": false,
         "ENABLE_4096": false,
-        "ENABLE_8192": false,
+        "ENABLE_10K": false,
         "ENABLE_SAVE_REGISTERS": false,
         "ENABLE_ADVANCED_SPECTRUM": false,
         "ENABLE_PERSIST": false,
@@ -97,13 +97,13 @@
       }
     },
     {
-      "name": "S8K",
+      "name": "S10K",
       "inherits": "default",
       "cacheVariables": {
         "ENABLE_USB": true,
         "ENABLE_UART": true,
-        "ENABLE_8192": true,
-        "EDITION_STRING": "Sonic 8K"
+        "ENABLE_10K": true,
+        "EDITION_STRING": "Sonic 10K"
       }
     }
   ],
@@ -121,8 +121,8 @@
       "configurePreset": "S4K"
     },
     {
-      "name": "S8K",
-      "configurePreset": "S8K"
+      "name": "S10K",
+      "configurePreset": "S10K"
     }
   ]
 }

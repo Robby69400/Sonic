@@ -30,7 +30,7 @@ VALEUR_COMPILER = "ENABLE"
 MEM_FORMAT = """
 // -------------------- CHANNEL_LOCATION
 
-#seekto 0x101000;
+#seekto 0x14C000;
 struct {
   ul32 freq;
   ul32 offset;
@@ -64,25 +64,25 @@ struct {
   u8 step;
   u8 __UNUSED03;
 
-} channel[8192];
+} channel[10050];
 
 // --------------------
 
-#seekto 0x121000;
+#seekto 0x173420;
 struct {
 char name[16];
-} channelname[8192];
+} channelname[10050];
 
 
 // --------------------
 
-#seekto 0x141000;
+#seekto 0x19A840;
 struct {
   u8 __UNUSED04:3,
      compander:2,
      band:3;
   u8 scanlist;
-} ch_attr[8199];
+} ch_attr[10050];
 
 // MR_CHANNELS_LIST
 
@@ -414,7 +414,7 @@ struct {
 FM_CHANNELS_MAX = 9
 FM_RADIOS_MAX = 50
 FM_RADIOS_RECORD = 21   # ul16 freq + char name[10]
-MR_CHANNELS_MAX = 8192 # CHANNEL_LOCATION
+MR_CHANNELS_MAX = 10050 # CHANNEL_LOCATION
 MR_CHANNELS_LIST = 51
 
 # flags1
@@ -589,8 +589,8 @@ ROGER_LIST = ["OFF", "MARIO", "BLAST", "R2D2", "ROGER", "AMBUL", "OURO","KLAC","
 RTE_LIST = ["OFF", "100ms", "200ms", "300ms", "400ms",
             "500ms", "600ms", "700ms", "800ms", "900ms", "1000ms"]
 
-MEM_SIZE =      0x14500F    # size of all memory CHANNEL_LOCATION
-PROG_SIZE =     0x145010    # size of the memory that we will write (LAST ADDRESS + 1 !!!)
+MEM_SIZE =      0x19F6C4    # size of all memory CHANNEL_LOCATION
+PROG_SIZE =     0x19F6C5    # size of the memory that we will write (LAST ADDRESS + 1 !!!)
 MEM_BLOCK =     0x80        # largest block of memory that we can reliably write
 CAL_START =     0x00B000    # calibration memory start address
 
@@ -836,9 +836,9 @@ def do_download(radio):
     blocks_to_read = [
         (0x008900, 0x00A170),
         (0x00B000, 0x00B200),
-        (0x101000, 0x101000 + (MR_CHANNELS_MAX * 16)),
-        (0x121000, 0x121000 + (MR_CHANNELS_MAX * 16)),
-        (0x141000, 0x141000 + (MR_CHANNELS_MAX * 2)),
+        (0x14C000, 0x14C000 + (MR_CHANNELS_MAX * 16)),
+        (0x173420, 0x173420 + (MR_CHANNELS_MAX * 16)),
+        (0x19A840, 0x19A840 + (MR_CHANNELS_MAX * 2)),
     ]
 
     total_bytes = sum(stop - start for start, stop in blocks_to_read)
@@ -880,9 +880,9 @@ def do_upload(radio):
     # Plages de mémoire à écrire en mode standard CHANNEL_LOCATION
     blocks_to_write = [
         (0x008900, 0x00A170),  # Configs & VFOs
-        (0x101000, 0x101000 + (MR_CHANNELS_MAX * 16)),  # Canaux
-        (0x121000, 0x121000 + (MR_CHANNELS_MAX * 16)),  # Noms
-        (0x141000, 0x141000 + (MR_CHANNELS_MAX * 2)),   # Attributs
+        (0x14C000, 0x14C000 + (MR_CHANNELS_MAX * 16)),
+        (0x173420, 0x173420 + (MR_CHANNELS_MAX * 16)),
+        (0x19A840, 0x19A840 + (MR_CHANNELS_MAX * 2)),
     ]
 
     # Ajout du bloc de calibration si l'option est cochée
@@ -942,7 +942,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
     BAUD_RATE = 38400
     NEEDS_COMPAT_SERIAL = False
     FIRMWARE_VERSION = ""
-    MEM_SIZE =      0x145010    # size of all memory CHANNEL_LOCATION
+    MEM_SIZE =      0x19F6C5    # size of all memory CHANNEL_LOCATION
 
 # this change to send power level chan in the calibration but under macos it give error
 # bugfix calibration : put in comment next line: upload_calibration = False

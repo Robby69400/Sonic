@@ -113,7 +113,7 @@ enable_feature(ENABLE_FMRADIO
     ui/fmradio.c
 )
 enable_feature(ENABLE_BENCH)
-enable_feature(ENABLE_8192)
+enable_feature(ENABLE_10K)
 enable_feature(ENABLE_4096)
 enable_feature(ENABLE_1024)
 enable_feature(ENABLE_LARGE_HISTORY)

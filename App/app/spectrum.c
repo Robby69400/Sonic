@@ -255,8 +255,8 @@ static void Skip();
 #endif
 
 // CHANNEL_LOCATION
-#if defined(ENABLE_8192)
-    #define MAX_SCAN_CHANNELS 8143
+#if defined(ENABLE_10K)
+    #define MAX_SCAN_CHANNELS 10000
 #elif defined(ENABLE_4096)
     #define MAX_SCAN_CHANNELS 4047
 #elif defined(ENABLE_1024)

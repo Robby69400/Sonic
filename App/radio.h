@@ -24,10 +24,10 @@
 #include "frequencies.h"
 
 // CHANNEL_LOCATION
-#if defined(ENABLE_8192)
-    #define ADRESS_CHANNELS             0x101000
-    #define ADRESS_CHANNELS_NAMES       0x121000
-    #define ADRESS_CHANNELS_ATTRIBUTES  0x141000
+#if defined(ENABLE_10K)
+    #define ADRESS_CHANNELS             0x14C000
+    #define ADRESS_CHANNELS_NAMES       0x173420
+    #define ADRESS_CHANNELS_ATTRIBUTES  0x19A840
 #elif defined(ENABLE_4096)
     #define ADRESS_CHANNELS             0x122000
     #define ADRESS_CHANNELS_NAMES       0x132000
@@ -37,8 +37,6 @@
     #define ADRESS_CHANNELS_NAMES       0x004000
     #define ADRESS_CHANNELS_ATTRIBUTES  0x008000
 #endif
-
-
 
 enum {
     RADIO_CHANNEL_UP   = 0x01u,
