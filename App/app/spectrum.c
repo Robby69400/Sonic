@@ -2503,7 +2503,7 @@ static void HandleKeyParameters(uint8_t key) {
                         PttEmission = isKey3 ?
                             (PttEmission >= 8 ? 0 : PttEmission + 1) :
                             (PttEmission <= 0 ? 8 : PttEmission - 1);
-                            if(!PttEmission) TxChannel = 1;
+                            if(!PttEmission) TxChannel = 0;
                       } else {
                             PttEmission = 2;
                             ShowOSDPopup("CH MODE ONLY");
@@ -3057,20 +3057,6 @@ static void RenderStatus() {
 }
 #ifdef ENABLE_SPECTRUM_LINES
 #define ST 2
-/* static void MyDrawHLine(uint8_t y, bool white)
-{
-    if (y >= 64) return;
-    uint8_t byte_idx = y / 8;
-    uint8_t bit_mask = 1U << (y % 8);
-    for (uint8_t x = 0; x < 128; x+= ST) {
-        if (white) {
-            gFrameBuffer[byte_idx][x] &= ~bit_mask;
-        } else {
-            gFrameBuffer[byte_idx][x] |= bit_mask;
-        }
-    }
-} */
-
 
 static void MyDrawShortHLine(uint8_t y, uint8_t x_start, uint8_t x_end, uint8_t step, bool white)
 {
@@ -3104,24 +3090,10 @@ static void MyDrawFrameLines(void)
 {
     if (currentState == STILL || currentState == FREQ_INPUT) return;
     if (ShowLines ==1 || ShowLines ==3) {
-/*         MyDrawVLine(0,   0, 17, 1);   // Left vertical solid line (top section)
-        MyDrawVLine(127, 0, 17, 1);   // Right vertical solid line (top section)
-        MyDrawShortHLine(17, 0, 10, 1, false);    // Mid-top short horizontal line (left)
-        MyDrawShortHLine(17, 120, 127, 1, false); // Mid-top short horizontal line (right)
-        MyDrawShortHLine(21, 0, 10, 1, false);    // Mid-bottom short horizontal line (left)
-        MyDrawShortHLine(21, 120, 127, 1, false); // Mid-bottom short horizontal line (right)
-        MyDrawHLine(47,0);  // Black horizontal line 
-        MyDrawVLine(0,   21, 47, 1);  // Left vertical solid line (bottom section)
-        MyDrawVLine(127, 21, 47, 1);  // Right vertical solid line (bottom section) */
     }
     else {
-        //MyDrawHLine(15,0);
-        //MyDrawHLine(30,0);
-        //MyDrawHLine(46,0);
-        MyDrawShortHLine(16,41, 127,1,false);
-        MyDrawShortHLine(30,41, 127,1,false);
-        MyDrawShortHLine(46,41, 127,1,false);
-        MyDrawVLine(41, 16, 46, 1);  // Left vertical solid line (bottom section)
+        MyDrawShortHLine(32,23, 59, 0, false);
+        MyDrawVLine(41, 18, 46, 1);  // Left vertical solid line (bottom section)
     }
 }
 #endif

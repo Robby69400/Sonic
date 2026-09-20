@@ -71,7 +71,6 @@ void UI_DisplayWelcome(void)
         return;
     }
 
-    // NONE / SOUND → blank screen
     if (gEeprom.POWER_ON_DISPLAY_MODE == POWER_ON_DISPLAY_MODE_NONE)
     {
         ST7565_FillScreen(0x00);
@@ -86,18 +85,10 @@ void UI_DisplayWelcome(void)
         UI_PrintString("SONIC 1K", 0, 127, 0,10);
     #endif
 
-    UI_PrintStringSmallbackground("t.me/SonicFw", 0, 127, 4,0);
-    sprintf(WelcomeString, "%u.%02uV %u%%",
-                gBatteryVoltageAverage / 100,
-                gBatteryVoltageAverage % 100,
-                BATTERY_VoltsToPercent(gBatteryVoltageAverage));
+    UI_PrintString("t.me/SonicFw", 0, 127, 4, 8);
+    sprintf(WelcomeString, "%u%%  %s", BATTERY_VoltsToPercent(gBatteryVoltageAverage), VERSION_STRING_2);
     UI_PrintString(WelcomeString, 0, 127, 2,10);
 
     ST7565_BlitStatusLine();
-    UI_PrintString(VERSION_STRING_2, 0, 127, 5, 10);
-
-    for (uint8_t i = 0; i <= 127; i += 2) {
-        UI_DrawLineBuffer(gFrameBuffer, i, 40, i, 40, 1);
-    }
     ST7565_BlitFullScreen();
 }
