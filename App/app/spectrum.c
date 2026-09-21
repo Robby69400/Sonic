@@ -131,6 +131,7 @@ static const int osdPopupTimes[] = {0, 500, 1000, 3000, 5000, 10000};
     static bool benchLapDone = false;
 #endif
 
+bool FastSpeed = false;
 bool CloseCallActive = 0;
 bool Cleared = 0;
 static bool SettingsLoaded = false;
@@ -519,7 +520,6 @@ uint16_t TxChNum = 0;
 static void LoadActiveScanFrequencies(void)
 {
     char str[32];
-    if (appMode == FREQUENCY_MODE) { sprintf(str, "FREQUENCY"); }
     if (appMode == SCAN_RANGE_MODE) { sprintf(str, "RANGE"); }
     if (appMode == SCAN_BAND_MODE) { sprintf(str, "P%d BANDS:%d ", currentBandPreset + 1, CountActiveBands()); }
     if (appMode == CHANNEL_MODE) { 
@@ -788,8 +788,6 @@ static uint16_t GetStepsCount()
   
   return 128 >> settings.stepsCount;
 }
-
-static uint32_t GetBW() { return GetStepsCount() * GetScanStep(); }
 
 static uint16_t GetRandomChannel(uint16_t maxChannels) {
     if (maxChannels == 0) { return 1; }
@@ -1419,14 +1417,6 @@ static bool InitScan() {
             scanInitializedSuccessfully = true;
             break;
 
-        case FREQUENCY_MODE:
-            //currentFreq = gTxVfo->pRX->Frequency;
-            scanInfo.scanStep = scanStepValues[gTxVfo->STEP_SETTING];
-            settings.scanStepIndex = gTxVfo->STEP_SETTING; 
-            SpectrumRangeStart = currentFreq - (GetBW() >> 1);
-            SpectrumRangeStop  = currentFreq + (GetBW() >> 1);
-            break;
-
         case CHANNEL_MODE:
             if (scanChannelsCount == 0) {return false;}
             scanInfo.f = GetScanFrequency(0);
@@ -1559,18 +1549,6 @@ if (inc) {
                           ? STEP_500kHz 
                           : settings.scanStepIndex - 1;
 }
-  AutoAdjustFreqChangeStep();
-  scanInfo.scanStep = settings.scanStepIndex;
-}
-
-static void UpdateCurrentFreq(bool inc) {
-    AutoAdjustFreqChangeStep();
-    if (inc) {
-        gTxVfo->pRX->Frequency += settings.frequencyChangeStep;
-    } else {
-        gTxVfo->pRX->Frequency -= settings.frequencyChangeStep;
-    }
-  ResetModifiers();
 }
 
 static void ToggleModulation() {
@@ -2578,10 +2556,12 @@ static void HandleKeySpectrum(uint8_t key) {
             if (historyListActive) {
                 DeleteHistoryItem();
             } else {
-                ToggleListeningBW(1);
+                /* ToggleListeningBW(1);
                 char bwText[32];
                 sprintf(bwText, "BW: %s", bwNames[settings.listenBw]);
-                ShowOSDPopup(bwText);
+                ShowOSDPopup(bwText); */
+                FastSpeed = !FastSpeed;
+                DelayRssi = (FastSpeed)?800:1500;
             }
             break;
         case KEY_9: {
@@ -2636,7 +2616,6 @@ static void HandleKeySpectrum(uint8_t key) {
                 const char *viewName           = "SPECTRUM";
 				if (ShowLines == 2) viewName   = "ULTRA WATCH";
 				if (ShowLines == 3) viewName   = "SMOOTH SPECTRUM";
-                DelayRssi = (ShowLines == 2)?800:1500;
                 ShowOSDPopup(viewName);
                 spectrumElapsedCount = 0;
             }
@@ -2674,9 +2653,6 @@ static void HandleKeySpectrum(uint8_t key) {
                         ToggleScanList(bandListSelectedIndex, 1);
                         settings.bandEnabled[bandListSelectedIndex] = true;
                         RelaunchScan();
-                        break;
-                    case FREQUENCY_MODE:
-                        UpdateCurrentFreq(0);
                         break;
                     case CHANNEL_MODE:
                         if(!PttEmission || PttEmission >2) {// Channel OR ROGER
@@ -2744,9 +2720,6 @@ static void HandleKeySpectrum(uint8_t key) {
                         settings.bandEnabled[bandListSelectedIndex] = true; //Inverted for K1
                         RelaunchScan();
                         break;  
-                    case FREQUENCY_MODE:
-                        UpdateCurrentFreq(1);
-                        break;
                     case CHANNEL_MODE:
                         if(!PttEmission || PttEmission >2) {// Channel OR ROGER
                             TxChannel = TxChannel >= scanChannelsCount - 1 ? 0 : TxChannel + 1;
@@ -3813,11 +3786,10 @@ void APP_RunSpectrum(void) {
         Key_1_pressed = 0;
         
         switch (Spectrum_state) {
-            case 0:  mode = FREQUENCY_MODE;  break;
             case 1:  mode = CHANNEL_MODE;    break;
             case 2:  mode = SCAN_RANGE_MODE; break;
             case 3:  mode = SCAN_BAND_MODE;  break;
-            default: mode = FREQUENCY_MODE;  break;
+            default: mode = SCAN_RANGE_MODE; break;
         }
         LoadActiveScanFrequencies();
         if(mode == SCAN_BAND_MODE){
@@ -3829,12 +3801,6 @@ void APP_RunSpectrum(void) {
 #endif
         appMode = mode;
         ResetModifiers();
-        if (appMode==FREQUENCY_MODE && !Key_1_pressed) {
-            if (f < FMIN || f > FMAX) currentFreq = 44609775;
-            else currentFreq = gTxVfo->pRX->Frequency;
-            SpectrumRangeStart = currentFreq - (GetBW() >> 1);
-            SpectrumRangeStop  = currentFreq + (GetBW() >> 1);
-        }
         BackupRegisters();
         BK4819_WriteRegister(BK4819_REG_30, 0);
         SYSTEM_DelayMs(10);
@@ -3951,6 +3917,7 @@ typedef struct {
     bool Backlight_On;
     bool SoundBoost;  
     bool gMonitorScan;
+    bool FastSpeed;
 } SettingsEEPROM;
 
 
@@ -3992,7 +3959,7 @@ void LoadSettings()
     PttEmission = eepromData.PttEmission;
     validScanListCount = 0;
     ShowLines = eepromData.ShowLines;
-    DelayRssi = (ShowLines == 2)?800:1500;
+    DelayRssi = (FastSpeed)?800:1500;
     SpectrumDelay = eepromData.SpectrumDelay;
     IndexMaxLT = eepromData.IndexMaxLT;
     MaxListenTime = listenSteps[IndexMaxLT];
@@ -4009,7 +3976,7 @@ void LoadSettings()
     gMonitorScan = eepromData.gMonitorScan;   
     TxChannel = eepromData.TxChannel;   
     gSetting_set_audio_am = eepromData.gSetting_set_audio_am;
-
+    FastSpeed = eepromData.FastSpeed;
     #ifdef ENABLE_SAVE_REGISTERS
         BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
         BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
@@ -4056,6 +4023,7 @@ static void SaveSettings()
     eepromData.gMonitorScan = gMonitorScan;
     eepromData.TxChannel = TxChannel;
     eepromData.gSetting_set_audio_am = gSetting_set_audio_am;
+    eepromData.FastSpeed = FastSpeed;
   
     for (int i = 0; i < MAX_BANDS; i++) { 
       if (settings.bandEnabled[i]) {
@@ -4146,6 +4114,7 @@ void ClearSettings()
     SoundBoost = 0;
     gMonitorScan = false;
     TxChannel = 0;
+    FastSpeed = 0;
     settings.bandEnabled[0] = 1;
     gSetting_set_audio_am = 1;
     for (uint8_t i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}

@@ -32,25 +32,20 @@ void UI_DisplayFM(void)
     sprintf(String, "%3d.%d MHz",
             gEeprom.FM_FrequencyPlaying / 10,
             gEeprom.FM_FrequencyPlaying % 10);
-    
-    UI_PrintString(String,40,127,1,8);
+    #define LINE 0
+    UI_PrintString(String,0,127,LINE,8);
     
     // Keep the current scan and receiver states visible without borders.
-    #define LINE 1
+    
     //#define LINE 24
     if (gFM_No_Rx)
-        //GUI_DisplaySmallestDark("NO RX", 3, LINE, false, true);
-        UI_PrintStringSmallBold("NO RX",3,3,LINE);
+        UI_PrintStringSmallBold("NRX",0,0,LINE);
     else
-        //GUI_DisplaySmallestDark("RX ON", 3, LINE, false, true);
-        UI_PrintStringSmallBold("RX ON",3,3,LINE);
+        UI_PrintStringSmallBold("RX",0,0,LINE);
     if (gFM_ManualMode)
-        //GUI_DisplaySmallestDark("MAN", 102, LINE, false, true);
-        UI_PrintStringSmallBold("MAN",3,3,LINE+1);
+        UI_PrintStringSmallBoldRight("MA",126,LINE);
     else
-        //GUI_DisplaySmallestDark("AUTO", 102, LINE, false, true);
-        UI_PrintStringSmallBold("AUTO",3,3,LINE+1);
-    // Station name for the selected frequency, e.g. "FRANCE INTER".
+        UI_PrintStringSmallBoldRight("AU",126,LINE);
     const char *stationName = FM_FindRadioName(gEeprom.FM_FrequencyPlaying);
 
     if (stationName != NULL && gFmNameDisplay)
@@ -59,7 +54,7 @@ void UI_DisplayFM(void)
         // Nine frequency memory slots in a 3 x 3 grid.  The normal font polarity
         // leaves the LCD background clear and avoids separator lines.
         static const uint8_t memoryX[9] = {2, 44, 88, 2, 44, 88, 2, 44, 88};
-        static const uint8_t memoryPage[9] = {3, 3, 3, 5, 5, 5, 7, 7, 7};
+        static const uint8_t memoryPage[9] = {2, 2, 2, 4, 4, 4, 6, 6, 6};
 
         for (uint8_t i = 0; i < 9; i++) {
             uint16_t frequency = gFM_Memory[i];

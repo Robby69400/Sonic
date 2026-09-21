@@ -236,8 +236,6 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             break;
 
         case KEY_9:
-            APP_RunSpectrumMode(0);
-            gRequestDisplayScreen = DISPLAY_MAIN;
             break;
         case KEY_UP:
             gEeprom.SQUELCH_LEVEL = (gEeprom.SQUELCH_LEVEL < 9) ? gEeprom.SQUELCH_LEVEL + 1 : 9;
