@@ -59,7 +59,7 @@ void UI_DisplayFM(void)
         // Nine frequency memory slots in a 3 x 3 grid.  The normal font polarity
         // leaves the LCD background clear and avoids separator lines.
         static const uint8_t memoryX[9] = {2, 44, 88, 2, 44, 88, 2, 44, 88};
-        static const uint8_t memoryPage[9] = {4, 4, 4, 5, 5, 5, 6, 6, 6};
+        static const uint8_t memoryPage[9] = {3, 3, 3, 5, 5, 5, 7, 7, 7};
 
         for (uint8_t i = 0; i < 9; i++) {
             uint16_t frequency = gFM_Memory[i];
@@ -70,7 +70,7 @@ void UI_DisplayFM(void)
             UI_PrintStringSmallBold(memoryString, memoryX[i], 0, memoryPage[i]);
         }
 
-        for (uint8_t i = 4; i < FRAME_LINES; i++) //Vertical lines
+/*         for (uint8_t i = 4; i < FRAME_LINES; i++) //Vertical lines
         {
             gFrameBuffer[i][40] = 0xAA; 
             gFrameBuffer[i][41] = 0xAA; 
@@ -87,7 +87,7 @@ void UI_DisplayFM(void)
         {
             gFrameBuffer[4][x] |= 0x80;
             gFrameBuffer[5][x] |= 0x80;
-        }
+        } */
     }
     ST7565_BlitFullScreen();
 }

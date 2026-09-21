@@ -3830,7 +3830,8 @@ void APP_RunSpectrum(void) {
         appMode = mode;
         ResetModifiers();
         if (appMode==FREQUENCY_MODE && !Key_1_pressed) {
-            currentFreq = gTxVfo->pRX->Frequency;
+            if (f < FMIN || f > FMAX) currentFreq = 44609775;
+            else currentFreq = gTxVfo->pRX->Frequency;
             SpectrumRangeStart = currentFreq - (GetBW() >> 1);
             SpectrumRangeStop  = currentFreq + (GetBW() >> 1);
         }

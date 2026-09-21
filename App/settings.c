@@ -456,7 +456,7 @@ void SETTINGS_FactoryReset(bool bIsAll)
 #endif
     }
     // Reset VFO defaults
-    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL, 14550000);
+    RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL, 44609775);
     gEeprom.ScreenChannel = FREQ_CHANNEL;
     gEeprom.MrChannel     = MR_CHANNEL_FIRST;
     SETTINGS_SaveChannel(FREQ_CHANNEL, 0, &gEeprom.VfoInfo[0], 2);
