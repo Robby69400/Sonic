@@ -805,16 +805,21 @@ static uint16_t GetRandomChannel(uint16_t maxChannels) {
 }
 
 static void DeInitSpectrum() {
-  RestoreRegisters();
-  gVfoConfigureMode = VFO_CONFIGURE;
-  isInitialized = false;
-  SetState(SPECTRUM);
-  #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-        gEeprom.CURRENT_STATE = 0;
-        SETTINGS_WriteCurrentState();
-  #endif
-  ToggleRX(0);
-  SYSTEM_DelayMs(50);
+    RestoreRegisters();
+    gVfoConfigureMode = VFO_CONFIGURE;
+    isInitialized = false;
+    SetState(SPECTRUM);
+#ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
+    gEeprom.CURRENT_STATE = 0;
+    SETTINGS_WriteCurrentState();
+#endif
+    ToggleRX(0);
+    SYSTEM_DelayMs(50);
+    BK4819_Init();
+    SETTINGS_InitEEPROM();
+    RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
+    RADIO_SelectVfos();
+    RADIO_SetupRegisters(true);
 }
 
 static void DeleteHistoryItem(void) {
@@ -3446,52 +3451,60 @@ static void HandleUserInput(void) {
     kbd.current = GetKey();
 
     static uint16_t press_duration = 0;
-    static bool long_press_dispatched = false;
     static KEY_Code_t last_active_key = KEY_INVALID;
     KEY_Code_t key_to_process = KEY_INVALID;
 
     if (kbd.current != KEY_INVALID) {
         if (kbd.current != kbd.prev) {
+            // Premier appui sur une nouvelle touche
             press_duration = 0;
-            long_press_dispatched = false;
             last_active_key = kbd.current;
 
             if (kbd.current == KEY_PTT) {
-                key_to_process = kbd.current;
+                key_to_process = KEY_PTT;
             }
         } else {
+            // Touche maintenue
             press_duration++;
-            last_active_key = kbd.current;
-
+            
             if (kbd.current != KEY_PTT) {
-            if (press_duration > 80 && (press_duration % 10 == 0) && !keyPressedWasConsumedByBacklight) {
-                key_to_process = kbd.current;
-            }
+                // Répétition automatique lors d'un appui long
+                if (press_duration > 80 && (press_duration % 10 == 0)) {
+                    if (!keyPressedWasConsumedByBacklight) {
+                        key_to_process = kbd.current;
+                    }
+                }
             }
         }
-        kbd.counter = press_duration; 
     } else {
+        // Touche relâchée
         if (last_active_key != KEY_INVALID && last_active_key != KEY_PTT) {
-            if (press_duration >= 2 && press_duration < 50 && !long_press_dispatched && !keyPressedWasConsumedByBacklight) {
-                key_to_process = last_active_key;
-            } else keyPressedWasConsumedByBacklight = false;
+            if (!keyPressedWasConsumedByBacklight) {
+                // Si le rétroéclairage n'a pas déjà intercepté l'appui long,
+                // tout relâchement doit soumettre la touche à traiter (appui court/moyen)
+                if (press_duration >= 5) {
+                    key_to_process = last_active_key;
+                }
+            } else {
+                // Réinitialisation après consommation par le rétroéclairage
+                keyPressedWasConsumedByBacklight = false;
+            }
         }
         press_duration = 0;
-        long_press_dispatched = false;
         last_active_key = KEY_INVALID;
-        kbd.counter = 0;
     }
 
+    // Traitement de la touche et allumage systématique si nécessaire
     if (key_to_process != KEY_INVALID) {
-       
         if (Backlight_On) {
             if (!backlightOn && gEeprom.BACKLIGHT_TIME) {
                 BACKLIGHT_TurnOn();
                 keyPressedWasConsumedByBacklight = true;
-                return;
+                return; // La première touche allume l'écran et est consommée
             }
             BACKLIGHT_TurnOn();
         }
+
         switch (currentState) {
             case SPECTRUM:
             case BAND_LIST_SELECT:

@@ -64,25 +64,20 @@ void UI_DisplayFM(void)
                 sprintf(memoryString, " M%d",i+1);
             UI_PrintStringSmallBold(memoryString, memoryX[i], 0, memoryPage[i]);
         }
+        
+            gFrameBuffer[3][40] = 0x49; 
+            gFrameBuffer[3][84] = 0x49; 
+            gFrameBuffer[5][40] = 0x49; 
+            gFrameBuffer[5][84] = 0x49; 
 
-/*         for (uint8_t i = 4; i < FRAME_LINES; i++) //Vertical lines
-        {
-            gFrameBuffer[i][40] = 0xAA; 
-            gFrameBuffer[i][41] = 0xAA; 
-            gFrameBuffer[i][84] = 0xAA; 
-            gFrameBuffer[i][85] = 0xAA; 
-        }
-
-        for (uint8_t x = 38; x < 43; x++) //Horizontal lines
-        {
-            gFrameBuffer[4][x] |= 0x80;
-            gFrameBuffer[5][x] |= 0x80;
-        }
-        for (uint8_t x = 82; x < 87; x++) //Horizontal lines
-        {
-            gFrameBuffer[4][x] |= 0x80;
-            gFrameBuffer[5][x] |= 0x80;
-        } */
+            gFrameBuffer[3][38] |= 0x08;
+            gFrameBuffer[5][38] |= 0x08;
+            gFrameBuffer[3][42] |= 0x08;
+            gFrameBuffer[5][42] |= 0x08;
+            gFrameBuffer[3][82] |= 0x08;
+            gFrameBuffer[5][82] |= 0x08;
+            gFrameBuffer[3][86] |= 0x08;
+            gFrameBuffer[5][86] |= 0x08;
     }
     ST7565_BlitFullScreen();
 }
