@@ -264,10 +264,7 @@ static void Skip();
     #define MAX_SCAN_CHANNELS 975
 #endif
 
-#define SCAN_CHANNEL_BITMAP_BYTES ((MAX_SCAN_CHANNELS + 7) / 8)
 static bandparameters BParams[MAX_BANDS];
-static uint8_t scanChannelBitmap[SCAN_CHANNEL_BITMAP_BYTES];
-
 static uint32_t HFreqs[HISTORY_SIZE];
 #define SetHistoryFreq(idx, freq)       (HFreqs[(idx)] = (freq))
 #define GetHistoryFreq(idx)             HFreqs[(idx)]
@@ -412,21 +409,6 @@ ChannelInfo_t FetchChannelFrequency(const uint16_t Channel) {
     return info;
 }
 
-static uint32_t GetScanFrequency(const uint16_t index)
-{
-    uint16_t position = 0;
-    for (uint16_t ch = MR_CHANNEL_FIRST; ch < MAX_SCAN_CHANNELS; ch++) {
-        if ((scanChannelBitmap[ch >> 3] & (1u << (ch & 7))) != 0) {
-            if (position++ == index) {
-                uint32_t frequency;
-                PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16, &frequency, sizeof(frequency));
-                return frequency == 0xFFFFFFFF ? 0 : frequency;
-            }
-        }
-    }
-    return 0;
-}
-
 #define BLOCK_SIZE 16
 
 typedef struct {
@@ -457,6 +439,47 @@ uint16_t BOARD_gMR_fetchChannel(const uint32_t freq) {
                 return (uint16_t)(start_ch + k);
             }
         }
+    }
+    return 0xFFFF;
+}
+
+uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool direction) 
+{
+    ChannelAttributes_t cache;
+    uint32_t frequency = 0;
+    uint16_t ch = currentChannel + 1;
+    if (direction){
+        if (ch > MR_CHANNEL_LAST || ch < MR_CHANNEL_FIRST) {
+        ch = MR_CHANNEL_FIRST;
+    }
+     
+    } else {
+        if (ch > MR_CHANNEL_LAST || ch < MR_CHANNEL_FIRST) {
+        ch = MR_CHANNEL_LAST;}
+    }
+    
+    for (uint16_t count = 0; count < (MR_CHANNEL_LAST + 1); count++) 
+    {
+        PY25Q16_ReadBuffer(ADRESS_CHANNELS + ((uint32_t)ch * 16), &frequency, sizeof(frequency));
+
+        if (frequency != 0xFFFFFFFF && frequency != 0) 
+        {
+            MR_LoadChannelAttributesFromFlash(ch, &cache);
+            if (cache.scanlist > 0 && cache.scanlist <= MR_CHANNELS_LIST) 
+            {
+                if (settings.scanListEnabled[cache.scanlist - 1]) 
+                {
+                    return ch; // Canal valide trouvé !
+                }
+            }
+        }
+    if (direction){
+        ch++;
+        if (ch > MR_CHANNEL_LAST) {ch = 0;}
+    } else {
+        ch--;
+        if (ch < 1) {ch = MR_CHANNEL_LAST;}
+    }
     }
     return 0xFFFF;
 }
@@ -520,42 +543,49 @@ uint16_t TxChNum = 0;
 static void LoadActiveScanFrequencies(void)
 {
     char str[32];
-    if (appMode == SCAN_RANGE_MODE) { sprintf(str, "RANGE"); }
-    if (appMode == SCAN_BAND_MODE) { sprintf(str, "P%d BANDS:%d ", currentBandPreset + 1, CountActiveBands()); }
-    if (appMode == CHANNEL_MODE) { 
-        memset(scanChannelBitmap, 0, sizeof(scanChannelBitmap));
+
+    if (appMode == SCAN_RANGE_MODE) { 
+        sprintf(str, "RANGE"); 
+    }
+    else if (appMode == SCAN_BAND_MODE) { 
+        sprintf(str, "P%d BANDS:%d ", currentBandPreset + 1, CountActiveBands()); 
+    }
+    else if (appMode == CHANNEL_MODE) { 
         scanChannelsCount = 0;
+        uint16_t validChannelsCount = 0;
         ChannelAttributes_t cache;
 
         for (uint16_t ch = MR_CHANNEL_FIRST; ch < MAX_SCAN_CHANNELS; ch++) {
-            MR_LoadChannelAttributesFromFlash(ch, &cache);
             uint32_t frequency;
             PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16, &frequency, sizeof(frequency));
-            if (cache.scanlist > 0 && cache.scanlist <= MR_CHANNELS_LIST &&
-                settings.scanListEnabled[cache.scanlist - 1] && frequency != 0xFFFFFFFF && frequency != 0) {
-                scanChannelBitmap[ch >> 3] |= 1u << (ch & 7);
-                scanChannelsCount++;
-            }
-        }
-        if (!scanChannelsCount) {
-            for (uint16_t ch = MR_CHANNEL_FIRST; ch < MAX_SCAN_CHANNELS; ch++) {
-                uint32_t frequency;
-                PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16, &frequency, sizeof(frequency));
-                if (frequency != 0xFFFFFFFF && frequency != 0) {
-                    scanChannelBitmap[ch >> 3] |= 1u << (ch & 7);
+
+            // Vérification si le canal contient une fréquence valide
+            if (frequency != 0xFFFFFFFF && frequency != 0) {
+                validChannelsCount++;
+
+                // Vérification des critères de scanlist
+                MR_LoadChannelAttributesFromFlash(ch, &cache);
+                if (cache.scanlist > 0 && cache.scanlist <= MR_CHANNELS_LIST &&
+                    settings.scanListEnabled[cache.scanlist - 1]) {
                     scanChannelsCount++;
                 }
             }
         }
+
+        // Si aucun canal sélectionné via les scanlists, on applique le fallback
+        if (scanChannelsCount == 0) {
+            scanChannelsCount = validChannelsCount;
+        }
+
         if (scanChannelsCount >= MAX_SCAN_CHANNELS)
             sprintf(str, "TOO MANY CH");
         else
             sprintf(str, "CHANNELS:%d", scanChannelsCount);
     }
+
     ShowOSDPopup(str);
-    uint16_t TxCh = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
-    SETTINGS_FetchChannelName(TxChannelName, TxCh);
-    Spectrum_Prepare_Tx(); //to display ch correctly
+    SETTINGS_FetchChannelName(TxChannelName, TxChannel);
+    Spectrum_Prepare_Tx(); // to display ch correctly
 }
 
 static void LoadMonitorFrequencies(void)
@@ -791,17 +821,15 @@ static uint16_t GetStepsCount()
 
 static uint16_t GetRandomChannel(uint16_t maxChannels) {
     if (maxChannels == 0) { return 1; }
-
-    // Persistent state injected with the current system time
     static uint32_t seed = 0xA5A5A5A5;
     seed ^= gGlobalSysTickCounter;
 
-    // Standard LCG / xorshift for rotating the seed
     seed ^= seed << 13;
     seed ^= seed >> 17;
     seed ^= seed << 5;
-
-    return 1 + (uint16_t)(((uint64_t)seed * maxChannels) >> 32);
+    uint16_t channel;
+    channel = 1 + (uint16_t)(((uint64_t)seed * maxChannels) >> 32);
+    return GetNextChannelInSelectedScanLists(channel,1);
 }
 
 static void DeInitSpectrum() {
@@ -1022,10 +1050,8 @@ static void Spectrum_END_TX(void)
 
 static void Spectrum_Prepare_Tx(void) {
     if(PttEmission == 1) return;
-    
-    uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
-    gEeprom.ScreenChannel = ch;
-    gEeprom.MrChannel = ch;
+    gEeprom.ScreenChannel = TxChannel;
+    gEeprom.MrChannel = TxChannel;
     RADIO_ConfigureChannel(0,VFO_CONFIGURE_RELOAD);
     
 }
@@ -1068,7 +1094,9 @@ static void SpectrumTransmit() {
                 uint32_t rndfreq = 0;
                 uint16_t attempts = 0;
                 while (attempts < scanChannelsCount) {
-                    rndfreq = GetScanFrequency(randomChannel);
+                    ChannelInfo_t info;
+                    info = FetchChannelFrequency(randomChannel);
+                    rndfreq = info.frequency;
                     if (rssiHistory[randomChannel] <= 120 && rndfreq) {break;}
                     attempts++;
                     randomChannel = (randomChannel + 1) % scanChannelsCount;
@@ -1420,7 +1448,8 @@ static bool InitScan() {
 
         case CHANNEL_MODE:
             if (scanChannelsCount == 0) {return false;}
-            scanInfo.f = GetScanFrequency(0);
+            ChannelInfo_t info = FetchChannelFrequency(GetNextChannelInSelectedScanLists(0,1));
+            scanInfo.f = info.frequency;
             peak.f = scanInfo.f;
             peak.i = 0;
             break;
@@ -2017,7 +2046,7 @@ static void DrawF(uint32_t f) {
                     case 6:
                     case 7:
                     case 8:
-                        TxChNum = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
+                        TxChNum = TxChannel;
                         snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
                         UI_PrintStringSmallBoldRight(Text, 38, 5);
                         snprintf(Text, sizeof(Text), "%s", TxChannelName);
@@ -2080,7 +2109,7 @@ static void LookupChannelModulation() {
 }
 
 
-
+uint16_t ScanChannel = 0;
 
 static void NextScanStep() {
     spectrumElapsedCount = 0;
@@ -2097,7 +2126,11 @@ static void NextScanStep() {
 #ifdef ENABLE_BENCH
         if (scanInfo.i < prevI) benchLapDone = true;
 #endif
-        scanInfo.f = GetScanFrequency(scanInfo.i);
+        
+        ScanChannel= GetNextChannelInSelectedScanLists(ScanChannel,1);
+        ChannelInfo_t info;
+        info = FetchChannelFrequency(ScanChannel);
+        scanInfo.f = info.frequency;
         return;
     }
     // FREQUENCY / SCAN_RANGE / SCAN_BAND
@@ -2119,6 +2152,7 @@ static void NextScanStep() {
 #ifdef ENABLE_BENCH
     if (scanInfo.i > steps) {
         scanInfo.i = 0;
+        ScanChannel = 0;
         newScanStart = true;
         benchLapDone = true;          // pełna pętla zakresu/pasma/freq
     } else if (scanInfo.i < prevI) {
@@ -2657,10 +2691,8 @@ static void HandleKeySpectrum(uint8_t key) {
                         break;
                     case CHANNEL_MODE:
                         if(!PttEmission || PttEmission >2) {// Channel OR ROGER
-                            TxChannel = TxChannel <= 0 ? scanChannelsCount - 1 : TxChannel - 1;
-                            uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
-                            SETTINGS_FetchChannelName(TxChannelName, ch);
-                            //Spectrum_Prepare_Tx();
+                            TxChannel = GetNextChannelInSelectedScanLists(TxChannel,0);
+                            SETTINGS_FetchChannelName(TxChannelName, TxChannel);
                             return;
                         } 
                         BuildValidScanListIndices();
@@ -2723,10 +2755,8 @@ static void HandleKeySpectrum(uint8_t key) {
                         break;  
                     case CHANNEL_MODE:
                         if(!PttEmission || PttEmission >2) {// Channel OR ROGER
-                            TxChannel = TxChannel >= scanChannelsCount - 1 ? 0 : TxChannel + 1;
-                            uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
-                            SETTINGS_FetchChannelName(TxChannelName, ch);
-                            //Spectrum_Prepare_Tx();
+                            TxChannel = GetNextChannelInSelectedScanLists(TxChannel,1);
+                            SETTINGS_FetchChannelName(TxChannelName, TxChannel);
                             return;
                         } 
                         BuildValidScanListIndices();
@@ -3774,7 +3804,9 @@ static void Tick() {
 
     if (gNextTimeslice_AutoPtt && PttEmission >= 3) {
         gNextTimeslice_AutoPtt = 0;
-        gCurrentVfo->freq_config_TX.Frequency = GetScanFrequency(TxChannel);
+        ChannelInfo_t info;
+        info = FetchChannelFrequency(TxChannel);
+        gCurrentVfo->freq_config_TX.Frequency = info.frequency;
         gCurrentVfo->Modulation   = MODULATION_FM;
         gCurrentVfo->OUTPUT_POWER = OUTPUT_POWER_HIGH;
         Spectrum_TX();
