@@ -1019,10 +1019,6 @@ static void Spectrum_Prepare_Tx(void) {
     if(PttEmission == 1) return;
     
     uint16_t ch = BOARD_gMR_fetchChannel(GetScanFrequency(TxChannel));
-/*     RADIO_SelectVfos();
-    gRxVfo = &gEeprom.VfoInfo[gEeprom.RX_VFO];
-    gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO]; */
-    
     gEeprom.ScreenChannel = ch;
     gEeprom.MrChannel = ch;
     RADIO_ConfigureChannel(0,VFO_CONFIGURE_RELOAD);
@@ -3443,6 +3439,8 @@ static void Render() {
 BlitFullScreen();
 }
 
+static bool keyPressedWasConsumedByBacklight = false;
+
 static void HandleUserInput(void) {
     kbd.prev = kbd.current;
     kbd.current = GetKey();
@@ -3466,7 +3464,7 @@ static void HandleUserInput(void) {
             last_active_key = kbd.current;
 
             if (kbd.current != KEY_PTT) {
-            if (press_duration > 80 && (press_duration % 10 == 0)) {
+            if (press_duration > 80 && (press_duration % 10 == 0) && !keyPressedWasConsumedByBacklight) {
                 key_to_process = kbd.current;
             }
             }
@@ -3474,9 +3472,9 @@ static void HandleUserInput(void) {
         kbd.counter = press_duration; 
     } else {
         if (last_active_key != KEY_INVALID && last_active_key != KEY_PTT) {
-            if (press_duration >= 2 && press_duration < 50 && !long_press_dispatched) {
+            if (press_duration >= 2 && press_duration < 50 && !long_press_dispatched && !keyPressedWasConsumedByBacklight) {
                 key_to_process = last_active_key;
-            }
+            } else keyPressedWasConsumedByBacklight = false;
         }
         press_duration = 0;
         long_press_dispatched = false;
@@ -3489,6 +3487,7 @@ static void HandleUserInput(void) {
         if (Backlight_On) {
             if (!backlightOn && gEeprom.BACKLIGHT_TIME) {
                 BACKLIGHT_TurnOn();
+                keyPressedWasConsumedByBacklight = true;
                 return;
             }
             BACKLIGHT_TurnOn();
