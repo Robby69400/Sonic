@@ -447,18 +447,23 @@ uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool directi
 {
     ChannelAttributes_t cache;
     uint32_t frequency = 0;
-    uint16_t ch = currentChannel + 1;
-    if (direction){
-        if (ch > MR_CHANNEL_LAST || ch < MR_CHANNEL_FIRST) {
-        ch = MR_CHANNEL_FIRST;
-    }
-     
+    int16_t ch;
+    
+    // Initialiser le point de départ selon la direction
+    if (direction) {
+        ch = currentChannel + 1;
+        if (ch > MR_CHANNEL_LAST) {
+            ch = 0;
+        }
     } else {
-        if (ch > MR_CHANNEL_LAST || ch < MR_CHANNEL_FIRST) {
-        ch = MR_CHANNEL_LAST;}
+        ch = currentChannel - 1;
+        if (ch < 0) {
+            ch = MR_CHANNEL_LAST;
+        }
     }
     
-    for (uint16_t count = 0; count < (MR_CHANNEL_LAST + 1); count++) 
+    // Parcours complet de tous les canaux disponibles
+    for (uint16_t count = 0; count <= (MR_CHANNEL_LAST - MR_CHANNEL_FIRST + 1); count++) 
     {
         PY25Q16_ReadBuffer(ADRESS_CHANNELS + ((uint32_t)ch * 16), &frequency, sizeof(frequency));
 
@@ -469,19 +474,27 @@ uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool directi
             {
                 if (settings.scanListEnabled[cache.scanlist - 1]) 
                 {
-                    return ch; // Canal valide trouvé !
+                    return ch;  // Canal valide trouvé !
                 }
             }
         }
-    if (direction){
-        ch++;
-        if (ch > MR_CHANNEL_LAST) {ch = 0;}
-    } else {
-        ch--;
-        if (ch < 1) {ch = MR_CHANNEL_LAST;}
+        
+        // Incrément ou décrément avec wrap-around CORRECT
+        if (direction) {
+            ch++;
+            if (ch > MR_CHANNEL_LAST) {
+                ch = 0;
+            }
+        } else {
+            if (ch <= 0) {
+                ch = MR_CHANNEL_LAST;
+            } else {
+                ch--;
+            }
+        }
     }
-    }
-    return 0xFFFF;
+    
+    return 0xFFFF;  // Aucun canal valide trouvé
 }
 
 uint16_t RADIO_ValidMemoryChannelsCount(bool bCheckScanList, uint8_t CurrentScanList)
@@ -1972,7 +1985,9 @@ static void DrawF(uint32_t f) {
     char prefix[9] = "";
 #ifdef ENABLE_BENCH
     char bench[10];
-    snprintf(bench, sizeof(bench), "%u", benchRatePerSec);
+    if(FastSpeed)
+            snprintf(bench, sizeof(bench), "F%u", benchRatePerSec);
+    else    snprintf(bench, sizeof(bench), "%u", benchRatePerSec);
     GUI_DisplaySmallest(bench, 40, Bottom_print, false, true);
 #endif
     if (appMode == SCAN_BAND_MODE) {
@@ -2596,7 +2611,7 @@ static void HandleKeySpectrum(uint8_t key) {
                 sprintf(bwText, "BW: %s", bwNames[settings.listenBw]);
                 ShowOSDPopup(bwText); */
                 FastSpeed = !FastSpeed;
-                DelayRssi = (FastSpeed)?800:1500;
+                DelayRssi = (FastSpeed)?700:1500;
             }
             break;
         case KEY_9: {
@@ -4003,7 +4018,7 @@ void LoadSettings()
     PttEmission = eepromData.PttEmission;
     validScanListCount = 0;
     ShowLines = eepromData.ShowLines;
-    DelayRssi = (FastSpeed)?800:1500;
+    DelayRssi = (FastSpeed)?700:1500;
     SpectrumDelay = eepromData.SpectrumDelay;
     IndexMaxLT = eepromData.IndexMaxLT;
     MaxListenTime = listenSteps[IndexMaxLT];
