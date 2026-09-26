@@ -245,6 +245,7 @@ static bool IsBlacklisted(uint32_t f);
 static void SetState(State state);
 static void Spectrum_Prepare_Tx(void);
 static void Skip();
+static bool GetScanListLabel(uint8_t scanListIndex, char* bufferOut);
 
 
 
@@ -589,11 +590,23 @@ static void LoadActiveScanFrequencies(void)
         if (scanChannelsCount == 0) {
             scanChannelsCount = validChannelsCount;
         }
-
-        if (scanChannelsCount >= MAX_SCAN_CHANNELS)
-            sprintf(str, "TOO MANY CH");
-        else
-            sprintf(str, "CHANNELS:%d", scanChannelsCount);
+        uint8_t firstEnabledScanList = 0;
+        for (int i = 0; i < MR_CHANNELS_LIST; i++) {
+            if (settings.scanListEnabled[i]) {
+                firstEnabledScanList = i;  // Premier trouvé
+                break;
+            }
+        }
+        char name[13];
+        GetScanListLabel(firstEnabledScanList, name);
+        for (int i = 0; name[i] != '\0'; i++) {
+            if (name[i] == '*') {
+                name[i] = '\0';
+                break;
+            }
+        }
+        
+        sprintf(str, "%s", name);
     }
 
     ShowOSDPopup(str);
@@ -2050,8 +2063,10 @@ static void DrawF(uint32_t f) {
                         UI_PrintStringSmallNormal(status, 0, 0, 4);
                         if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
                             TxChNum = BOARD_gMR_fetchChannel(lastReceivingFreq);
-                            snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
-                            UI_PrintStringSmallBoldRight(Text, 38, 5);
+                            if (TxChNum != 0xFFFF) {
+                                snprintf(Text, sizeof(Text), "%d", TxChNum + 1);
+                                UI_PrintStringSmallBoldRight(Text, 38, 5);
+                            }
                         }
                         break;
                     case 0:
@@ -2082,8 +2097,10 @@ static void DrawF(uint32_t f) {
                 
                 if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
                     uint16_t RxChannel = BOARD_gMR_fetchChannel(lastReceivingFreq) + 1;
-                    snprintf(Text, sizeof(Text), "%d", RxChannel);
-                    UI_PrintStringSmallBoldRight(Text, 38, 3);
+                    if (RxChannel != 0xFFFF) {
+                        snprintf(Text, sizeof(Text), "%d", RxChannel);
+                        UI_PrintStringSmallBoldRight(Text, 38, 3);
+                    }
                 }
 #ifdef ENABLE_SPECTRUM_LINES
                 MyDrawFrameLines();

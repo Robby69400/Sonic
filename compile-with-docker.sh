@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # If no preset was detected in the arguments, use the default value
-PRESET=${PRESET:-S4K}
+PRESET=${PRESET:-S1K}
 
 # ---------------------------------------------
 # Clean up if the option is enabled
