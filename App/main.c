@@ -210,25 +210,14 @@ void Main(void)
                 gEeprom.SCAN_LIST_DEFAULT = gEeprom.CURRENT_LIST;
                 break;
 
-            case 2:
+            case 3:
+                ACTION_FM();
+                GUI_SelectNextDisplay(gRequestDisplayScreen);
                 break;
-
-            #ifdef ENABLE_FMRADIO
-                case 3:
-                    ACTION_FM();
-                    GUI_SelectNextDisplay(gRequestDisplayScreen);
-                    break;
-            #endif
-
-            #ifdef ENABLE_SPECTRUM
-                case 4:
-                case 5:
-                    APP_RunSpectrum();
-                    break;
-            #endif
-
+            case 4:
+                APP_RunSpectrum();
+                break;
             default:
-                // No action for CURRENT_STATE == 0 or other unexpected values
                 break;
         }
     #endif

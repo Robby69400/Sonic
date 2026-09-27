@@ -221,17 +221,23 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
         case KEY_5:
             break;
         case KEY_6:
-            APP_RunSpectrumMode(2);
+            Spectrum_state = SCAN_RANGE_MODE;
+            gEeprom.CURRENT_STATE == 2;
+            APP_RunSpectrum();
             gRequestDisplayScreen = DISPLAY_MAIN;
             break;
 
         case KEY_7:
-            APP_RunSpectrumMode(1);
+            Spectrum_state = CHANNEL_MODE;
+            gEeprom.CURRENT_STATE == 2;
+            APP_RunSpectrum();
             gRequestDisplayScreen = DISPLAY_MAIN;
             break;
 
         case KEY_8:
-            APP_RunSpectrumMode(3);
+            Spectrum_state = SCAN_BAND_MODE;
+            gEeprom.CURRENT_STATE == 2;
+            APP_RunSpectrum();
             gRequestDisplayScreen = DISPLAY_MAIN;
             break;
 

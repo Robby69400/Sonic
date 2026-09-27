@@ -29,7 +29,7 @@ void UI_DisplayFM(void)
     
     // Frequency in a large digital font, centered in the top area.
     memset(String, 0, sizeof(String));
-    sprintf(String, "%3d.%d MHz",
+    sprintf(String, "%d.%d MHz",
             gEeprom.FM_FrequencyPlaying / 10,
             gEeprom.FM_FrequencyPlaying % 10);
     #define LINE 0
@@ -48,9 +48,9 @@ void UI_DisplayFM(void)
         UI_PrintStringSmallBoldRight("AU",126,LINE);
     const char *stationName = FM_FindRadioName(gEeprom.FM_FrequencyPlaying);
 
-    if (stationName != NULL && gFmNameDisplay)
-        UI_PrintString(stationName,0,127,4,8);
-    else {
+    if (gFmNameDisplay) {
+        if (stationName != NULL) UI_PrintString(stationName,0,127,4,8);
+    } else {
         // Nine frequency memory slots in a 3 x 3 grid.  The normal font polarity
         // leaves the LCD background clear and avoids separator lines.
         static const uint8_t memoryX[9] = {2, 44, 88, 2, 44, 88, 2, 44, 88};
@@ -59,25 +59,34 @@ void UI_DisplayFM(void)
         for (uint8_t i = 0; i < 9; i++) {
             uint16_t frequency = gFM_Memory[i];
             if (frequency != 0)
-                sprintf(memoryString, "%03d.%d", frequency / 10, frequency % 10);
+                sprintf(memoryString, "%3d.%d", frequency / 10, frequency % 10);
             else
                 sprintf(memoryString, " M%d",i+1);
             UI_PrintStringSmallBold(memoryString, memoryX[i], 0, memoryPage[i]);
         }
+        // Lignes verticales
         
-            gFrameBuffer[3][40] = 0x49; 
-            gFrameBuffer[3][84] = 0x49; 
-            gFrameBuffer[5][40] = 0x49; 
-            gFrameBuffer[5][84] = 0x49; 
+        gFrameBuffer[2][40] = 0xAA;
+        gFrameBuffer[2][84] = 0xAA;
+        gFrameBuffer[3][40] = 0xAA;
+        gFrameBuffer[3][84] = 0xAA;
+        gFrameBuffer[4][40] = 0xAA;
+        gFrameBuffer[4][84] = 0xAA;
+        gFrameBuffer[5][40] = 0xAA;
+        gFrameBuffer[5][84] = 0xAA;
+        gFrameBuffer[6][40] = 0xAA;
+        gFrameBuffer[6][84] = 0xAA;
+        
 
-            gFrameBuffer[3][38] |= 0x08;
-            gFrameBuffer[5][38] |= 0x08;
-            gFrameBuffer[3][42] |= 0x08;
-            gFrameBuffer[5][42] |= 0x08;
-            gFrameBuffer[3][82] |= 0x08;
-            gFrameBuffer[5][82] |= 0x08;
-            gFrameBuffer[3][86] |= 0x08;
-            gFrameBuffer[5][86] |= 0x08;
+        // Lignes horizontales
+        for (int i = 25; i <= 55; i+=3) {
+            gFrameBuffer[3][i] |= 0x08;
+            gFrameBuffer[5][i] |= 0x08;
+        }
+        for (int i = 69; i <= 99; i+=3) {
+            gFrameBuffer[3][i] |= 0x08;
+            gFrameBuffer[5][i] |= 0x08;
+        }
     }
     ST7565_BlitFullScreen();
 }

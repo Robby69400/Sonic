@@ -824,26 +824,18 @@ State[1] = 0
     void SETTINGS_WriteCurrentState(void)
     {
         uint8_t State[0x08];
-
         PY25Q16_ReadBuffer(0x00A008, State, sizeof(State));
         State[7] =
             (gEeprom.CURRENT_STATE & 0x07) |
             ((gEeprom.SCAN_LIST_DEFAULT & 0x1F) << 3);
         PY25Q16_WriteBuffer(0x00A008, State, sizeof(State), false);
-
-        //
-
         PY25Q16_ReadBuffer(0x00A130, State, sizeof(State));
-
         State[0] = (gEeprom.SCAN_LIST_DEFAULT & 0x7F)
             | ((gEeprom.SCAN_LIST_ENABLED & 0x01) << 7);
-
         State[1] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[0] & 0xFF);
         State[2] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[0] >> 8);
-
         State[3] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[1] & 0xFF);
         State[4] = (uint8_t)(gEeprom.SCANLIST_PRIORITY_CH[1] >> 8);
-
         PY25Q16_WriteBuffer(0x00A130, State, sizeof(State), false);
     }
 #endif
