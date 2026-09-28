@@ -452,7 +452,6 @@ uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool directi
     uint32_t frequency = 0;
     int16_t ch;
     
-    // Initialiser le point de départ selon la direction
     if (direction) {
         ch = currentChannel + 1;
         if (ch > MR_CHANNEL_LAST) {
@@ -465,7 +464,6 @@ uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool directi
         }
     }
     
-    // Parcours complet de tous les canaux disponibles
     for (uint16_t count = 0; count <= (MR_CHANNEL_LAST - MR_CHANNEL_FIRST + 1); count++) 
     {
         PY25Q16_ReadBuffer(ADRESS_CHANNELS + ((uint32_t)ch * 16), &frequency, sizeof(frequency));
@@ -477,12 +475,11 @@ uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool directi
             {
                 if (settings.scanListEnabled[cache.scanlist - 1]) 
                 {
-                    return ch;  // Canal valide trouvé !
+                    return ch;
                 }
             }
         }
-        
-        // Incrément ou décrément avec wrap-around CORRECT
+
         if (direction) {
             ch++;
             if (ch > MR_CHANNEL_LAST) {
@@ -867,7 +864,7 @@ static void DeInitSpectrum(void) {
     SETTINGS_WriteCurrentState();
 #endif
     SYSTEM_DelayMs(50);
-    BK4819_Init();
+    //BK4819_Init();
     SETTINGS_InitEEPROM();
     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
     RADIO_SelectVfos();
@@ -2157,7 +2154,7 @@ static void NextScanStep() {
         if (scanInfo.i < prevI) benchLapDone = true;
 #endif
         
-        ScanChannel= GetNextChannelInSelectedScanLists(ScanChannel,1);
+        ScanChannel= GetNextChannelInSelectedScanLists(ScanChannel - 1,1);
         ChannelInfo_t info;
         info = FetchChannelFrequency(ScanChannel);
         scanInfo.f = info.frequency;
@@ -2700,6 +2697,7 @@ static void HandleKeySpectrum(uint8_t key) {
                 lastReceivingFreq = GetHistoryFreq(historyListIndex);
                 SetF(lastReceivingFreq);
             } else {
+                isListening = 0; //Enable display
                 switch (Spectrum_state) {
                     case SCAN_BAND_MODE:
                         // Move upward while handling the scroll offset
@@ -2764,6 +2762,7 @@ static void HandleKeySpectrum(uint8_t key) {
                 lastReceivingFreq = GetHistoryFreq(historyListIndex);
                 SetF(lastReceivingFreq);
             } else {
+                isListening = 0; //Enable display
                 switch (Spectrum_state) {
                     case SCAN_BAND_MODE:
                         // Move downward while handling the scroll offset
