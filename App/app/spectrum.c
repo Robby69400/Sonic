@@ -446,7 +446,7 @@ uint16_t BOARD_gMR_fetchChannel(const uint32_t freq) {
     return 0xFFFF;
 }
 
-uint16_t GetNextChannelInSelectedScanLists(uint16_t currentChannel, bool direction) 
+uint16_t GetNextChannelInSelectedScanLists(int16_t currentChannel, bool direction) 
 {
     ChannelAttributes_t cache;
     uint32_t frequency = 0;
@@ -1469,7 +1469,7 @@ static bool InitScan() {
 
         case CHANNEL_MODE:
             if (scanChannelsCount == 0) {return false;}
-            ChannelInfo_t info = FetchChannelFrequency(GetNextChannelInSelectedScanLists(0,1));
+            ChannelInfo_t info = FetchChannelFrequency(0);
             scanInfo.f = info.frequency;
             peak.f = scanInfo.f;
             peak.i = 0;
@@ -2136,7 +2136,7 @@ static void LookupChannelModulation() {
 }
 
 
-uint16_t ScanChannel = 0;
+uint16_t ScanChannel = -1;
 
 static void NextScanStep() {
     spectrumElapsedCount = 0;
@@ -2154,7 +2154,7 @@ static void NextScanStep() {
         if (scanInfo.i < prevI) benchLapDone = true;
 #endif
         
-        ScanChannel= GetNextChannelInSelectedScanLists(ScanChannel - 1,1);
+        ScanChannel= GetNextChannelInSelectedScanLists(ScanChannel,1);
         ChannelInfo_t info;
         info = FetchChannelFrequency(ScanChannel);
         scanInfo.f = info.frequency;
@@ -4645,7 +4645,7 @@ static void RenderHistoryList() {
     uint16_t count = CountValidHistoryItems();
     char title[32];
     if (CloseCallActive) sprintf(title, "HISTORY: %d CC", count);
-    else sprintf(title, "HISTORY: %d", count);
+    else sprintf(title, "HISTORY: %d/%d",historyListIndex + 1, count);
 
     // Only preload channels if the scroll offset has changed to optimize performance
     if (historyScrollOffset != lastHistoryScrollOffset) {

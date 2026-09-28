@@ -139,7 +139,7 @@ struct {
 // --------------------
 
 #seekto 0x00A000;
-u8 set_rxa;
+u8 unused;
 u8 squelch;
 u8 max_talk_time;
 u8 noaa_autoscan;
@@ -470,9 +470,6 @@ TALK_TIME_LIST = ["N/U", "N/U", "N/U", "N/U", "N/U", "30 sec", "35 sec", "40 sec
 # Set NFM value
 SET_NFM_LIST = ["NARROW", "NARROWER"]
 
-# Set RxA value
-SET_RXA_LIST = ["FLAT", "CLEAN", "MID", "BOOST", "MAX"]
-
 # Set KEY value
 SET_KEY_LIST = ["MENU", "KEY_UP", "KEY_DOWN", "KEY_EXIT", "KEY_STAR"]
 
@@ -631,8 +628,6 @@ KEYACTIONS_LIST = ["NONE",
                    "PTT",                  
                    "WIDE / NARROW",
                    "BACKLIGHT",
-                   "MUTE",
-                   "RxA",
                    "POWER HIGH",
                    "REMOVE OFFSET"
                   ]
@@ -1612,9 +1607,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
             elif elname == "set_nfm":
                 _mem.set_nfm = int(element.value)
 
-            # set rxa SONIC
-            elif elname == "set_rxa":
-                _mem.set_rxa = int(element.value)
 
             # set key SONIC
             elif elname == "set_key":
@@ -1921,17 +1913,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         SetNFMSetting.set_doc('SetNFM: Set Narrow FM bandwidth \n' + \
                               '* 12.5 kHz \n' + \
                               '* 6.25 kHz')
-
-        # Set_RXA SONIC
-        tmpsetrxa = list_def(_mem.set_rxa, SET_RXA_LIST, 0)
-        val = RadioSettingValueList(SET_RXA_LIST, SET_RXA_LIST[tmpsetrxa])
-        SetRxASetting = RadioSetting("set_rxa", "Set RxA (SetRxA)", val)
-        SetRxASetting.set_doc('SetRxA: Set Rx FM Audio profile \n' + \
-                              '* FLAT \n' + \
-                              '* CLEAN \n' + \
-                              '* MID \n' + \
-                              '* BOOST \n' + \
-                              '* MAX')
 
         # Set_KEY SONIC
         tmpsetkey = list_def(_mem.set_key, SET_KEY_LIST, 0)
@@ -2350,7 +2331,6 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         basic.append(SetTmrSetting)
         basic.append(SetOffSetting)
         basic.append(SetNFMSetting)
-        basic.append(SetRxASetting)
         basic.append(SetMenuNavSetting)
 
         append_label(basic,
