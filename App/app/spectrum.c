@@ -1096,6 +1096,18 @@ static void Spectrum_TX()
     if (gSetting_backlight_on_tx_rx & BACKLIGHT_ON_TR_TX) {
         BACKLIGHT_TurnOn();
     }
+
+    static uint8_t LCode;
+    StringCode[0] = '\0';
+    LCode = gCurrentVfo->freq_config_TX.Code;
+    if (LCode != 0xFF) {
+        if (gCurrentVfo->freq_config_TX.CodeType == CODE_TYPE_DIGITAL) {
+            snprintf(StringCode, sizeof(StringCode), "D%03oN", DCS_Options[LCode]);
+        } else  if (gCurrentVfo->freq_config_TX.CodeType == CODE_TYPE_CONTINUOUS_TONE) {
+                    snprintf(StringCode, sizeof(StringCode), "%u.%u", CTCSS_Options[LCode] / 10, CTCSS_Options[LCode] % 10);
+                }
+        stringCodeTimer = STRINGCODE_TIMEOUT_MS; // Rebooste le timer à 10s
+    }
 }
 
 static void SpectrumTransmit() {
@@ -1152,6 +1164,7 @@ static void SpectrumTransmit() {
     SpectrumPauseCount = 2000;
 
     Spectrum_TX();
+    WaitSpectrum = SpectrumDelay;   // apply pause for TX also
 }
 
 static uint16_t GetRssi(void) {
@@ -1212,12 +1225,6 @@ static void UpdateCssDetection(void) {
                 gCurrentVfo->freq_config_TX.CodeType = CODE_TYPE_DIGITAL;
                 gCurrentVfo->freq_config_TX.Code     = LCode;
             }
-
-            // Déclenche le popup SEULEMENT si le code a changé
-            //if (code != lastCode) {
-            //    ShowOSDPopup(StringCode);
-            //    lastCode = code;
-            //}
             return;
         }
     } else if (scanResult == BK4819_CSS_RESULT_CTCSS) {
@@ -1232,18 +1239,9 @@ static void UpdateCssDetection(void) {
                 gCurrentVfo->freq_config_TX.CodeType = CODE_TYPE_CONTINUOUS_TONE;
                 gCurrentVfo->freq_config_TX.Code     = LCode;
             }
-
-            // Déclenche le popup SEULEMENT si le code a changé
-            //if (code != lastCode) {
-            //    ShowOSDPopup(StringCode);
-            //    lastCode = code;
-            //}
             return;
         }
     }
-
-    // Si aucun code valide n'a été trouvé durant ce cycle
-    //lastCode = 0xFF;
 }
 
 static void FillfreqHistory(void)
