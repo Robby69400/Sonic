@@ -86,6 +86,7 @@ const t_menu_item MenuList[] =
     {"MicBar",      MENU_SET_MET       },
     #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER
     {"SetTmr",      MENU_SET_TMR       },
+    {"SetRxA",      MENU_SET_AUD       },
     #endif
 #endif
     // hidden menu items (PTT + upper side button at power-on)

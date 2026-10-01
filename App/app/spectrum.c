@@ -575,9 +575,7 @@ static void LoadActiveScanFrequencies(void)
                 }
             }
         }
-        if (scanChannelsCount == 0) {
-            scanChannelsCount = validChannelsCount;
-        }
+
         uint8_t firstEnabledScanList = 0;
         for (int i = 0; i < MR_CHANNELS_LIST; i++) {
             if (settings.scanListEnabled[i]) {
@@ -587,6 +585,15 @@ static void LoadActiveScanFrequencies(void)
         }
         char name[13];
         GetScanListLabel(firstEnabledScanList, name);
+        if (scanChannelsCount == 0) {
+            scanChannelsCount = validChannelsCount;
+            for (int i = 0; i < MR_CHANNELS_LIST; i++) { //Activate All scanlists when none selected
+                settings.scanListEnabled[i] = 1;
+                sprintf(name,"ALL SCANLISTS");
+            }
+        }
+
+
         for (int i = 0; name[i] != '\0'; i++) {
             if (name[i] == '*') {
                 name[i] = '\0';

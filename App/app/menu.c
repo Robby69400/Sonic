@@ -234,6 +234,15 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             //*pMin = 0;
             *pMax = gSubMenu_SIDEFUNCTIONS_size-1;
             break;
+        case MENU_SET_AUD:
+            //*pMin = 0;
+            if(gTxVfo->Modulation == MODULATION_AM)
+                *pMax = ARRAY_SIZE(gSubMenu_SET_AUD_AM) - 1;
+            else if (gTxVfo->Modulation == MODULATION_USB)
+                *pMax = 0;
+            else
+                *pMax = ARRAY_SIZE(gSubMenu_SET_AUD_FM) - 1;
+            break; 
 
 
 #ifdef ENABLE_FEAT_F4HWN
@@ -370,7 +379,14 @@ void MENU_AcceptSetting(void)
             else
                 BK4819_DisableScramble();
             return;
+        case MENU_SET_AUD:
+            if(gTxVfo->Modulation == MODULATION_AM)
+                gSetting_set_audio_am = gSubMenuSelection;
+            else if (gTxVfo->Modulation == MODULATION_FM)
+                gSetting_set_audio_fm = gSubMenuSelection;
 
+            RADIO_SetModulation(gTxVfo->Modulation);
+            break;
         case MENU_DEL_CH:
             SETTINGS_UpdateChannel(gSubMenuSelection, NULL, false);
             gVfoConfigureMode = VFO_CONFIGURE_RELOAD;
@@ -742,7 +758,14 @@ void MENU_ShowCurrentSetting(void)
         case MENU_F_LOCK:
             gSubMenuSelection = gSetting_F_LOCK;
             break;
-            
+        case MENU_SET_AUD:
+            if(gTxVfo->Modulation == MODULATION_AM)
+                gSubMenuSelection = gSetting_set_audio_am;
+            else if (gTxVfo->Modulation == MODULATION_USB)
+                gSubMenuSelection = 0;
+            else
+                gSubMenuSelection = gSetting_set_audio_fm;
+            break;
         #ifdef ENABLE_F_CAL_MENU
             case MENU_F_CALI:
                 gSubMenuSelection = gEeprom.BK4819_XTAL_FREQ_LOW;

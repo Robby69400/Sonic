@@ -1205,6 +1205,14 @@ uint8_t BK4819_GetAfTxRx(void)
     return BK4819_ReadRegister(BK4819_REG_6F) & 0x003F;
 }
 
+void BK4819_SetRxAudioGain(void) {
+    BK4819_WriteRegister(BK4819_REG_48,
+        (11u << 12)                |     // ??? .. 0 ~ 15, doesn't seem to make any difference
+        ( 0u << 10)                |     // AF Rx Gain-1
+        (gEeprom.VOLUME_GAIN << 4) |     // AF Rx Gain-2
+        (gEeprom.DAC_GAIN    << 0));     // AF DAC Gain (after Gain-1 and Gain-2)
+}
+
 bool BK4819_GetFrequencyScanResult(uint32_t *pFrequency)
 {
     const uint16_t High     = BK4819_ReadRegister(BK4819_REG_0D);

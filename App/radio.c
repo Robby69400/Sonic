@@ -588,7 +588,7 @@ void RADIO_SetupRegisters(bool switchToForeground)
         ( 0u << 10)                 |     // AF Rx Gain-1
         (gEeprom.VOLUME_GAIN << 4) |     // AF Rx Gain-2
         (gEeprom.DAC_GAIN    << 0));     // AF DAC Gain (after Gain-1 and Gain-2)
-
+    BK4819_SetRxAudioGain();
     uint16_t InterruptMask = BK4819_REG_3F_SQUELCH_FOUND | BK4819_REG_3F_SQUELCH_LOST;
 
     {

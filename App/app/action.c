@@ -69,6 +69,7 @@ void (*action_opt_table[])(void) = {
     [ACTION_OPT_PTT] = &ACTION_Ptt,
     [ACTION_OPT_WN] = &ACTION_Wn,
     [ACTION_OPT_BACKLIGHT] = &ACTION_BackLight,
+    [ACTION_OPT_RXA] = &ACTION_RxA,
 #endif
 };
 
@@ -173,6 +174,7 @@ void ACTION_Handle(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             case ACTION_OPT_SWITCH_DEMODUL:
     #ifdef ENABLE_FEAT_F4HWN
             case ACTION_OPT_WN:
+            case ACTION_OPT_RXA:
     #endif
                 return;
 
