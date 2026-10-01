@@ -59,6 +59,7 @@ enum
     MENU_VOL,
     MENU_BAT_TXT,
     MENU_AM,
+    MENU_SET_AUD,
 
 #ifndef ENABLE_FEAT_F4HWN
 #endif
@@ -117,13 +118,11 @@ extern const char* const         gSubMenu_BATTYP[];
 typedef struct {char* name; uint8_t id;} t_sidefunction;
 extern const uint8_t         gSubMenu_SIDEFUNCTIONS_size;
 extern const t_sidefunction gSubMenu_SIDEFUNCTIONS[];
-                         
+extern const char* const    gSubMenu_SET_AUD_FM[5];
+extern const char* const    gSubMenu_SET_AUD_AM[3];
 extern bool              gIsInSubMenu;
-                         
 extern uint8_t           gMenuCursor;
-
 extern int32_t           gSubMenuSelection;
-                         
 extern char              edit_original[17];
 extern char              edit[17];
 extern int               edit_index;

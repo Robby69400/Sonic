@@ -223,7 +223,21 @@ const char* const gSubMenu_SCRAMBLER[] =
         "KEYS+PTT"
     };
 
+        const char* const gSubMenu_SET_AUD_FM[] =
+        {
+            "FLAT",
+            "CLEAN",
+            "MID",
+            "BOOST",
+            "MAX"
+        };
 
+        const char* const gSubMenu_SET_AUD_AM[] =
+        {
+            "SHARP",
+            "STOCK",
+            "OPEN"
+        };
 
     #ifdef ENABLE_FEAT_F4HWN_NARROWER
         const char gSubMenu_SET_NFM[][9] =
@@ -733,6 +747,18 @@ void UI_DisplayMenu(void)
         case MENU_SET_MET:
             strcpy(String, gSubMenu_OFF_ON[gSubMenuSelection]);   
             break;
+
+        case MENU_SET_AUD:
+                if(gTxVfo->Modulation == MODULATION_AM) {
+                    strcpy(String, gSubMenu_SET_AUD_AM[gSubMenuSelection]);
+                }
+                else if (gTxVfo->Modulation == MODULATION_USB) {
+                    strcpy(String, "USB");
+                }
+                else {
+                    strcpy(String, gSubMenu_SET_AUD_FM[gSubMenuSelection]);
+                }
+                break;
 
         #ifdef ENABLE_FEAT_F4HWN_NARROWER
             case MENU_SET_NFM:

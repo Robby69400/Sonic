@@ -1127,7 +1127,7 @@ static void SpectrumTransmit() {
 
     switch (currentState) {
         case SPECTRUM:
-            SpectrumDelay = 0;
+            WaitSpectrum = 0;
             // PTT Mode 1: NINJA MODE (Random channel with low RSSI)
             if (PttEmission == 1 && scanChannelsCount > 0) {
                 uint16_t randomChannel = GetRandomChannel(scanChannelsCount);
@@ -1171,7 +1171,6 @@ static void SpectrumTransmit() {
     SpectrumPauseCount = 2000;
 
     Spectrum_TX();
-    WaitSpectrum = SpectrumDelay;   // apply pause for TX also
 }
 
 static uint16_t GetRssi(void) {
@@ -2160,6 +2159,7 @@ static void NextScanStep() {
 #endif
         
         ScanChannel= GetNextChannelInSelectedScanLists(ScanChannel,1);
+        if (ScanChannel == 0xFFFF) return;
         ChannelInfo_t info;
         info = FetchChannelFrequency(ScanChannel);
         scanInfo.f = info.frequency;
