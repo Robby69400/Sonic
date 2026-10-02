@@ -1210,6 +1210,7 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         goto Skip;
     }
 
+    if (Key == KEY_SIDE2 && gEeprom.TONE_1750 && bKeyPressed && !bKeyHeld &&
         gPttIsPressed && gCurrentFunction != FUNCTION_TRANSMIT) {
         gTx1750Active = true;
         gFlagPrepareTX = true;
@@ -1217,6 +1218,7 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         gRequestDisplayScreen = DISPLAY_MAIN;
         goto Skip;
     }
+
     if (gCurrentFunction == FUNCTION_TRANSMIT) {
         {
             // PTT key always handled; other keys during TX do nothing
