@@ -181,7 +181,7 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
 
         case MENU_1750:
             *pMin = 0;
-            *pMax = ARRAY_SIZE(gSubMENU_1750) - 1;
+            *pMax = ARRAY_SIZE(gSubMenu_1750) - 1;
             break;
 
         case MENU_RP_STE:

@@ -1173,12 +1173,27 @@ static void SpectrumTransmit() {
             }
             // PTT Mode 2: Last RX
             if (PttEmission == 2) {
-                gCurrentVfo->freq_config_TX.Frequency = lastReceivingFreq;
-                gCurrentVfo->Modulation   = MODULATION_FM;
-                gCurrentVfo->OUTPUT_POWER = OUTPUT_POWER_HIGH;
+                uint32_t historyFreq = GetHistoryFreq(0);
+                if (historyFreq) {
+                    lastReceivingFreq = historyFreq;
+                    gCurrentVfo->freq_config_TX.Frequency = historyFreq;
+                    gCurrentVfo->Modulation   = MODULATION_FM;
+                    gCurrentVfo->OUTPUT_POWER = OUTPUT_POWER_HIGH;
+                    TxChannel = BOARD_gMR_fetchChannel(historyFreq);
+                    if (TxChannel != 0xFFFF) {
+                        SETTINGS_FetchChannelName(TxChannelName, TxChannel);
+                    } else {
+                        snprintf(TxChannelName, sizeof(TxChannelName),
+                                 "%u.%05u",
+                                 historyFreq / 100000U,
+                                 historyFreq % 100000U);
+                    }
+                } else {
+                    gCurrentVfo->freq_config_TX.Frequency = 0;
+                    ShowOSDPopup("NO HISTORY");
+                    return;
+                }
             }
-            // PTT Mode 0: Channel Freq
-            //if (PttEmission == 0) {}
             break;
         default:
             break;

@@ -134,7 +134,7 @@ const char gSubMenu_PONMSG[][8] =
     "OFF"
 };
 
-const char gSubMENU_1750[][6] =
+const char gSubMenu_1750[][6] =
 {
     "OFF",
     "1750Hz"
@@ -616,7 +616,7 @@ void UI_DisplayMenu(void)
             break;
 
         case MENU_1750:
-            strcpy(String, gSubMENU_1750[gSubMenuSelection]);
+            strcpy(String, gSubMenu_1750[gSubMenuSelection]);
             break;
 
         case MENU_TOT:
