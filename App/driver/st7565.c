@@ -70,6 +70,7 @@ static void SPI_Init()
     InitStruct.CRCCalculation = LL_SPI_CRCCALCULATION_DISABLE;
     // 48MHz / 4 = 12MHz SPI clock (ST7565 supports up to 20MHz, t_SCYC = 50ns)
     InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV4;
+    //InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV256; //Slowest
     LL_SPI_Init(SPIx, &InitStruct);
 
     LL_SPI_Enable(SPIx);

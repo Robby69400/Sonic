@@ -1058,22 +1058,40 @@ void SaveHistory(void) {
 
 static void Spectrum_END_TX(void)
 {
-    if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0) {
+    uint32_t txFreq = gCurrentVfo->pTX->Frequency;
+
+    if(TX_freq_check(txFreq) != 0) {
         ShowOSDPopup("TX DISABLE");
         return;
     }
+
     RADIO_SendEndOfTransmission();
     
+    /*
+     * After PTT, stay on the frequency that was actually used for TX.
+     * Do not call Skip() here: Skip() advances the scan immediately.
+     * SpectrumDelay temporarily blocks the scanner while RX waits for
+     * a possible reply on the TX frequency.
+     */
+    if (txFreq >= FMIN && txFreq <= FMAX) {
+        SPECTRUM_PAUSED = false;
+        SpectrumPauseCount = 0;
+
+        scanInfo.f = txFreq;
+        peak.f = txFreq;
+        lastReceivingFreq = txFreq;
+
+        SetF(txFreq);
+        ToggleRX(true);
+
+        WaitSpectrum = SpectrumDelay;
+        spectrumElapsedCount = 0;
+    } else {
     SPECTRUM_PAUSED = false;
     SpectrumPauseCount = 0;
     WaitSpectrum = 0;
-    
     Skip();
-    
-    /*if (PttEmission == 2 && lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
-        scanInfo.f = lastReceivingFreq;
-        peak.f = lastReceivingFreq;
-    }*/
+    }
 }
 
 static void Spectrum_Prepare_Tx(void) {
