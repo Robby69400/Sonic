@@ -69,7 +69,7 @@ const char gModulationStr[MODULATION_UKNOWN][4] = {
 
             // OPEN (BRAVO test profile) - Medium-wide IF filter (REG54 bits[14:8]=8, bits[7:0]=70), high IF gain (REG55 bits[11:8]=8, ref=192)
                     // Wide and pleasant, better sensitivity on weak signals, may struggle with adjacent channel interference
-            {0x0300, 0x9990, 0x8846, 0x38C0}
+            {0x0600, 0x9990, 0x8846, 0x38C0}
         };
 
         if (profile >= ARRAY_SIZE(am_profiles))

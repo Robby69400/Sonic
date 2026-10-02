@@ -143,5 +143,4 @@ void     BK4819_StopScan(void);
 void     BK4819_SetFrequencyScan(bool enable);
 void     BK4819_SetScrambleFrequencyControlWord(uint32_t Frequency);
 void     BK4819_SetRxAudioGain(void);
-void     BK4819_StopTransmitTone(void);
 #endif

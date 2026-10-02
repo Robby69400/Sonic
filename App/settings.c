@@ -173,11 +173,6 @@ void SETTINGS_InitEEPROM(void)
     gEeprom.BACKLIGHT_MAX         = (Data[0] & 0xF) <= 10 ? (Data[0] & 0xF) : 10;
     gEeprom.BACKLIGHT_MIN         = (Data[0] >> 4) < gEeprom.BACKLIGHT_MAX ? (Data[0] >> 4) : 0;
     gEeprom.CHANNEL_DISPLAY_MODE  = (Data[1] < 4) ? Data[1] : MDF_NAME_FREQ;
-    if ((Data[2] & 0xFCu) == 0) {
-        gEeprom.TONE_1750 = ((Data[2] >> 1) & 0x01u) != 0;
-    } else {
-        gEeprom.TONE_1750 = false;
-    }
     gEeprom.BATTERY_SAVE          = (Data[3] < 6) ? Data[3] : 4;
     gEeprom.BACKLIGHT_TIME        = (Data[5] < 62) ? Data[5] : 12;
     #ifdef ENABLE_FEAT_F4HWN_NARROWER
@@ -464,7 +459,6 @@ void SETTINGS_FactoryReset(bool bIsAll)
     RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL, 44609775);
     gEeprom.ScreenChannel = FREQ_CHANNEL;
     gEeprom.MrChannel     = MR_CHANNEL_FIRST;
-    gEeprom.TONE_1750     = false;
     SETTINGS_SaveChannel(FREQ_CHANNEL, 0, &gEeprom.VfoInfo[0], 2);
     gVfoStateChanged = true;
     gScheduleVfoSave = true;
@@ -552,7 +546,6 @@ void SETTINGS_SaveSettings(void)
     State = SecBuf + 0x8;
     State[0] = (gEeprom.BACKLIGHT_MIN << 4) + gEeprom.BACKLIGHT_MAX;
     State[1] = gEeprom.CHANNEL_DISPLAY_MODE;
-    State[2] = (gEeprom.TONE_1750 ? 2u : 0u);
     State[3] = gEeprom.BATTERY_SAVE;
     
     #ifdef ENABLE_FEAT_F4HWN

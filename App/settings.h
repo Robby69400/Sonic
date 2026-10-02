@@ -61,7 +61,6 @@ enum ACTION_OPT_t {
     ACTION_OPT_SCAN,
     ACTION_OPT_ALARM,
     ACTION_OPT_FM,
-    ACTION_OPT_1750,
     ACTION_OPT_KEYLOCK,
     ACTION_OPT_VFO_MR,
     ACTION_OPT_SWITCH_DEMODUL,
@@ -140,7 +139,6 @@ typedef struct {
     uint8_t               CHANNEL_DISPLAY_MODE;
     bool                  TAIL_TONE_ELIMINATION;
     bool                  VFO_OPEN;
-    bool                  TONE_1750;
     uint8_t               BATTERY_SAVE;
     uint8_t               BACKLIGHT_TIME;
     uint8_t               SCAN_RESUME_MODE;

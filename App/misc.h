@@ -76,7 +76,6 @@ enum AlarmState_t {
     ALARM_STATE_OFF = 0,
     ALARM_STATE_TXALARM,
     ALARM_STATE_SITE_ALARM,
-    ALARM_STATE_TX1750
 };
 typedef enum AlarmState_t AlarmState_t;
 
@@ -324,7 +323,6 @@ extern ReceptionMode_t       gRxReceptionMode;
 extern bool                  gRxVfoIsActive;
 extern bool                  gKeyBeingHeld;
 extern bool                  gPttIsPressed;
-extern bool                  gTx1750Active;
 extern uint8_t               gPttDebounceCounter;
 extern uint8_t               gMenuListCount;
 extern uint8_t               gScanDelay_10ms;

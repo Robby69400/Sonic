@@ -903,30 +903,6 @@ void BK4819_PlayTone(uint16_t Frequency, bool bTuningGainSwitch)
     BK4819_WriteRegister(BK4819_REG_71, scale_freq(Frequency));
 }
 
-// level 0 ~ 127
-void BK4819_TransmitTone(bool bLocalLoopback, uint32_t Frequency)
-{
-    BK4819_EnterTxMute();
-
-    BK4819_WriteRegister(BK4819_REG_70,
-        BK4819_REG_70_MASK_ENABLE_TONE1 |
-        (66u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
-
-    BK4819_WriteRegister(BK4819_REG_71, scale_freq(Frequency));
-    BK4819_SetAF(bLocalLoopback ? BK4819_AF_BEEP : BK4819_AF_MUTE);
-    BK4819_EnableTXLink();
-    SYSTEM_DelayMs(50);
-    BK4819_ExitTxMute();
-}
-
-void BK4819_StopTransmitTone(void)
-{
-    BK4819_EnterTxMute();
-    BK4819_WriteRegister(BK4819_REG_70, 0);
-    BK4819_SetAF(BK4819_AF_FM);
-    BK4819_ExitTxMute();
-}
-
 void BK4819_PlaySingleTone(const unsigned int tone_Hz, const unsigned int delay, const unsigned int level, const bool play_speaker)
 {
     BK4819_EnterTxMute();

@@ -60,9 +60,6 @@ void (*action_opt_table[])(void) = {
 #endif
 
     [ACTION_OPT_ALARM] = &FUNCTION_NOP,
-
-    [ACTION_OPT_1750] = &FUNCTION_NOP,
-
     [ACTION_OPT_BLMIN_TMP_OFF] = &FUNCTION_NOP,
 
 #ifdef ENABLE_FEAT_F4HWN
