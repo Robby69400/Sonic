@@ -58,6 +58,7 @@ const t_menu_item MenuList[] =
     {"Scramb",      MENU_SCR           },
     {"Compnd",      MENU_COMPAND       },
     {"Roger",       MENU_ROGER         },
+    {"1750Hz",      MENU_1750          },
     {"STE",         MENU_STE           },
     {"RP STE",      MENU_RP_STE        },
     {"ChList",      MENU_LIST_CH       },
@@ -131,6 +132,12 @@ const char gSubMenu_PONMSG[][8] =
     "ON",
     "LOGO",
     "OFF"
+};
+
+const char gSubMENU_1750[][6] =
+{
+    "OFF",
+    "1750Hz"
 };
 
 const char gSubMenu_ROGER[][6] =
@@ -606,6 +613,10 @@ void UI_DisplayMenu(void)
 
         case MENU_SAVE:
             sprintf(String, gSubMenuSelection == 0 ? gSubMenu_OFF_ON[0] : "1:%u", gSubMenuSelection);
+            break;
+
+        case MENU_1750:
+            strcpy(String, gSubMENU_1750[gSubMenuSelection]);
             break;
 
         case MENU_TOT:

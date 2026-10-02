@@ -116,6 +116,17 @@ void FUNCTION_Transmit()
     gUpdateStatus = true;
     GUI_DisplayScreen();
     RADIO_SetTxParameters();
+
+    if (gTx1750Active) {
+        BK4819_DisableScramble();
+        BK4819_TransmitTone(true, 1750);
+        SYSTEM_DelayMs(2);
+        GPIO_EnableAudioPath();
+        gEnableSpeaker = true;
+        gVfoConfigureMode = VFO_CONFIGURE;
+        return;
+    }
+
     // turn the RED LED on
     BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, true);
     if (gEeprom.SCRAMBLING_TYPE > 0)

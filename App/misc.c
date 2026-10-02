@@ -187,6 +187,7 @@ ReceptionMode_t   gRxReceptionMode;
 bool              gRxVfoIsActive;
 bool              gKeyBeingHeld;
 bool              gPttIsPressed;
+bool              gTx1750Active;
 uint8_t           gPttDebounceCounter;
 uint8_t           gMenuListCount;
 uint8_t           gScanDelay_10ms;

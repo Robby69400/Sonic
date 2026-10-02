@@ -324,6 +324,7 @@ extern ReceptionMode_t       gRxReceptionMode;
 extern bool                  gRxVfoIsActive;
 extern bool                  gKeyBeingHeld;
 extern bool                  gPttIsPressed;
+extern bool                  gTx1750Active;
 extern uint8_t               gPttDebounceCounter;
 extern uint8_t               gMenuListCount;
 extern uint8_t               gScanDelay_10ms;

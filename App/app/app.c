@@ -426,6 +426,11 @@ static void CheckRadioInterrupts(void)
 
 void APP_EndTransmission(void)
 {
+    if (gTx1750Active) {
+        BK4819_StopTransmitTone();
+        gTx1750Active = false;
+    }
+
     // back to RX mode
     RADIO_SendEndOfTransmission();
 
@@ -1205,11 +1210,41 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         goto Skip;
     }
 
+        gPttIsPressed && gCurrentFunction != FUNCTION_TRANSMIT) {
+        gTx1750Active = true;
+        gFlagPrepareTX = true;
+        gInputBoxIndex = 0;
+        gRequestDisplayScreen = DISPLAY_MAIN;
+        goto Skip;
+    }
     if (gCurrentFunction == FUNCTION_TRANSMIT) {
         {
             // PTT key always handled; other keys during TX do nothing
             if (Key == KEY_PTT) {
+                if (!bKeyPressed && gTx1750Active) {
+                    BK4819_StopTransmitTone();
+                    gTx1750Active = false;
+                }
                 GENERIC_Key_PTT(bKeyPressed);
+                goto Skip;
+            }
+
+            if (Key == KEY_SIDE2 && gEeprom.TONE_1750) {
+                if (bKeyPressed && !bKeyHeld && !gTx1750Active) {
+                    BK4819_DisableScramble();
+                    BK4819_TransmitTone(true, 1750);
+                    gTx1750Active = true;
+                    gUpdateDisplay = true;
+                }
+                else if (!bKeyPressed && gTx1750Active) {
+                    BK4819_StopTransmitTone();
+                    gTx1750Active = false;
+                    if (gEeprom.SCRAMBLING_TYPE == 0)
+                        BK4819_DisableScramble();
+                    else
+                        BK4819_EnableScramble(gEeprom.SCRAMBLING_TYPE - 1);
+                    gUpdateDisplay = true;
+                }
                 goto Skip;
             }
             

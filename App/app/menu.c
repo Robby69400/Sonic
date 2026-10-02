@@ -179,6 +179,11 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             *pMax = 179;
             break;
 
+        case MENU_1750:
+            *pMin = 0;
+            *pMax = ARRAY_SIZE(gSubMENU_1750) - 1;
+            break;
+
         case MENU_RP_STE:
             *pMax = 10;
             break;
@@ -302,6 +307,10 @@ void MENU_AcceptSetting(void)
         case MENU_SQL:
             gEeprom.SQUELCH_LEVEL = gSubMenuSelection;
             gVfoConfigureMode     = VFO_CONFIGURE;
+            break;
+
+        case MENU_1750:
+            gEeprom.TONE_1750 = (gSubMenuSelection != 0);
             break;
 
         case MENU_STEP:
@@ -677,6 +686,10 @@ void MENU_ShowCurrentSetting(void)
 
         case MENU_SAVE:
             gSubMenuSelection = gEeprom.BATTERY_SAVE;
+            break;
+
+        case MENU_1750:
+            gSubMenuSelection = gEeprom.TONE_1750 ? 1 : 0;
             break;
 
 
