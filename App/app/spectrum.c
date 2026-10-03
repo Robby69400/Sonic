@@ -112,7 +112,8 @@ static uint16_t stringCodeTimer = 0;
 #define PARAM_SOUND_BOOST       13
 #define PARAM_AUDIO_AM          14
 #define PARAM_MONITOR_SCAN      15
-#define PARAM_RESET_DEFAULT     16
+#define PARAM_SPECTRUM_TYPE     16
+#define PARAM_RESET_DEFAULT     17
 
 uint16_t GetMaxVisualRows(void) {return PARAM_RESET_DEFAULT+1;}
 
@@ -303,7 +304,8 @@ static uint8_t  peakHoldAge[64];      // Shared decay timer (1 per 2 columns)
 #define PEAK_HOLD_DELAY  15           // Sweeps before decay starts
 #define PEAK_HOLD_INIT   0xFF         // "no peak" sentinel (same as SPECTRUM_TOPY_SKIP)
 #endif
-static int ShowLines = 1;
+static int ShowLines = 1;              // Saved spectrum type: 1=RAW, 3=SMOOTH
+static uint8_t SpectrumView = 1;      // Runtime view: 1=RAW, 2=ULTRA WATCH, 3=SMOOTH
 static uint8_t nextBandToScanIndex = 0;
 static void LookupChannelModulation();
 static uint8_t validScanListIndices[MR_CHANNELS_LIST];
@@ -1600,7 +1602,7 @@ static void Measure() {
     } 
     if (!gIsPeak || !isListening) previousRssi = rssi;
     else if (rssi < previousRssi) previousRssi = rssi;
-    if (ShowLines == 2) return;
+    if (SpectrumView == 2) return;
     
     uint16_t count = GetStepsCount();
     uint16_t i = scanInfo.i;
@@ -1972,13 +1974,13 @@ static void DrawNums() {
                 if (settings.scanListEnabled[validScanListIndices[i]]) selectedCount++;
             }
         }
-        if((!PttEmission || PttEmission >2) && (ShowLines != 2)) {// Channel OR ROGER
+        if((!PttEmission || PttEmission >2) && (SpectrumView != 2)) {// Channel OR ROGER
             sprintf(Text, "%s", TxChannelName);
             //sprintf(Text, "%s %u.%05u", TxChannelName, 
             GUI_DisplaySmallest(Text,60 , Bottom_print, false, true);
             Text[0] = '\0';
         }
-        else if (ShowLines != 2){
+        else if (SpectrumView != 2){
             if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) 
                 sprintf(Text, "%u.%05u", lastReceivingFreq / 100000,
                 lastReceivingFreq % 100000);
@@ -2071,7 +2073,7 @@ static void DrawF(uint32_t f) {
     }
      
     GUI_DisplaySmallest(StringCode, 128, 2, false, true);
-    switch(ShowLines) {
+    switch(SpectrumView) {
             case 1:
             case 3:
                 {           //SPECTRUM
@@ -2592,6 +2594,10 @@ static void HandleKeyParameters(uint8_t key) {
                 case PARAM_MONITOR_SCAN:
                     gMonitorScan = !gMonitorScan; 
                     break;
+                case PARAM_SPECTRUM_TYPE:
+                    ShowLines = (ShowLines == 3) ? 1 : 3;
+                    if (SpectrumView != 2) SpectrumView = ShowLines;
+                    break;
                 case PARAM_AUDIO_AM:
                       gSetting_set_audio_am = isKey3 ?
                             (gSetting_set_audio_am >= 2 ? 0 : gSetting_set_audio_am + 1) :
@@ -2711,13 +2717,17 @@ static void HandleKeySpectrum(uint8_t key) {
                 else {BACKLIGHT_TurnOff();}
             }
             break;
-        case KEY_8: //Save history or spectrum type
+        case KEY_8: // Toggle selected spectrum type <-> Ultra Watch
             if (!historyListActive) {
-                ShowLines++;
-                if (ShowLines > 3 || ShowLines < 1) ShowLines = 1;
-                const char *viewName           = "SPECTRUM";
-				if (ShowLines == 2) viewName   = "ULTRA WATCH";
-				if (ShowLines == 3) viewName   = "SMOOTH SPECTRUM";
+                if (SpectrumView == 2) {
+                    SpectrumView = (ShowLines == 3) ? 3 : 1;
+                } else {
+                    SpectrumView = 2;
+                }
+
+                const char *viewName = "SPECTRUM RAW";
+                if (SpectrumView == 2) viewName = "ULTRA WATCH";
+                else if (SpectrumView == 3) viewName = "SPECTRUM SMOOTH";
                 ShowOSDPopup(viewName);
                 spectrumElapsedCount = 0;
             }
@@ -3162,7 +3172,7 @@ static void MyDrawVLine(uint8_t x, uint8_t y_start, uint8_t y_end, uint8_t step)
 static void MyDrawFrameLines(void)
 {
     if (currentState == STILL || currentState == FREQ_INPUT) return;
-    if (ShowLines ==1 || ShowLines ==3) {
+    if (SpectrumView ==1 || SpectrumView ==3) {
     }
     else {
         MyDrawShortHLine(32,23, 59, 0, false);
@@ -3392,7 +3402,7 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
 
 static void RenderSpectrum()
 {
-    if (ShowLines ==1 || ShowLines ==3) {
+    if (SpectrumView ==1 || SpectrumView ==3) {
 #ifdef ENABLE_PERSIST
         uint8_t topY[128];
         BuildCurrentSpectrumTopY(topY);
@@ -3400,7 +3410,7 @@ static void RenderSpectrum()
         DrawSpectrumCurve(topY);
 #else
         UpdateDBMaxAuto();
-        if (ShowLines == 1) DrawSpectrum();
+        if (SpectrumView == 1) DrawSpectrum();
         else DrawSpectrumSmooth();
 #endif
     }
@@ -3408,6 +3418,7 @@ static void RenderSpectrum()
 }
 
 static void DrawMeter(int line) {
+    if (isListening && (spectrumElapsedCount > 2000 + osdPopupTimer)) return;
     const uint8_t METER_PAD_LEFT = 4;
     const uint8_t LINE_HEIGHT    = 4;           // Height of the vertical lines
     const uint8_t Y_START_BIT    = 1;
@@ -4073,7 +4084,8 @@ void LoadSettings()
     if (currentBandPreset >= MAX_BAND_PRESETS) currentBandPreset = 0;
     PttEmission = eepromData.PttEmission;
     validScanListCount = 0;
-    ShowLines = eepromData.ShowLines;
+    ShowLines = (eepromData.ShowLines == 3) ? 3 : 1;
+    SpectrumView = ShowLines;
     DelayRssi = (FastSpeed)?700:1500;
     SpectrumDelay = eepromData.SpectrumDelay;
     IndexMaxLT = eepromData.IndexMaxLT;
@@ -4214,6 +4226,7 @@ void ClearSettings()
     PttEmission = 2;
     settings.scanStepIndex = STEP_6_25kHz;
     ShowLines = 1;
+    SpectrumView = 1;
     DelayRssi = 1500;
     SpectrumDelay = 0;
     MaxListenTime = 0;
@@ -4635,6 +4648,10 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             snprintf(row->left, sizeof(row->left), "Monitor SL");
             if (gMonitorScan) snprintf(row->right, sizeof(row->right), "ON");
             else snprintf(row->right, sizeof(row->right), "OFF");
+            break;
+        case PARAM_SPECTRUM_TYPE:
+            snprintf(row->left, sizeof(row->left), "Spectrum:");
+            strncpy(row->right, (ShowLines == 3) ? "SMOOTH" : "RAW", sizeof(row->right) - 1);
             break;
         case PARAM_AUDIO_AM: {
             snprintf(row->left, sizeof(row->left), "AM Audio");
