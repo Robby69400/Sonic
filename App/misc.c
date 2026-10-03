@@ -15,7 +15,6 @@
  */
 
 #include <string.h>
-
 #include "misc.h"
 #include "settings.h"
 #include "driver/py25q16.h"
@@ -24,31 +23,22 @@ const uint8_t     fm_radio_countdown_500ms         =  2000 / 500;  // 2 seconds
 const uint16_t    fm_play_countdown_scan_10ms      =   100 / 10;   // 100ms
 const uint16_t    fm_play_countdown_noscan_10ms    =  1200 / 10;   // 1.2 seconds
 const uint16_t    fm_restore_countdown_10ms        =  1000 / 10;   // 1 seconds
-
 const uint8_t     vfo_state_resume_countdown_500ms =  1250 / 500;  // 1.25 seconds (halved)
-
 const uint8_t     menu_timeout_500ms               =  20000 / 500;  // 20 seconds
 const uint16_t    menu_timeout_long_500ms          = 120000 / 500;  // 2 minutes
-
 const uint8_t     key_input_timeout_500ms          =  8000 / 500;  // 8 seconds
-
 const uint16_t    key_repeat_delay_10ms            =   400 / 10;   // 400ms
 const uint16_t    key_repeat_10ms                  =    80 / 10;   // 80ms .. MUST be less than 'key_repeat_delay'
 const uint16_t    key_debounce_10ms                =    20 / 10;   // 20ms
-
 const uint8_t     scan_delay_10ms                  =   210 / 10;   // 210ms
-
 const uint16_t    battery_save_count_10ms          = 10000 / 10;   // 10 seconds
-
 const uint16_t    power_save1_10ms                 =   100 / 10;   // 100ms
-
 const uint8_t     gMicGain_dB2[9]                  = {3, 8, 16, 24, 32, 40, 48, 56, 63}; // BK4819 {3, 8, 16, 24, 31};
 uint8_t           gSetting_F_LOCK;
 
 enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 
 #ifdef ENABLE_FEAT_F4HWN
-    uint8_t       gSetting_set_pwr = 1;
     bool          gDeleteChannelPending = false; // F+2 in MR mode: waiting M to confirm
     bool          gSetting_set_ptt = 0;
     uint8_t       gSetting_set_tot = 0;
@@ -59,16 +49,16 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     bool          gSetting_set_lck = false;
     bool          gSetting_set_met = 0;
     bool          gSetting_set_gui = 0;
-    uint8_t   gSetting_set_audio_fm = 0;
-    uint8_t   gSetting_set_audio_am = 1;
-    #ifdef ENABLE_FEAT_F4HWN_NARROWER
+    uint8_t       gSetting_set_audio_fm = 0;
+    uint8_t       gSetting_set_audio_am = 1;
+#ifdef ENABLE_FEAT_F4HWN_NARROWER
     bool          gSetting_set_nfm = 0;
-    #endif
+#endif
     bool          gSetting_set_tmr = 0;
     bool          gSetting_set_ptt_session;
-    #ifdef ENABLE_FEAT_F4HWN_DEBUG
+#ifdef ENABLE_FEAT_F4HWN_DEBUG
         int16_t   gDebug;
-    #endif
+#endif
     int8_t dBmCorrTable[7] = {-15, -25, -20, -4, -7, -6, -1}; // KA52 calibration
 #endif
 
@@ -76,15 +66,11 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     bool          gSetting_mic_bar;
 #endif
 uint8_t           gSetting_battery_text;
-
 bool              gMonitor = false;           // true opens the squelch
-
 uint32_t          gCustomAesKey[4];
 bool              bHasCustomAesKey;
 uint32_t          gChallenge[4];
-
 uint16_t          gEEPROM_RSSI_CALIB[7][4];
-
 uint16_t          gEEPROM_1F8A;
 uint16_t          gEEPROM_1F8C;
 

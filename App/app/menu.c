@@ -541,10 +541,6 @@ void MENU_AcceptSetting(void)
 
 
 #ifdef ENABLE_FEAT_F4HWN
-     //   case MENU_SET_PWR:
-     //       gSetting_set_pwr = gSubMenuSelection;
-     //       gRequestSaveChannel = 1;
-     //       break;
         case MENU_SET_INV:
             gSetting_set_inv = gSubMenuSelection;
             break;
@@ -805,9 +801,6 @@ void MENU_ShowCurrentSetting(void)
 
 
 #ifdef ENABLE_FEAT_F4HWN
-    //    case MENU_SET_PWR:
-    //        gSubMenuSelection = gSetting_set_pwr;
-    //        break;
         case MENU_SET_INV:
             gSubMenuSelection = gSetting_set_inv;
             break;

@@ -619,21 +619,10 @@ SCANLIST_SELECT_LIST = (
 
 KEYACTIONS_LIST = ["NONE",
                    "FLASHLIGHT",
-                   "POWER",
                    "MONITOR",
-                   "ALARM",
-                   "FM RADIO",
-                   "LOCK KEYPAD",
-                   "VFO / MEM",
-                   "MODE",
-                   "BL_MIN_TMP_OFF",
                    "PTT",                  
-                   "WIDE / NARROW",
                    "BACKLIGHT",
-                   "MUTE",
-                   "RxA",
-                   "POWER HIGH",
-                   "REMOVE OFFSET"
+                   "RxA"
                   ]
 
 MIC_GAIN_LIST = ["+1.5dB", "+4.0dB", "+8.0dB", "+12.0dB", "+16.0dB", "+20.0dB", "+24.0dB", "+28.0dB", "+31.5dB"]
@@ -1742,25 +1731,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
         # Programmable keys
         def get_action(action_num):
             """"get actual key action"""
-            has_alarm = self._memobj.BUILD_OPTIONS.ENABLE_ALARM
-            has_flashlight = self._memobj.BUILD_OPTIONS.ENABLE_FLASHLIGHT
-            has_fm_radio = self._memobj.BUILD_OPTIONS.ENABLE_FMRADIO
-            has_rescue_ops = self._memobj.BUILD_OPTIONS.ENABLE_FEAT_F4HWN_RESCUE_OPS
-            has_game = self._memobj.BUILD_OPTIONS.ENABLE_FEAT_F4HWN_GAME
-            
             lst = KEYACTIONS_LIST.copy()
-            lst.remove("BACKLIGHT") # Only for key press on TX
-            lst.remove("BL_MIN_TMP_OFF")
-
-            if not has_alarm:
-                lst.remove("ALARM")
-            if not has_flashlight:
-                lst.remove("FLASHLIGHT")
-            if not has_fm_radio:
-                lst.remove("FM RADIO")
-            if not has_rescue_ops:
-                lst.remove("POWER HIGH")
-                lst.remove("REMOVE OFFSET")
             action_num = int(action_num)
             if action_num >= len(KEYACTIONS_LIST) or \
                KEYACTIONS_LIST[action_num] not in lst:

@@ -117,7 +117,6 @@ extern uint8_t               gSetting_F_LOCK;
 extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
 
 #ifdef ENABLE_FEAT_F4HWN
-    extern uint8_t            gSetting_set_pwr;
     extern bool               gDeleteChannelPending; // F+2 MR delete confirm
     extern bool               gSetting_set_ptt;
     extern uint8_t            gSetting_set_tot;

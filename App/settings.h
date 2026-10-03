@@ -56,21 +56,10 @@ enum {
 enum ACTION_OPT_t {
     ACTION_OPT_NONE = 0,
     ACTION_OPT_FLASHLIGHT,
-    ACTION_OPT_POWER,
     ACTION_OPT_MONITOR,
-    ACTION_OPT_SCAN,
-    ACTION_OPT_ALARM,
-    ACTION_OPT_FM,
-    ACTION_OPT_KEYLOCK,
-    ACTION_OPT_VFO_MR,
-    ACTION_OPT_SWITCH_DEMODUL,
-    ACTION_OPT_BLMIN_TMP_OFF, //BackLight Minimum Temporay OFF
-#ifdef ENABLE_FEAT_F4HWN
     ACTION_OPT_PTT,
-    ACTION_OPT_WN,
     ACTION_OPT_BACKLIGHT,
     ACTION_OPT_RXA,
-#endif
     ACTION_OPT_LEN
 };
 
@@ -193,7 +182,6 @@ void SETTINGS_SaveChannelName(uint16_t channel, const char * name);
 void SETTINGS_SaveChannel(uint16_t Channel, uint8_t VFO, const VFO_Info_t *pVFO, uint8_t Mode);
 void SETTINGS_SaveBatteryCalibration(const uint16_t * batteryCalibration);
 void SETTINGS_UpdateChannel(uint16_t channel, const VFO_Info_t *pVFO, bool keep);
-void SETTINGS_WriteBuildOptions(void);
 #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
     void SETTINGS_WriteCurrentState(void);
 #endif

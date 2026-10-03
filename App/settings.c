@@ -16,7 +16,6 @@
  */
 
 #include <string.h>
-
 #include "frequencies.h"
 #include "radio.h"
 #ifdef ENABLE_FMRADIO
@@ -37,125 +36,6 @@ EEPROM_Config_t gEeprom = { 0 };
 void SETTINGS_InitEEPROM(void)
 {
     uint8_t Data[16] = {0};
-
-    //
-    // Version check
-    // Read stored version from EEPROM and compare with VERSION_STRING_2
-    // 
-    {
-        char storedVersion[16] = {0};
-        PY25Q16_ReadBuffer(0x00A160, storedVersion, sizeof(storedVersion));
-
-        // Compare with current version
-        if (strncmp(storedVersion, VERSION_STRING_2, sizeof(storedVersion)) != 0)
-        {
-            // Different version: new install or firmware update
-
-            // 1. Write new version to EEPROM
-            char newVersion[16] = {0};
-            strncpy(newVersion, VERSION_STRING_2, sizeof(newVersion));
-            PY25Q16_WriteBuffer(0x00A160, newVersion, sizeof(newVersion), false);
-
-            // 2. Reset sensitive parameters (MENU_LOCK, etc.)
-            uint8_t configByte[8] = {0};
-            PY25Q16_ReadBuffer(0x00A000, configByte, sizeof(configByte));
-
-            configByte[4] &= (uint8_t)~0x01;  // KEY_LOCK = 0
-            configByte[4] &= (uint8_t)~0x02;  // MENU_LOCK = 0
-            configByte[4] &= (uint8_t)~0x3C;  // SET_KEY = 0
-            //configByte[4] &= (uint8_t)~0x40;  // SET_NAV = 0
-
-            PY25Q16_WriteBuffer(0x00A000, configByte, sizeof(configByte), false);
-
-            // 2a-extra. Set battery display to PERCENT on firmware update
-            // battery_text in Data[7] bits [3:2] of block 0x00A150
-            {
-                uint8_t batBlock[8] = {0};
-                PY25Q16_ReadBuffer(0x00A150, batBlock, sizeof(batBlock));
-                batBlock[7] = (batBlock[7] & ~(3u << 2)) | (2u << 2); // PERCENT=2
-                PY25Q16_WriteBuffer(0x00A150, batBlock, sizeof(batBlock), false);
-            }
-
-            // 2b. Reset button assignments to new defaults on firmware update
-            {
-                uint8_t btnBuf[8] = {0};
-                PY25Q16_ReadBuffer(0x00A0A8, btnBuf, sizeof(btnBuf));
-                btnBuf[0] = (btnBuf[0] & 0x01) | (ACTION_OPT_FLASHLIGHT << 1);
-                btnBuf[1] = ACTION_OPT_MONITOR;
-                PY25Q16_WriteBuffer(0x00A0A8, btnBuf, sizeof(btnBuf), false);
-            }
-
-            // 2c. Force POWER_ON_DISPLAY_MODE to ALL (alligator + voltage) on firmware update
-            // Address: 0xA0A8 + byte[7] = 0xA0AF
-            {
-                uint8_t dispBuf[8] = {0};
-                PY25Q16_ReadBuffer(0x00A0A8, dispBuf, sizeof(dispBuf));
-                dispBuf[7] = POWER_ON_DISPLAY_MODE_MESSAGE;
-                PY25Q16_WriteBuffer(0x00A0A8, dispBuf, sizeof(dispBuf), false);
-            }
-
-            // 2c. Reset F_LOCK to 136-174/400-500 MHz on new firmware install
-            {
-                uint8_t flockByte[8] = {0};
-                PY25Q16_ReadBuffer(0x00A150, flockByte, sizeof(flockByte));
-                flockByte[0] = F_LOCK_136_500;
-                PY25Q16_WriteBuffer(0x00A150, flockByte, sizeof(flockByte), false);
-            }
-
-            // 3. Reset display inversion (SET_INV = 0)
-            uint8_t displayByte[8] = {0};
-            PY25Q16_ReadBuffer(0x00A158, displayByte, sizeof(displayByte));
-
-            displayByte[5] &= (uint8_t)~0x10;  // Clear bit 4 (SET_INV)
-
-            PY25Q16_WriteBuffer(0x00A158, displayByte, sizeof(displayByte), false);
-
-            // 4. Reset logo lines (clear to null for strlen() == 0)
-
-            char logoLines[32];
-            PY25Q16_ReadBuffer(0x00A0C8, logoLines, sizeof(logoLines));
-
-            bool needsWrite = false;
-
-            for (int line = 0; line < 2; line++) {
-                int offset = line * 16;
-                
-                for (int i = 0; i < 16; i++) {
-                    char c = logoLines[offset + i];
-                    if (c == 0) {
-                        break;
-                    }
-                    if (c < 0x20 || c > 0x7E) {
-                        memset(logoLines + offset, 0, 16);
-                        needsWrite = true;
-                        break;
-                    }
-                }
-            }
-
-            if (needsWrite) {
-                PY25Q16_WriteBuffer(0x00A0C8, logoLines, sizeof(logoLines), false);
-            }
-
-            // 5. Reset dBmCorrTable
-            int8_t buf[7];
-            PY25Q16_ReadBuffer(0x00A0B9, (uint8_t *)buf, 7);
-
-            needsWrite = true;
-            for (uint8_t i = 0; i < 7; i++) {
-                if ((uint8_t)buf[i] != 0xFF) {
-                    needsWrite = false;
-                    break;
-                }
-            }
-
-            if (needsWrite) {
-                for (uint8_t i = 0; i < 7; i++)
-                    buf[i] = dBmCorrTable[i];
-                PY25Q16_WriteBuffer(0x00A0B9, buf, 7, false);
-            }
-        }
-    }
 
     // 0E70..0E77
     PY25Q16_ReadBuffer(0x00A000, Data, 8);
@@ -319,39 +199,21 @@ gEeprom.MrChannel     = Data16[1];
         }
     #endif
 
-    #ifdef ENABLE_FEAT_F4HWN
-        // 1FF0..0x1FF7
-        // TODO: address TBD
         PY25Q16_ReadBuffer(0x00A158, Data, 8);
-        gSetting_set_pwr = (((Data[7] & 0xF0) >> 4) < 7) ? ((Data[7] & 0xF0) >> 4) : 0;
         gSetting_set_ptt = (((Data[7] & 0x0F)) < 2) ? ((Data[7] & 0x0F)) : 0;
         gSetting_set_tot = (((Data[6] & 0xF0) >> 4) < 4) ? ((Data[6] & 0xF0) >> 4) : 0;
         gSetting_set_eot = (((Data[6] & 0x0F)) < 4) ? ((Data[6] & 0x0F)) : 0;
         int tmp = (Data[5] & 0xF0) >> 4;
-
-#ifdef ENABLE_FEAT_F4HWN_INV
         gSetting_set_inv = (tmp >> 0) & 0x01;
-#else
-        gSetting_set_inv = 0;
-#endif
         gSetting_set_lck = (tmp >> 1) & 0x01;
         gSetting_set_met = (tmp >> 2) & 0x01;
         gSetting_set_gui = (tmp >> 3) & 0x01;
-
         gSetting_set_ctr = 10;
-
         gSetting_set_tmr = Data[4] & 0x01;
         gSetting_nav_invert = (Data[4] >> 2) & 0x01;
         gSetting_nav_invert = false;  // feature disabled — always off regardless of EEPROM
-
-        // Warning
-        // Be aware, Data[3] is use by Spectrum
-        // Warning
-
-        // And set special session settings for actions
         gSetting_set_ptt_session = gSetting_set_ptt;
         gEeprom.KEY_LOCK_PTT = gSetting_set_lck;
-    #endif
 }
 
 void SETTINGS_LoadCalibration(void)
@@ -455,6 +317,12 @@ void SETTINGS_FactoryReset(bool bIsAll)
         for (uint32_t addr = 0x122000; addr < 0x144000; addr += 0x1000) {PY25Q16_SectorErase(addr);}
 #endif
     }
+    //gSetting_set_inv default OFF
+    uint8_t Data[8];
+    PY25Q16_ReadBuffer(0x00A158, Data, 8);
+    Data[5] = 0x00;
+    PY25Q16_WriteBuffer(0x00A158, Data, 8, 0);
+
     // Reset VFO defaults
     RADIO_InitInfo(&gEeprom.VfoInfo[0], FREQ_CHANNEL, 44609775);
     gEeprom.ScreenChannel = FREQ_CHANNEL;
@@ -657,31 +525,7 @@ void SETTINGS_SaveSettings(void)
 #ifdef ENABLE_FEAT_F4HWN
     // 0x1FF0
     State = SecBuf;
-    // TODO: TBD
     PY25Q16_ReadBuffer(0x00A158, State, 8);
-
-    //memset(State, 0xFF, sizeof(State));
-
-    /*
-    tmp = 0;
-
-    if(gSetting_set_tmr == 1)
-        tmp = tmp | (1 << 0);
-
-    State[4] = tmp;
-
-    tmp = 0;
-
-    if(gSetting_set_inv == 1)
-        tmp = tmp | (1 << 0);
-    if (gSetting_set_lck == 1)
-        tmp = tmp | (1 << 1);
-    if (gSetting_set_met == 1)
-        tmp = tmp | (1 << 2);
-    if (gSetting_set_gui == 1)
-        tmp = tmp | (1 << 3);
-    */
-
     State[4] = (gSetting_set_tmr ? (1 << 0) : 0) | (gSetting_nav_invert << 2);
 
     tmp =   (gSetting_set_inv << 0) |
@@ -691,7 +535,6 @@ void SETTINGS_SaveSettings(void)
 
     State[5] = ((tmp << 4) | (gSetting_set_ctr & 0x0F));
     State[6] = ((gSetting_set_tot << 4) | (gSetting_set_eot & 0x0F));
-    State[7] = ((gSetting_set_pwr << 4) | (gSetting_set_ptt & 0x0F));
     gEeprom.KEY_LOCK_PTT = gSetting_set_lck;
 
     PY25Q16_WriteBuffer(0x00A158, SecBuf, 8, false);
@@ -791,33 +634,6 @@ void SETTINGS_UpdateChannel(uint16_t channel, const VFO_Info_t *pVFO, bool keep)
 
     if (IS_MR_CHANNEL(channel) && !keep)
                 SETTINGS_SaveChannelName(channel, "");
-}
-
-void SETTINGS_WriteBuildOptions(void)
-{
-    uint8_t State[8];
-
-#ifdef ENABLE_FEAT_F4HWN
-    // 0x1FF0
-    PY25Q16_ReadBuffer(0x00A158, State, sizeof(State));
-#endif
-    
-State[0] = 0
-#ifdef ENABLE_FMRADIO
-    | (1 << 0)
-#endif
-;
-
-State[1] = 0
-#ifdef ENABLE_FLASHLIGHT
-    | (1 << 0)
-#endif
-
-#ifdef ENABLE_SPECTRUM
-    | (1 << 5)
-#endif
-;
-    PY25Q16_WriteBuffer(0x00A158, State, sizeof(State), false);
 }
 
 #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE

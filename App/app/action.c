@@ -41,30 +41,15 @@
 #include "ui/ui.h"
 void (*action_opt_table[])(void) = {
     [ACTION_OPT_NONE] = &FUNCTION_NOP,
-    [ACTION_OPT_POWER] = &ACTION_Power,
     [ACTION_OPT_MONITOR] = &ACTION_Monitor,
-    [ACTION_OPT_KEYLOCK] = &COMMON_KeypadLockToggle,
-    [ACTION_OPT_VFO_MR] = &COMMON_SwitchVFOMode,
-    [ACTION_OPT_SWITCH_DEMODUL] = &ACTION_SwitchDemodul,
-
 #ifdef ENABLE_FLASHLIGHT
     [ACTION_OPT_FLASHLIGHT] = &ACTION_FlashLight,
 #else
     [ACTION_OPT_FLASHLIGHT] = &FUNCTION_NOP,
 #endif
 
-#ifdef ENABLE_FMRADIO
-    [ACTION_OPT_FM] = &ACTION_FM,
-#else
-    [ACTION_OPT_FM] = &FUNCTION_NOP,
-#endif
-
-    [ACTION_OPT_ALARM] = &FUNCTION_NOP,
-    [ACTION_OPT_BLMIN_TMP_OFF] = &FUNCTION_NOP,
-
 #ifdef ENABLE_FEAT_F4HWN
     [ACTION_OPT_PTT] = &ACTION_Ptt,
-    [ACTION_OPT_WN] = &ACTION_Wn,
     [ACTION_OPT_BACKLIGHT] = &ACTION_BackLight,
     [ACTION_OPT_RXA] = &ACTION_RxA,
 #endif
@@ -165,14 +150,8 @@ void ACTION_Handle(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 #ifdef ENABLE_FMRADIO
     if (gFmRadioMode) { // do not run these actions in FM radio mode
         switch (func) {
-            case ACTION_OPT_POWER:
             case ACTION_OPT_MONITOR:
-            case ACTION_OPT_VFO_MR:
-            case ACTION_OPT_SWITCH_DEMODUL:
-    #ifdef ENABLE_FEAT_F4HWN
-            case ACTION_OPT_WN:
             case ACTION_OPT_RXA:
-    #endif
                 return;
 
             default:

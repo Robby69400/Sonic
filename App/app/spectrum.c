@@ -309,7 +309,7 @@ static void LookupChannelModulation();
 static uint8_t validScanListIndices[MR_CHANNELS_LIST];
 static void LoadActiveBands(void);
 uint16_t BOARD_gMR_fetchChannel(const uint32_t freq);
-static void LoadActiveScanFrequencies(void);
+static uint8_t LoadActiveScanFrequencies(void);
 
 static uint8_t bandCount = 0;
 static uint16_t validChannelsCount = 0;
@@ -551,8 +551,9 @@ uint8_t CountActiveBands(void) {
 
 uint16_t TxChNum = 0;
 
-static void LoadActiveScanFrequencies(void)
+static uint8_t LoadActiveScanFrequencies(void)
 {
+    static uint8_t scanlist = 0;
     char str[32];
     if (Spectrum_state == SCAN_RANGE_MODE) { 
         sprintf(str, "RANGE"); 
@@ -567,14 +568,19 @@ static void LoadActiveScanFrequencies(void)
             uint32_t frequency;
             PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16, &frequency, sizeof(frequency));
             if (frequency >= FMIN && frequency <= FMAX) {
-                validChannelsCount++;
                 MR_LoadChannelAttributesFromFlash(ch, &cache);
                 if (cache.scanlist > 0 && cache.scanlist <= MR_CHANNELS_LIST &&
                     settings.scanListEnabled[cache.scanlist - 1]) {
                     scanChannelsCount++;
+                    validChannelsCount++;
                 }
             }
         }
+
+        for (int i = 0; i < MR_CHANNELS_LIST; i++) {
+            if(settings.scanListEnabled[i]) scanlist++;
+            }
+        if(!scanlist) return 0;
 
         uint8_t firstEnabledScanList = 0;
         for (int i = 0; i < MR_CHANNELS_LIST; i++) {
@@ -585,28 +591,26 @@ static void LoadActiveScanFrequencies(void)
         }
         char name[13];
         GetScanListLabel(firstEnabledScanList, name);
-        if (scanChannelsCount == 0) {
+        if (!scanChannelsCount) {
             scanChannelsCount = validChannelsCount;
             for (int i = 0; i < MR_CHANNELS_LIST; i++) { //Activate All scanlists when none selected
                 settings.scanListEnabled[i] = 1;
                 sprintf(name,"ALL SCANLISTS");
             }
         }
-
-
         for (int i = 0; name[i] != '\0'; i++) {
             if (name[i] == '*') {
                 name[i] = '\0';
                 break;
             }
         }
-        
         sprintf(str, "%s", name);
     }
     
     ShowOSDPopup(str);
     SETTINGS_FetchChannelName(TxChannelName, TxChannel);
     Spectrum_Prepare_Tx(); // to display ch correctly
+    return scanlist;
 }
 
 static void LoadMonitorFrequencies(void)
@@ -3888,9 +3892,9 @@ void APP_RunSpectrum(void) {
         LoadMonitorFrequencies ();
         if (!Key_1_pressed ) LoadSettings();
         Key_1_pressed = 0;
-        LoadActiveScanFrequencies();
+        uint8_t scanlist = LoadActiveScanFrequencies();
         LoadActiveBands();
-        if(Spectrum_state == CHANNEL_MODE && !validChannelsCount) {
+        if(Spectrum_state == CHANNEL_MODE && (!validChannelsCount || !scanlist)) {
             UI_DisplayClear();
             UI_PrintString("NO CHANNELS", 12, 116, 2, 8);
             UI_PrintString("FOUND", 12, 116, 4, 8);
@@ -4682,8 +4686,8 @@ void RenderBandSelect() {
 static void RenderHistoryList() {
     uint16_t count = CountValidHistoryItems();
     char title[32];
-    if (CloseCallActive) sprintf(title, "HISTORY: %d CC", count);
-    else sprintf(title, "HISTORY: %d/%d",historyListIndex + 1, count);
+    if (count) sprintf(title, "HISTORY: %d/%d",historyListIndex + 1, count);
+    else sprintf(title, "HISTORY EMPTY");
 
     // Only preload channels if the scroll offset has changed to optimize performance
     if (historyScrollOffset != lastHistoryScrollOffset) {

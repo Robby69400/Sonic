@@ -187,25 +187,6 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 #endif
             break;
 
-        case KEY_1:
-            const uint8_t Vfo1 = 0;
-            if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-                uint32_t mrFreq = gTxVfo->pRX->Frequency;
-                uint8_t  mrBand = gTxVfo->Band;
-                gEeprom.ScreenChannel = FREQ_CHANNEL;
-                SETTINGS_SaveVfoIndices();
-                RADIO_SelectVfos();            
-                gTxVfo->pRX->Frequency = mrFreq;
-                gTxVfo->pTX->Frequency = mrFreq;
-                gTxVfo->Band           = mrBand;
-                SETTINGS_SaveChannel(FREQ_CHANNEL, Vfo1, gTxVfo, 2); 
-                RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
-                RADIO_SetupRegisters(true);
-                gVfoConfigureMode     = VFO_CONFIGURE_RELOAD;
-                gRequestDisplayScreen = DISPLAY_MAIN;
-            } 
-            break;
-
         case KEY_2:
             if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
                 // F+2 in MR mode: delete with sync confirmation popup
@@ -242,17 +223,8 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             break;
 
         case KEY_9:
-            break;
         case KEY_UP:
-            gEeprom.SQUELCH_LEVEL = (gEeprom.SQUELCH_LEVEL < 9) ? gEeprom.SQUELCH_LEVEL + 1 : 9;
-            gVfoConfigureMode     = VFO_CONFIGURE;
-            gWasFKeyPressed       = false;
-            break;
-
         case KEY_DOWN:
-            gEeprom.SQUELCH_LEVEL = (gEeprom.SQUELCH_LEVEL > 0) ? gEeprom.SQUELCH_LEVEL - 1 : 0;
-            gVfoConfigureMode     = VFO_CONFIGURE;
-            gWasFKeyPressed       = false;
             break;
 
         case KEY_SIDE1: {
@@ -338,15 +310,95 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                 }
 
                 HideFKeyIcon();
+                
 
-                // Long 7: flashlight during RX
+                
+                if (Key == KEY_0) {
+                    const uint8_t Vfo1 = 0;
+                    if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
+                        uint32_t mrFreq = gTxVfo->pRX->Frequency;
+                        uint8_t  mrBand = gTxVfo->Band;
+                        gEeprom.ScreenChannel = FREQ_CHANNEL;
+                        SETTINGS_SaveVfoIndices();
+                        RADIO_SelectVfos();            
+                        gTxVfo->pRX->Frequency = mrFreq;
+                        gTxVfo->pTX->Frequency = mrFreq;
+                        gTxVfo->Band           = mrBand;
+                        SETTINGS_SaveChannel(FREQ_CHANNEL, Vfo1, gTxVfo, 2); 
+                        RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
+                        RADIO_SetupRegisters(true);
+                        gVfoConfigureMode     = VFO_CONFIGURE_RELOAD;
+                        gRequestDisplayScreen = DISPLAY_MAIN;
+                    }
+                return; 
+                }
+
+                if (Key == KEY_1) {
+                    gEeprom.SQUELCH_LEVEL = (gEeprom.SQUELCH_LEVEL < 9) ? gEeprom.SQUELCH_LEVEL + 1 : 1;
+                    gVfoConfigureMode     = VFO_CONFIGURE;
+                    gUpdateStatus         = true;
+                    gUpdateDisplay        = true;
+                    gRequestDisplayScreen = DISPLAY_MAIN;
+                    return;
+                }
+                if (Key == KEY_2) {
+                    ACTION_Wn();
+                    gRequestDisplayScreen = DISPLAY_MAIN;
+                    return;
+                }
+
+                // Long 3: STEP
+                if (Key == KEY_5) {
+                    uint8_t a = FREQUENCY_GetSortedIdxFromStepIdx(gTxVfo->STEP_SETTING);
+                    a = (a < STEP_N_ELEM - 1) ? (a + 1) : 0;
+                    gTxVfo->STEP_SETTING  = FREQUENCY_GetStepIdxFromSortedIdx(a);
+                    gTxVfo->StepFrequency = gStepFrequencyTable[gTxVfo->STEP_SETTING];
+                    // Save and apply immediately
+                    SETTINGS_SaveChannel(gTxVfo->CHANNEL_SAVE, gEeprom.TX_VFO, gTxVfo, 2);
+                    gVfoConfigureMode     = VFO_CONFIGURE;
+                    gUpdateStatus         = true;
+                    gUpdateDisplay        = true;
+                    gRequestDisplayScreen = DISPLAY_MAIN;
+                    return;
+                }
+
+                // Long 4: power cycle L→M→H→U→L
+                if (Key == KEY_4) {
+                    ACTION_Power();
+                    gRequestDisplayScreen = DISPLAY_MAIN;
+                    return;
+                }
+                if (Key == KEY_3) {
+                    ACTION_SwitchDemodul();
+                    gRequestDisplayScreen = DISPLAY_MAIN;
+                    return;
+                }
+
+                if (Key == KEY_6) {
+                    gVfoConfigureMode = VFO_CONFIGURE;
+                    COMMON_SwitchVFOMode();
+                    gScheduleVfoSave = true;
+                    SETTINGS_SaveVfoIndices();
+                    return;
+                }
                 if (Key == KEY_7) {
+                    if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
+                        toggle_chan_scanlist();
+                        gRequestDisplayScreen = DISPLAY_MAIN;
+                    } 
+                    gWasFKeyPressed = false;
+                    return;
+                }
+
+                // Long 8: flashlight during RX
+                if (Key == KEY_8) {
                     gEeprom.FlashlightOnRX = !gEeprom.FlashlightOnRX;
                     gRequestSaveSettings   = true;
                     gUpdateStatus          = true;
                     gRequestDisplayScreen  = DISPLAY_MAIN;
                     return;
                 }
+
                 // Long 9: backlight
                 if (Key == KEY_9) {
                     if (gBackLight)
@@ -355,58 +407,6 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                         ACTION_BackLightOnDemand();
                     return;
                 }
-                // Long 0: modulation
-                if (Key == KEY_0) {
-                    ACTION_SwitchDemodul();
-                    gRequestDisplayScreen = DISPLAY_MAIN;
-                    return;
-                }
-                if (Key == KEY_3) {
-                    gVfoConfigureMode = VFO_CONFIGURE;
-                    COMMON_SwitchVFOMode();
-                    gScheduleVfoSave = true;
-                    SETTINGS_SaveVfoIndices();
-                    return;
-                }
-                if (Key == KEY_4) {
-                    ACTION_Wn();
-                    gRequestDisplayScreen = DISPLAY_MAIN;
-                    return;
-                }
-                if (Key == KEY_5) {
-                    if (IS_MR_CHANNEL(gTxVfo->CHANNEL_SAVE)) {
-                        toggle_chan_scanlist();
-                        gRequestDisplayScreen = DISPLAY_MAIN;
-                    } else {
-                        uint8_t a = FREQUENCY_GetSortedIdxFromStepIdx(gTxVfo->STEP_SETTING);
-                        a = (a < STEP_N_ELEM - 1) ? (a + 1) : 0;
-                        gTxVfo->STEP_SETTING  = FREQUENCY_GetStepIdxFromSortedIdx(a);
-                        gTxVfo->StepFrequency = gStepFrequencyTable[gTxVfo->STEP_SETTING];
-                        // Save and apply immediately
-                        SETTINGS_SaveChannel(gTxVfo->CHANNEL_SAVE, gEeprom.TX_VFO, gTxVfo, 2);
-                        gVfoConfigureMode     = VFO_CONFIGURE;
-                        gUpdateStatus         = true;
-                        gUpdateDisplay        = true;
-                        gRequestDisplayScreen = DISPLAY_MAIN;
-                    }
-                    gWasFKeyPressed = false;
-                    return;
-                }
-
-                // Long 6: power cycle L→M→H→U→L
-                if (Key == KEY_6) {
-                    ACTION_Power();
-                    gRequestDisplayScreen = DISPLAY_MAIN;
-                    return;
-                }
-
-                // Long 8: nothing (band spectrum is only available with F+8)
-                if (Key == KEY_8) {
-                    return;
-                }
-
-                // Other long presses (1) → processFKeyFunction(Key, true)
-                processFKeyFunction(Key, true);
             }
         }
         return;

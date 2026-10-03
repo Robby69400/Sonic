@@ -87,36 +87,23 @@ void Main(void)
      * Calibration stays shared regardless of the selected bank. */
     PY25Q16_SetBankBase(MB_BankBase(MB_BootResolveState()));
 #endif
-
     // Read the button IMMEDIATELY at startup, before lengthy initialization
-
     boot_counter_10ms = 150;
 
 #ifdef ENABLE_UART
     UART_Init();
     UART_Send(UART_Version, strlen(UART_Version));
 #endif
-
     BK4819_Init();
-
     BOARD_ADC_GetBatteryInfo(&gBatteryCurrentVoltage, &gBatteryCurrent);
-
     SETTINGS_InitEEPROM();
-
-    SETTINGS_WriteBuildOptions();
     SETTINGS_LoadCalibration();
-
     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
-    
     RADIO_SelectVfos();
-
     RADIO_SetupRegisters(true);
-
     for (unsigned int i = 0; i < ARRAY_SIZE(gBatteryVoltages); i++)
         BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[i], &gBatteryCurrent);
-
     BATTERY_GetReadings(false);
-
     BOOT_Mode_t  BootMode = BOOT_GetMode();
 
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT

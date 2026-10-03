@@ -192,12 +192,7 @@ void RADIO_InitInfo(VFO_Info_t *pInfo, const uint16_t ChannelSave, const uint32_
     pInfo->pRX                      = &pInfo->freq_config_RX;
     pInfo->pTX                      = &pInfo->freq_config_TX;
     pInfo->Compander                = 0;  // off
-
-    if (ChannelSave == FREQ_CHANNEL)
-        pInfo->Modulation = MODULATION_AM;
-    else
-        pInfo->Modulation = MODULATION_FM;
-
+    pInfo->Modulation = MODULATION_FM;
     RADIO_ConfigureSquelchAndOutputPower(pInfo);
 }
 

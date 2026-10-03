@@ -252,22 +252,9 @@ const char* const gSubMenu_SCRAMBLER[] =
 const t_sidefunction gSubMenu_SIDEFUNCTIONS[] =
 {
     {"NONE",            ACTION_OPT_NONE},
-#ifdef ENABLE_FLASHLIGHT
     {"FLASH\nLIGHT",    ACTION_OPT_FLASHLIGHT},
-#endif
-    {"POWER",           ACTION_OPT_POWER},
     {"MONITOR",         ACTION_OPT_MONITOR},
-#ifdef ENABLE_FMRADIO
-    {"FM RADIO",        ACTION_OPT_FM},
-#endif
-    {"LOCK\nKEYPAD",    ACTION_OPT_KEYLOCK},
-    {"VFO\nMEM",        ACTION_OPT_VFO_MR},
-    {"MODE",            ACTION_OPT_SWITCH_DEMODUL},
-#ifdef ENABLE_FEAT_F4HWN
     {"PTT TOGGLE",      ACTION_OPT_PTT},
-    {"WIDE\nNARROW",    ACTION_OPT_WN},
-      
-#endif
 };
 
 const uint8_t gSubMenu_SIDEFUNCTIONS_size = ARRAY_SIZE(gSubMenu_SIDEFUNCTIONS);

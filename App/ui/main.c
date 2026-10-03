@@ -533,19 +533,23 @@ void UI_DisplayMain(void)
             switch (mod) {
                 case MODULATION_FM: {
                     const FREQ_Config_t *pCfg = vfoInfo->pRX;
-                    const char *code_list[] = {"FM", "CT", "DCS", "DCR"};
+                    const char *code_list[] = {"3:FM", "3:CT", "3:DCS", "3:DCR"};
                     if (pCfg->CodeType < 4) s = code_list[pCfg->CodeType];
                     break;
                 }
-                default: s = gModulationStr[mod]; break;
+                case MODULATION_AM: {
+                    s = "3:AM";
+                    break;
+                }
+                case MODULATION_USB: {
+                    s = "3:USB";
+                    break;
+                }
+                default: 
+                    break;
             }
             if (s[0] != '\0') {
-                uint8_t x_mr = 116, y_mr = 5;
-                uint8_t x_vfo = 116, y_vfo = 5;
-                uint8_t mod_x_base = isMR ? x_mr : x_vfo;
-                uint8_t mod_y      = isMR ? y_mr : y_vfo;
-                uint8_t mod_x = mod_x_base - (uint8_t)(strlen(s) * 7 / 2) - 1;
-                UI_PrintStringSmallBold(s, LCD_WIDTH + mod_x, 0, mod_y);
+                UI_PrintStringSmallBoldRight(s, 120, 5);
             }
         }
 
@@ -558,68 +562,45 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold("T", LCD_WIDTH + x, 0, y);
         }
 
-            uint8_t x_mr = 91, y_mr = 5;
-            uint8_t x_vfo = 91, y_vfo = 5;
-            uint8_t x = isMR ? x_mr : x_vfo;
-            uint8_t y = isMR ? y_mr : y_vfo;
-            
-            const char pwr_base[][2] = {"L","M","H"}; // index 0 (X) → show "L" as base
-            UI_PrintStringSmallBold(pwr_base[vfoInfo->OUTPUT_POWER], LCD_WIDTH + x, 0, y);
+            const char *pwr_base[] = {"4:PwL","4:PwM","4:PwH"}; // index 0 (X) → show "L" as base
+            UI_PrintStringSmallBold(pwr_base[vfoInfo->OUTPUT_POWER], 0, 0, 6);
 
         if (vfoInfo->freq_config_RX.Frequency != vfoInfo->freq_config_TX.Frequency)
         {
-            uint8_t x_mr = 4, y_mr = 3;
-            uint8_t x_vfo = 4, y_vfo = 2;
             const char *dir[] = {"", "+", "-"};
             const char *d = dir[vfoInfo->TX_OFFSET_FREQUENCY_DIRECTION % 3];
             if (d[0] != '\0') {
-                uint8_t x = isMR ? x_mr : x_vfo;
-                uint8_t y = isMR ? y_mr : y_vfo;
-                UI_PrintStringSmallBold(d, LCD_WIDTH + x, 0, y);
+                UI_PrintStringSmallBold(d, 67, 0, 5);
             }
         }
-
         
         {
-            uint8_t x_mr = 62, y_mr = 5;
-            uint8_t x_vfo = 62, y_vfo = 5;
-            char stepStr[8];
+            char stepStr[9];
             const uint16_t step = gStepFrequencyTable[vfoInfo->STEP_SETTING];
             if (step == 833) {
-                strcpy(stepStr, "8.33");
+                strcpy(stepStr, "5:ST8.33");
             } else {
                 uint32_t v = (uint32_t)step * 10;
                 uint16_t integer = v / 1000;
                 uint16_t decimal = (v % 1000) / 10;
-                if (integer == 0)        sprintf(stepStr, "0.%02u", decimal);
-                else if (integer >= 100) sprintf(stepStr, "%u", integer);
-                else                     sprintf(stepStr, "%u.%02u", integer, decimal);
+                if (integer == 0)        sprintf(stepStr, "5:ST0.%02u", decimal);
+                else if (integer >= 100) sprintf(stepStr, "5:ST%u", integer);
+                else                     sprintf(stepStr, "5:ST%u.%02u", integer, decimal);
             }
-            uint8_t x = isMR ? x_mr : x_vfo;
-            uint8_t y = isMR ? y_mr : y_vfo;
-            UI_PrintStringSmallBold(stepStr, LCD_WIDTH + x - (uint8_t)(strlen(stepStr) * 3), 0, y);
+            UI_PrintStringSmallBoldRight(stepStr, 120, 6);
         }
 
         
         {
-            uint8_t x_mr = 8, y_mr = 5;
-            uint8_t x_vfo = 8, y_vfo = 5;
             char sqlStr[4];
-            sprintf(sqlStr, "%u", gEeprom.SQUELCH_LEVEL);
-            uint8_t x = isMR ? x_mr : x_vfo;
-            uint8_t y = isMR ? y_mr : y_vfo;
-            UI_PrintStringSmallBold(sqlStr, LCD_WIDTH + x, 0, y);
+            sprintf(sqlStr, "1:SQ%u", gEeprom.SQUELCH_LEVEL);
+            UI_PrintStringSmallBold(sqlStr, 0, 0, 5);
         }
 
-        
         {
-            uint8_t x_mr = 34, y_mr = 5;
-            uint8_t x_vfo = 34, y_vfo = 5;
-            const char *bwNames[] = {"W", "N"};
+            const char *bwNames[] = {"2:BwW", "2:BwN"};
             const char *bw = bwNames[vfoInfo->CHANNEL_BANDWIDTH & 1];
-            uint8_t x = isMR ? x_mr : x_vfo;
-            uint8_t y = isMR ? y_mr : y_vfo;
-            UI_PrintStringSmallBold(bw, LCD_WIDTH + x - (uint8_t)(strlen(bw) * 3), 0, y);
+            UI_PrintStringSmallBold(bw, 47, 0, 5);
         }
 
         {
@@ -642,24 +623,14 @@ void UI_DisplayMain(void)
                 sprintf(str, "CHANNEL SCR %d", gEeprom.SCRAMBLING_TYPE);
             else
                 sprintf(str, "CHANNEL");
-            UI_PrintStringSmallNormal(str, 0, 0, 0);
-            GUI_DisplaySmallestDark("SQL",  6,  42, false, false);
-            GUI_DisplaySmallestDark("BAND", 28, 42, false, false);
-            GUI_DisplaySmallestDark("STEP", 58, 42, false, false);
-            GUI_DisplaySmallestDark("POW",  88, 42, false, false);
-            GUI_DisplaySmallestDark("MOD",  110,42, false, false);
         } else {
             if (gEeprom.SCRAMBLING_TYPE)
                 sprintf(str, "FREQUENCY SCR %d", gEeprom.SCRAMBLING_TYPE);
             else
                 sprintf(str, "FREQUENCY");
+            }
+
             UI_PrintStringSmallNormal(str, 0, 0, 0);
-            GUI_DisplaySmallestDark("SQL",  6,  42, false, false);
-            GUI_DisplaySmallestDark("BND", 28, 42, false, false);
-            GUI_DisplaySmallestDark("STP", 58, 42, false, false);
-            GUI_DisplaySmallestDark("POW",  88, 42, false, false);
-            GUI_DisplaySmallestDark("MOD",  110,42, false, false);
-        }
 
         // ── TX / RX INDICATOR ────────────────────────────────────────
         if (gCurrentFunction == FUNCTION_TRANSMIT)
