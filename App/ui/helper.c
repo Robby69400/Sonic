@@ -268,6 +268,19 @@ void UI_PrintStringSmallBoldRight(const char *pString, uint8_t End, uint8_t Line
     UI_PrintStringSmallBold(pString, Start, End, Line);
 }
 
+void UI_PrintStringSmallBoldCenter(const char *pString, uint8_t center, uint8_t Line)
+{
+    const uint8_t char_width = ARRAY_SIZE(gFontSmallBold[0]);
+    uint8_t text_len = strlen(pString);
+    uint16_t text_pixel_width = (uint16_t)text_len * char_width;
+    
+    // Calcule Start et End autour du centre
+    uint8_t Start = (uint8_t)(center - (text_pixel_width / 2));
+    uint8_t End = (uint8_t)(Start + text_pixel_width);
+    
+    UI_PrintStringSmallBold(pString, Start, End, Line);
+}
+
 // Inverted bold font: draw first, then XOR
 void UI_PrintStringSmallBoldInverse(const char *pString, uint8_t Start, uint8_t End, uint8_t Line)
 {
