@@ -99,21 +99,19 @@ static uint16_t stringCodeTimer = 0;
 #define PARAM_PTT_EMISSION      0
 #define PARAM_SPECTRUM_DELAY    1
 #define PARAM_MAX_LISTEN_TIME   2
-#define PARAM_RANGE_START       3
-#define PARAM_RANGE_STOP        4
-#define PARAM_SCAN_STEP         5
-#define PARAM_LISTEN_BW         6
-#define PARAM_MODULATION        7
-#define PARAM_POWER_SAVE        8
-#define PARAM_AUTO_KEYLOCK      9
-#define PARAM_NOISE_LEVEL_OFF   10
-#define PARAM_OSD_POPUP         11
-#define PARAM_RECORD_TRIGGER    12
-#define PARAM_SOUND_BOOST       13
-#define PARAM_AUDIO_AM          14
-#define PARAM_MONITOR_SCAN      15
-#define PARAM_SPECTRUM_TYPE     16
-#define PARAM_RESET_DEFAULT     17
+#define PARAM_SCAN_STEP         3
+#define PARAM_LISTEN_BW         4
+#define PARAM_MODULATION        5
+#define PARAM_POWER_SAVE        6
+#define PARAM_AUTO_KEYLOCK      7
+#define PARAM_NOISE_LEVEL_OFF   8
+#define PARAM_OSD_POPUP         9
+#define PARAM_RECORD_TRIGGER    10
+#define PARAM_SOUND_BOOST       11
+#define PARAM_AUDIO_AM          12
+#define PARAM_MONITOR_SCAN      13
+#define PARAM_SPECTRUM_TYPE     14
+#define PARAM_RESET_DEFAULT     15
 
 uint16_t GetMaxVisualRows(void) {return PARAM_RESET_DEFAULT+1;}
 
@@ -159,6 +157,12 @@ static uint8_t prevSpectrumMonitor = 0;
 static bool Key_1_pressed = 0;
 static uint16_t WaitSpectrum = 0; 
 static uint8_t ArrowLine = 1;
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 static void DrawF(uint32_t f);
 static void ToggleRX(bool on);
 static void NextScanStep();
@@ -167,6 +171,14 @@ static void RenderHistoryList();
 static void RenderScanListSelect();
 static void RenderParametersSelect();
 static void RenderHistoryMenuSelect(void);
+static void FreqInput(void);
+static bool InitScan(void);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 #ifdef ENABLE_SPECTRUM_LINES
     static void MyDrawFrameLines(void);
 #endif
@@ -846,11 +858,22 @@ static uint16_t GetStepsCount()
   return 128 >> settings.stepsCount;
 }
 
+static uint8_t rangeEntryStep = 0;  // 0=aucun, 1=start, 2=stop
+static State initialStateForRange = SPECTRUM;  // Sauvegarde l'état initial
+
+static void PromptAndSetRangeFrequencies(void) {
+    if (rangeEntryStep == 0) {
+        // Démarrer le processus
+        rangeEntryStep = 1;
+        initialStateForRange = currentState;  // Sauvegarder SPECTRUM
+        FreqInput();
+    }
+}
+
 static uint16_t GetRandomChannel(uint16_t maxChannels) {
     if (maxChannels == 0) { return 1; }
     static uint32_t seed = 0xA5A5A5A5;
     seed ^= gGlobalSysTickCounter;
-
     seed ^= seed << 13;
     seed ^= seed >> 17;
     seed ^= seed << 5;
@@ -2241,13 +2264,12 @@ void NextAppMode(void) {
     static uint8_t PreviousPttEmission;
     if (Spectrum_state == CHANNEL_MODE) {
         Spectrum_state = SCAN_BAND_MODE;
-        Spectrum_state = SCAN_BAND_MODE;
         PreviousPttEmission = PttEmission;
-    } else {
-        Spectrum_state = CHANNEL_MODE;
-        Spectrum_state = CHANNEL_MODE;
-        PttEmission = PreviousPttEmission;
-    }
+    } else  if (Spectrum_state == SCAN_BAND_MODE) {Spectrum_state = SCAN_RANGE_MODE;}
+                else    if (Spectrum_state == SCAN_RANGE_MODE) {
+                            Spectrum_state = CHANNEL_MODE;
+                            PttEmission = PreviousPttEmission;
+                        }
     gSpectrumChangeRequested = true;
     isInitialized            = false;
     spectrumElapsedCount     = 0;
@@ -2527,11 +2549,6 @@ static void HandleKeyParameters(uint8_t key) {
                           else IndexMaxLT--;
                       }
                       MaxListenTime = listenSteps[IndexMaxLT];
-                      break;
-                case PARAM_RANGE_START:
-                case PARAM_RANGE_STOP:
-                          Spectrum_state = SCAN_RANGE_MODE;
-                          FreqInput();
                       break;
                 case PARAM_SCAN_STEP:
                     UpdateScanStep(isKey3);
@@ -2876,10 +2893,9 @@ static void HandleKeySpectrum(uint8_t key) {
                 break;
   
     case KEY_6: // next mode
-        if (historyListActive) {
-            CloseCall(); 
-        } else 
-            NextAppMode();
+        if (historyListActive) {CloseCall();}
+            else if(Spectrum_state == SCAN_RANGE_MODE) PromptAndSetRangeFrequencies();
+                    else NextAppMode();
         break;
     case KEY_SIDE1:
         if (SPECTRUM_PAUSED) return;
@@ -2979,43 +2995,57 @@ static void OnKeyDown(uint8_t key) {
 
 static void OnKeyDownFreqInput(uint8_t key) {
   switch (key) {
-  case KEY_0: //Freq input
-  case KEY_1: //Freq input
-  case KEY_2: //Freq input
-  case KEY_3: //Freq input
-  case KEY_4: //Freq input
-  case KEY_5: //Freq input
-  case KEY_6: //Freq input
-  case KEY_7: //Freq input
-  case KEY_8: //Freq input
-  case KEY_9: //Freq input
-  case KEY_STAR: //Freq input
+  case KEY_0:
+  case KEY_1:
+  case KEY_2:
+  case KEY_3:
+  case KEY_4:
+  case KEY_5:
+  case KEY_6:
+  case KEY_7:
+  case KEY_8:
+  case KEY_9:
+  case KEY_STAR:
     INPUTBOX_FrequencyUpdate(key);
     break;
-  case KEY_EXIT: //EXIT from freq input
+  case KEY_EXIT:
     if (INPUTBOX_FrequencyLength() == 0) {
       INPUTBOX_ResetFrequency();
       SetState(previousState);
       WaitSpectrum = 0;
+      rangeEntryStep = 0;  // Reset si annulation
       break;
     }
     INPUTBOX_FrequencyUpdate(key);
     break;
-  case KEY_MENU: //OnKeyDownFreqInput
-    if (INPUTBOX_FrequencyValue() > F_MAX) {
-      break;
-    }
-    SetState(previousState);
-    if (currentState == SPECTRUM) {
-        currentFreq = INPUTBOX_FrequencyValue();
-      ResetModifiers();
-    }
-    if (currentState == PARAMETERS_SELECT && parametersSelectedIndex == PARAM_RANGE_START)
-        RangeStart = INPUTBOX_FrequencyValue();
-    if (currentState == PARAMETERS_SELECT && parametersSelectedIndex == PARAM_RANGE_STOP)
-        RangeStop = INPUTBOX_FrequencyValue();
+  case KEY_MENU:
+    if (INPUTBOX_FrequencyValue() > F_MAX) break;
+    if (rangeEntryStep == 1) {
+      RangeStart = INPUTBOX_FrequencyValue();
+      if (RangeStart < FMIN || RangeStart > FMAX) {
+        RangeStart = FMIN;
+      }
 
-    INPUTBOX_FrequencyBegin();
+      rangeEntryStep = 2;
+      INPUTBOX_FrequencyBegin(); 
+      
+    } else if (rangeEntryStep == 2) {
+      // Entrée de Stop complétée
+      RangeStop = INPUTBOX_FrequencyValue();
+      if (RangeStop < FMIN || RangeStop > FMAX) {
+        RangeStop = FMAX;
+      }
+      if (RangeStart > RangeStop) {
+        SWAP(RangeStart, RangeStop);
+      }
+      SpectrumRangeStart = RangeStart;
+      SpectrumRangeStop = RangeStop;
+      Spectrum_state = SCAN_RANGE_MODE;
+      rangeEntryStep = 0;
+      InitScan();
+      RelaunchScan();
+      SetState(initialStateForRange);
+    }
     break;
   default:
     break;
@@ -3129,8 +3159,10 @@ static void OnKeyDownStill(KEY_Code_t key) {
 
 
 static void RenderFreqInput() {
-  UI_PrintString("ENTER FREQ", 2, 127, 1, 8);  
-  UI_PrintString(INPUTBOX_FrequencyGetString(), 2, 127, 3, 8);
+    if (rangeEntryStep == 0) UI_PrintString("FREQ", 2, 127, 1, 8);
+    else if (rangeEntryStep == 1) UI_PrintString("START FREQ", 2, 127, 1, 8);
+    else if (rangeEntryStep == 2) UI_PrintString("STOP FREQ", 2, 127, 1, 8);
+    UI_PrintString(INPUTBOX_FrequencyGetString(), 2, 127, 3, 8);
 }
 
 static void RenderStatus() {
@@ -4539,23 +4571,6 @@ static void GetParametersRow(uint16_t index, ListRow *row) {
             snprintf(row->left,  sizeof(row->left),  "MaxListenTime:");
             snprintf(row->right, sizeof(row->right), "%s", labels[IndexMaxLT]);
             break;
-        case PARAM_RANGE_START: {
-            char tmp[12];
-            snprintf(tmp, sizeof(tmp), "%u.%05u",
-                     RangeStart / 100000, RangeStart % 100000);
-            snprintf(row->left,  sizeof(row->left),  "Fstart:");
-            snprintf(row->right, sizeof(row->right), "%s", tmp);
-            break;
-        }
-        case PARAM_RANGE_STOP: {
-            char tmp[12];
-            snprintf(tmp, sizeof(tmp), "%u.%05u",
-                     RangeStop / 100000, RangeStop % 100000);
-           // RemoveTrailZeros(tmp);
-            snprintf(row->left,  sizeof(row->left),  "Fstop:");
-            snprintf(row->right, sizeof(row->right), "%s", tmp);
-            break;
-        }
         case PARAM_SCAN_STEP: {
             uint32_t step = GetScanStep();
             snprintf(row->left, sizeof(row->left), "Step:");

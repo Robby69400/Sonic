@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdlib.h>  // abs()
 #include "menu.h"
+#include "app/spectrum.h"
 #include "bitmaps.h"
 #include "board.h"
 #include "driver/bk4819.h"
@@ -533,23 +534,23 @@ void UI_DisplayMain(void)
             switch (mod) {
                 case MODULATION_FM: {
                     const FREQ_Config_t *pCfg = vfoInfo->pRX;
-                    const char *code_list[] = {"3:FM", "3:CT", "3:DCS", "3:DCR"};
+                    const char *code_list[] = {"FM", "CT", "DCS", "DCR"};
                     if (pCfg->CodeType < 4) s = code_list[pCfg->CodeType];
                     break;
                 }
                 case MODULATION_AM: {
-                    s = "3:AM";
+                    s = "AM";
                     break;
                 }
                 case MODULATION_USB: {
-                    s = "3:USB";
+                    s = "USB";
                     break;
                 }
                 default: 
                     break;
             }
             if (s[0] != '\0') {
-                UI_PrintStringSmallBoldRight(s, 120, 5);
+                UI_PrintStringSmallBold(s, 30,30, 6); // PRINT BOTTOM PARAMETERS
             }
         }
 
@@ -562,8 +563,8 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold("T", LCD_WIDTH + x, 0, y);
         }
 
-            const char *pwr_base[] = {"4:PwL","4:PwM","4:PwH"}; // index 0 (X) → show "L" as base
-            UI_PrintStringSmallBold(pwr_base[vfoInfo->OUTPUT_POWER], 0, 0, 6);
+            const char *pwr_base[] = {"L","0.5W","5W"}; // index 0 (X) → show "L" as base
+            UI_PrintStringSmallBold(pwr_base[vfoInfo->OUTPUT_POWER], 55, 0, 6); // PRINT BOTTOM PARAMETERS
 
         if (vfoInfo->freq_config_RX.Frequency != vfoInfo->freq_config_TX.Frequency)
         {
@@ -574,47 +575,27 @@ void UI_DisplayMain(void)
             }
         }
         
-        {
-            char stepStr[9];
-            const uint16_t step = gStepFrequencyTable[vfoInfo->STEP_SETTING];
-            if (step == 833) {
-                strcpy(stepStr, "5:ST8.33");
-            } else {
-                uint32_t v = (uint32_t)step * 10;
-                uint16_t integer = v / 1000;
-                uint16_t decimal = (v % 1000) / 10;
-                if (integer == 0)        sprintf(stepStr, "5:ST0.%02u", decimal);
-                else if (integer >= 100) sprintf(stepStr, "5:ST%u", integer);
-                else                     sprintf(stepStr, "5:ST%u.%02u", integer, decimal);
-            }
-            UI_PrintStringSmallBoldRight(stepStr, 120, 6);
-        }
-
+        UI_PrintStringSmallBoldRight(scanStepNames[vfoInfo->STEP_SETTING], 122, 6); // PRINT BOTTOM PARAMETERS
         
-        {
-            char sqlStr[4];
-            sprintf(sqlStr, "1:SQ%u", gEeprom.SQUELCH_LEVEL);
-            UI_PrintStringSmallBold(sqlStr, 0, 0, 5);
+        char sqlStr[4];
+        sprintf(sqlStr, "S%u", gEeprom.SQUELCH_LEVEL);
+        UI_PrintStringSmallBold(sqlStr, 0, 0, 6); // PRINT BOTTOM PARAMETERS
+        
+        const char *bwNames[] = {"W", "N"};
+        const char *bw = bwNames[vfoInfo->CHANNEL_BANDWIDTH & 1];
+        UI_PrintStringSmallBold(bw, 17, 0, 6); // PRINT BOTTOM PARAMETERS
+        
+        enum VfoState_t state = VfoState[vfo_num];
+        if (state != VFO_STATE_NORMAL) {
+            const char *msg = (state < ARRAY_SIZE(VfoStateStr)) ? VfoStateStr[state] : "";
+            uint8_t y_mr = 3, y_vfo = 2;
+            uint8_t y_pos = isMR ? y_mr : y_vfo;
+            memset(gFrameBuffer[y_pos],     0, LCD_WIDTH);
+            memset(gFrameBuffer[y_pos + 1], 0, LCD_WIDTH);
+            uint8_t tw = (uint8_t)(strlen(msg) * 8);
+            UI_PrintString(msg, (LCD_WIDTH - tw) / 2, 0, y_pos, 8);
         }
-
-        {
-            const char *bwNames[] = {"2:BwW", "2:BwN"};
-            const char *bw = bwNames[vfoInfo->CHANNEL_BANDWIDTH & 1];
-            UI_PrintStringSmallBold(bw, 47, 0, 5);
-        }
-
-        {
-            enum VfoState_t state = VfoState[vfo_num];
-            if (state != VFO_STATE_NORMAL) {
-                const char *msg = (state < ARRAY_SIZE(VfoStateStr)) ? VfoStateStr[state] : "";
-                uint8_t y_mr = 3, y_vfo = 2;
-                uint8_t y_pos = isMR ? y_mr : y_vfo;
-                memset(gFrameBuffer[y_pos],     0, LCD_WIDTH);
-                memset(gFrameBuffer[y_pos + 1], 0, LCD_WIDTH);
-                uint8_t tw = (uint8_t)(strlen(msg) * 8);
-                UI_PrintString(msg, (LCD_WIDTH - tw) / 2, 0, y_pos, 8);
-            }
-        }
+        
 
         // "VFO MODE" / "MR MODE" ─────────────────────────────
         char str[19];
