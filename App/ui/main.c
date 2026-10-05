@@ -415,6 +415,32 @@ void UI_MAIN_TimeSlice500ms(void)
     }
 }
 
+static void GetScanListName(uint8_t scanListIndex, char* bufferOut) {
+    char nameOrFreq[13];
+    memset(nameOrFreq, 0, sizeof(nameOrFreq));
+    uint8_t firstChar = (uint8_t)gListName[scanListIndex][0];
+    uint8_t i;
+
+    if (firstChar != '\0' && firstChar != 0xFF) {
+        for (i = 0; i < 10; i++) {
+            char c = gListName[scanListIndex][i];
+            if (c == '\0' || (uint8_t)c == 0xFF) {
+                break;
+            }
+            nameOrFreq[i] = c;
+        }
+        nameOrFreq[i] = '\0';
+
+        while (i > 0 && nameOrFreq[i-1] == ' ') {  // retirer le padding CHIRP
+            nameOrFreq[--i] = '\0';
+        }
+    } else {
+        sprintf(nameOrFreq, "SL %u", (unsigned)(scanListIndex + 1));
+    }
+        sprintf(bufferOut, "%d:%s", scanListIndex + 1, nameOrFreq);
+}
+
+
 // ============================================================================
 // MAIN DISPLAY RENDERING
 // ============================================================================
@@ -495,11 +521,11 @@ void UI_DisplayMain(void)
                 sprintf(String, "M%.4s", INPUTBOX_GetAscii());
             UI_PrintStringSmallBold(String, 0, 0, 2);
 
-            const ChannelAttributes_t* att = MR_GetChannelAttributes(gEeprom.ScreenChannel);
+/*             const ChannelAttributes_t* att = MR_GetChannelAttributes(gEeprom.ScreenChannel);
             if (att && att->scanlist > 0 && att->scanlist <= MR_CHANNELS_LIST) {
                 sprintf(String, "%02d", att->scanlist);
                 GUI_DisplaySmallestDark(String, 3, 25, false, false);
-            }
+            } */
 
             if (!inputting) {
                 char dispName[22];
@@ -608,14 +634,22 @@ void UI_DisplayMain(void)
                 sprintf(str, "CHANNEL SCR %d", gEeprom.SCRAMBLING_TYPE);
             else
                 sprintf(str, "CHANNEL");
+
+            UI_PrintStringSmallBold(str, 0, 0, 0);
+
+            const ChannelAttributes_t *listAtt = MR_GetChannelAttributes(gEeprom.ScreenChannel);
+            if (listAtt && listAtt->scanlist > 0 && listAtt->scanlist <= MR_CHANNELS_LIST)  {
+                char name[13];
+                GetScanListName(listAtt->scanlist-1, name);
+                UI_PrintStringSmallBoldRight(name, 122, 0);
+            }
         } else {
             if (gEeprom.SCRAMBLING_TYPE)
                 sprintf(str, "FREQUENCY SCR %d", gEeprom.SCRAMBLING_TYPE);
             else
                 sprintf(str, "FREQUENCY");
+            UI_PrintStringSmallBold(str, 0, 0, 0);
             }
-
-            UI_PrintStringSmallNormal(str, 0, 0, 0);
 
         // ── TX / RX INDICATOR ────────────────────────────────────────
         if (gCurrentFunction == FUNCTION_TRANSMIT)

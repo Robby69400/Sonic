@@ -4300,10 +4300,7 @@ void ClearSettings()
 
 static bool GetScanListLabel(uint8_t scanListIndex, char* bufferOut) {
     if (scanListIndex >= MR_CHANNELS_LIST) return false;
-
-    // Les listes vides ne sont pas affichées
     if (!gScanListHasChannels[scanListIndex]) return false;
-
     char nameOrFreq[13];
     memset(nameOrFreq, 0, sizeof(nameOrFreq));
     uint8_t firstChar = (uint8_t)gListName[scanListIndex][0];
@@ -4324,10 +4321,8 @@ static bool GetScanListLabel(uint8_t scanListIndex, char* bufferOut) {
         }
     }
     else {
-        // Liste sans nom : "Scanlist N"
         sprintf(nameOrFreq, "Scanlist %u", (unsigned)(scanListIndex + 1));
     }
-
     if (settings.scanListEnabled[scanListIndex]) {
         sprintf(bufferOut, "%d:%s*", scanListIndex + 1, nameOrFreq);
     } else {
