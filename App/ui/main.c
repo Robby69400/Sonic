@@ -563,7 +563,7 @@ void UI_DisplayMain(void)
             UI_PrintStringSmallBold("T", LCD_WIDTH + x, 0, y);
         }
 
-            const char *pwr_base[] = {"L","0.5W","5W"}; // index 0 (X) → show "L" as base
+            const char *pwr_base[] = {"Low","Med","High"}; // index 0 (X) → show "L" as base
             UI_PrintStringSmallBoldCenter(pwr_base[vfoInfo->OUTPUT_POWER], 75, 6); // PRINT BOTTOM PARAMETERS
 
         if (vfoInfo->freq_config_RX.Frequency != vfoInfo->freq_config_TX.Frequency)

@@ -900,11 +900,11 @@ static void DeInitSpectrum(void) {
     SETTINGS_WriteCurrentState();
 #endif
     SYSTEM_DelayMs(50);
-    //BK4819_Init();
     SETTINGS_InitEEPROM();
     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
     RADIO_SelectVfos();
     RADIO_SetupRegisters(true);
+    UI_DisplayClear();
 }
 
 static void DeleteHistoryItem(void) {
@@ -2720,7 +2720,11 @@ static void HandleKeySpectrum(uint8_t key) {
                     scanListScrollOffset  = 0;
                     return;
                 }
-                if (Spectrum_state != SCAN_RANGE_MODE) ToggleStepsCount();
+                if (Spectrum_state == SCAN_RANGE_MODE) {
+                    PromptAndSetRangeFrequencies();
+                    return;
+                }
+                else ToggleStepsCount();
             }
             break;
         case KEY_7:
@@ -2894,8 +2898,7 @@ static void HandleKeySpectrum(uint8_t key) {
   
     case KEY_6: // next mode
         if (historyListActive) {CloseCall();}
-            else if(Spectrum_state == SCAN_RANGE_MODE) PromptAndSetRangeFrequencies();
-                    else NextAppMode();
+            else NextAppMode();
         break;
     case KEY_SIDE1:
         if (SPECTRUM_PAUSED) return;
