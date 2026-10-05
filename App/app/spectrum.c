@@ -154,7 +154,6 @@ static bool historyListActive = false;
 static bool gForceModulation = 0;
 static uint8_t SpectrumMonitor = 0;
 static uint8_t prevSpectrumMonitor = 0;
-static bool Key_1_pressed = 0;
 static uint16_t WaitSpectrum = 0; 
 static uint8_t ArrowLine = 1;
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -859,13 +858,11 @@ static uint16_t GetStepsCount()
 }
 
 static uint8_t rangeEntryStep = 0;  // 0=aucun, 1=start, 2=stop
-static State initialStateForRange = SPECTRUM;  // Sauvegarde l'état initial
 
 static void PromptAndSetRangeFrequencies(void) {
     if (rangeEntryStep == 0) {
         // Démarrer le processus
         rangeEntryStep = 1;
-        initialStateForRange = currentState;  // Sauvegarder SPECTRUM
         FreqInput();
     }
 }
@@ -1701,7 +1698,6 @@ static void ToggleStepsCount() {
 static void FreqInput() {
   INPUTBOX_FrequencyBegin();
   SetState(FREQ_INPUT);
-  Key_1_pressed = 1;
 }
 
 static void Skip() {
@@ -2634,7 +2630,6 @@ static void HandleKeyParameters(uint8_t key) {
             RelaunchScan();
             ResetModifiers();
             SetState(SPECTRUM);
-            if(Key_1_pressed) {Spectrum_state = SCAN_RANGE_MODE;APP_RunSpectrum();}
             break;
         default:
             break;
@@ -2957,7 +2952,6 @@ static void HandleKeySpectrum(uint8_t key) {
             SPECTRUM_PAUSED = false;
             StringCode[0] = '\0'; //Erase code
             SetState(SPECTRUM);
-            INPUTBOX_FrequencyBegin();
             break;
         }
         if (WaitSpectrum) WaitSpectrum = 0;
@@ -3014,7 +3008,7 @@ static void OnKeyDownFreqInput(uint8_t key) {
   case KEY_EXIT:
     if (INPUTBOX_FrequencyLength() == 0) {
       INPUTBOX_ResetFrequency();
-      SetState(previousState);
+      SetState(SPECTRUM);
       WaitSpectrum = 0;
       rangeEntryStep = 0;  // Reset si annulation
       break;
@@ -3034,6 +3028,7 @@ static void OnKeyDownFreqInput(uint8_t key) {
       
     } else if (rangeEntryStep == 2) {
       // Entrée de Stop complétée
+      INPUTBOX_FrequencyBegin();
       RangeStop = INPUTBOX_FrequencyValue();
       if (RangeStop < FMIN || RangeStop > FMAX) {
         RangeStop = FMAX;
@@ -3047,7 +3042,7 @@ static void OnKeyDownFreqInput(uint8_t key) {
       rangeEntryStep = 0;
       InitScan();
       RelaunchScan();
-      SetState(initialStateForRange);
+      SetState(SPECTRUM);
     }
     break;
   default:
@@ -3162,8 +3157,7 @@ static void OnKeyDownStill(KEY_Code_t key) {
 
 
 static void RenderFreqInput() {
-    if (rangeEntryStep == 0) UI_PrintString("FREQ", 2, 127, 1, 8);
-    else if (rangeEntryStep == 1) UI_PrintString("START FREQ", 2, 127, 1, 8);
+    if (rangeEntryStep == 1) UI_PrintString("START FREQ", 2, 127, 1, 8);
     else if (rangeEntryStep == 2) UI_PrintString("STOP FREQ", 2, 127, 1, 8);
     UI_PrintString(INPUTBOX_FrequencyGetString(), 2, 127, 3, 8);
 }
@@ -3936,8 +3930,7 @@ void APP_RunSpectrum(void) {
     for (;;) {
         SpectrumMonitor = 0;
         LoadMonitorFrequencies ();
-        if (!Key_1_pressed ) LoadSettings();
-        Key_1_pressed = 0;
+        LoadSettings();
         uint8_t scanlist = LoadActiveScanFrequencies();
         LoadActiveBands();
         if(Spectrum_state == CHANNEL_MODE && (!validChannelsCount || !scanlist)) {
