@@ -631,9 +631,9 @@ void UI_DisplayMain(void)
         char str[19];
         if (isMR) {
             if (gEeprom.SCRAMBLING_TYPE)
-                sprintf(str, "CHANNEL SCR %d", gEeprom.SCRAMBLING_TYPE);
+                sprintf(str, "CHA S%d", gEeprom.SCRAMBLING_TYPE);
             else
-                sprintf(str, "CHANNEL");
+                sprintf(str, "CHA");
 
             UI_PrintStringSmallBold(str, 0, 0, 0);
 
@@ -645,9 +645,9 @@ void UI_DisplayMain(void)
             }
         } else {
             if (gEeprom.SCRAMBLING_TYPE)
-                sprintf(str, "FREQUENCY SCR %d", gEeprom.SCRAMBLING_TYPE);
+                sprintf(str, "VFO S%d", gEeprom.SCRAMBLING_TYPE);
             else
-                sprintf(str, "FREQUENCY");
+                sprintf(str, "VFO");
             UI_PrintStringSmallBold(str, 0, 0, 0);
             }
 
