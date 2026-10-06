@@ -3028,11 +3028,12 @@ static void OnKeyDownFreqInput(uint8_t key) {
       
     } else if (rangeEntryStep == 2) {
       // Entrée de Stop complétée
-      INPUTBOX_FrequencyBegin();
+      
       RangeStop = INPUTBOX_FrequencyValue();
       if (RangeStop < FMIN || RangeStop > FMAX) {
         RangeStop = FMAX;
       }
+      INPUTBOX_FrequencyBegin();
       if (RangeStart > RangeStop) {
         SWAP(RangeStart, RangeStop);
       }
