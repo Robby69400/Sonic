@@ -6,6 +6,7 @@
 #include "nav_invert.h"
 
 #include "app/action.h"
+#include "app/close_call.h"
 #include "app/app.h"
 #include "app/common.h"
 #ifdef ENABLE_FMRADIO

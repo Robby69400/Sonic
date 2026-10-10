@@ -1485,7 +1485,7 @@ static void CC_Render(void)
         CC_FormatFreq(line, sizeof(line), ccDiscovery[ccDiscoveryView - 1]);
         snprintf(line + strlen(line), sizeof(line) - strlen(line), "  %u/%u",
                  (unsigned)ccDiscoveryView, (unsigned)ccDiscoveryCount);
-        UI_PrintStringSmallNormal(line, 0, 0, 0);
+        UI_PrintStringSmallBold(line, 0, 0, 0);
     } else {
         // "RX NOW" while actually tuned/listening; "SEEN" when we are only
         // showing a detected-but-not-listenable carrier.
@@ -1494,7 +1494,7 @@ static void CC_Render(void)
         else if (ccSeenFreq != 0) st = "SEEN";
         else                     st = "SCANNING";
         snprintf(line, sizeof(line), "%s  %s", presetName, st);
-        UI_PrintStringSmallNormal(line, 0, 0, 0);
+        UI_PrintStringSmallBold(line, 0, 0, 0);
     }
 
     // Live frequency line: only show a frequency that is current. A lock shows
@@ -1522,7 +1522,7 @@ static void CC_Render(void)
                                ccLiveRssi > ccSquelchRssi - CC_VERIFY_MARGIN)
                                   ? "NOISE FLOOR"
                                   : "SCANNING...";
-        UI_PrintStringSmallNormal(waitMsg, 0, 0, 2);
+        UI_PrintStringSmallBold(waitMsg, 0, 0, 2);
     }
 
     // Row 4 replaces the old "MHz" label with the ACTUAL dBm the radio sees
@@ -1537,15 +1537,15 @@ static void CC_Render(void)
     }
     if (shownRssi != 0) {
         snprintf(line, sizeof(line), "%ddBm", (int)((shownRssi >> 1) - 160));
-        UI_PrintStringSmallNormal(line, 0, 0, 4);     // signal strength on row 4
+        UI_PrintStringSmallBold(line, 0, 0, 4);     // signal strength on row 4
     }
 
     // Row 5 shows the live fine-tune readout while a sweep is running (or its
     // last result), otherwise a transient SKIP/BLOCK/LOGGED hint.
     if (ccTuneMsg[0] != '\0') {
-        UI_PrintStringSmallNormal(ccTuneMsg, 0, 0, 5);
+        UI_PrintStringSmallBold(ccTuneMsg, 0, 0, 5);
     } else if (ccHintMs > 0 && ccHintMsg) {
-        UI_PrintStringSmallNormal((char *)ccHintMsg, 0, 0, 5);
+        UI_PrintStringSmallBold((char *)ccHintMsg, 0, 0, 5);
     }
 
     // Row 6 (bottom) always shows the current squelch floor so the user can see
@@ -1555,7 +1555,7 @@ static void CC_Render(void)
     } else {
         snprintf(line, sizeof(line), "SQL %ddBm", (int)ccThresholdDbm);
     }
-    UI_PrintStringSmallNormal(line, 0, 0, 6);
+    UI_PrintStringSmallBold(line, 0, 0, 6);
 
     ST7565_BlitFullScreen();
 }
@@ -1584,7 +1584,7 @@ static void CC_RenderMenu(void)
             UI_PrintStringSmallBold(line, 0, 0, (uint8_t)(row + 1));
         } else {
             snprintf(line, sizeof(line), " %s", ccPresets[p].name);
-            UI_PrintStringSmallNormal(line, 0, 0, (uint8_t)(row + 1));
+            UI_PrintStringSmallBold(line, 0, 0, (uint8_t)(row + 1));
         }
     }
 
@@ -1603,7 +1603,7 @@ static void CC_RenderLog(void)
     UI_PrintStringSmallBold(line, 0, 0, 0);
 
     if (ccLogCount == 0) {
-        UI_PrintStringSmallNormal("NO HITS YET", 0, 0, 3);
+        UI_PrintStringSmallBold("NO HITS YET", 0, 0, 3);
         ST7565_BlitFullScreen();
         return;
     }
@@ -1622,7 +1622,7 @@ static void CC_RenderLog(void)
         CC_FormatFreq(freq, sizeof(freq), e.freq);
         snprintf(line, sizeof(line), "%c%s", (idx == ccLogSel) ? '>' : ' ', freq);
         if (idx == ccLogSel) UI_PrintStringSmallBold(line, 0, 0, (uint8_t)(1 + row * 2));
-        else                 UI_PrintStringSmallNormal(line, 0, 0, (uint8_t)(1 + row * 2));
+        else                 UI_PrintStringSmallBold(line, 0, 0, (uint8_t)(1 + row * 2));
 
         char tone[8];
         CC_ToneText(tone, sizeof(tone), e.toneType, e.toneCode);
@@ -1633,7 +1633,7 @@ static void CC_RenderLog(void)
         } else {
             snprintf(line, sizeof(line), " TX %s", tb);
         }
-        UI_PrintStringSmallNormal(line, 0, 0, (uint8_t)(2 + row * 2));
+        UI_PrintStringSmallBold(line, 0, 0, (uint8_t)(2 + row * 2));
     }
 
     ST7565_BlitFullScreen();

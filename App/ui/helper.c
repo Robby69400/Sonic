@@ -83,6 +83,14 @@ void UI_PrintString(const char *pString, uint8_t Start, uint8_t End, uint8_t Lin
     }
 }
 
+void UI_PrintStringRight(const char *pString, uint8_t Right, uint8_t Line)
+{
+    uint8_t Length = strlen(pString);
+    uint16_t text_width = (uint16_t)Length * 8;
+    uint8_t Start = (text_width <= Right) ? (uint8_t)(Right - text_width) : 0;
+    UI_PrintString(pString, Start, Start, Line, 8);
+}
+
 void UI_PrintStringSmall(const char *pString, uint8_t Start, uint8_t End, uint8_t Line, uint8_t char_width, const uint8_t *font)
 {
     const size_t Length = strlen(pString);
@@ -94,41 +102,6 @@ void UI_PrintStringSmall(const char *pString, uint8_t Start, uint8_t End, uint8_
 
     UI_PrintStringBuffer(pString, gFrameBuffer[Line] + Start, char_width, font);
 }
-
-
-void UI_PrintStringSmallNormal(const char *pString, uint8_t Start, uint8_t End, uint8_t Line)
-{
-    UI_PrintStringSmall(pString, Start, End, Line, ARRAY_SIZE(gFontSmall[0]), (const uint8_t *)gFontSmall);
-}
-
-void UI_PrintStringSmallNormalInverse(const char *pString, uint8_t Start, uint8_t End, uint8_t Line)
-{
-    // First draw the string normally
-    UI_PrintStringSmallNormal(pString, Start, End, Line);
-
-    // Now invert the framebuffer bits for the rendered area
-    uint8_t len = strlen(pString);
-    uint8_t char_width = 7; // small font is typically 6px wide
-
-    uint8_t x_start = Start;
-    uint8_t x_end   = Start + (len * char_width) + 1;
-
-    if (End != 0 && x_end > End)
-        x_end = End;
-
-    //gFrameBuffer[Line][x_start - 2] ^= 0x3E;
-    gFrameBuffer[Line][x_start - 1] ^= 0x7F;
-    //gFrameBuffer[Line][x_start - 1] ^= 0xFF;
-    for (uint8_t x = x_start; x < x_end; x++)
-    {
-        gFrameBuffer[Line][x] ^= 0xFF;
-        gFrameBuffer[Line - 1][x] ^= 0x80;
-    }
-    //gFrameBuffer[Line][x_end + 0] ^= 0xFF;
-    gFrameBuffer[Line][x_end + 0] ^= 0x7F;
-    //gFrameBuffer[Line][x_end + 1] ^= 0x3E;
-}
-
 
 void UI_PrintStringSmallbackground(const char *pString, uint8_t Start, uint8_t End, uint8_t Line, uint8_t background)
 {
@@ -261,11 +234,10 @@ void UI_PrintStringSmallBold(const char *pString, uint8_t Start, uint8_t End, ui
 
 void UI_PrintStringSmallBoldRight(const char *pString, uint8_t End, uint8_t Line)
 {
-    const uint8_t char_width = ARRAY_SIZE(gFontSmallBold[0]);
-    uint8_t text_len = strlen(pString);
-    uint16_t text_pixel_width = (uint16_t)text_len * char_width;
-    uint8_t Start = End - (uint8_t)text_pixel_width;
-    UI_PrintStringSmallBold(pString, Start, End, Line);
+    const uint8_t  char_width = ARRAY_SIZE(gFontSmallBold[0]);
+    const uint16_t width     = (uint16_t)strlen(pString) * (char_width + 1);
+    uint8_t Start = (width < End) ? (uint8_t)(End - width) : 0;
+    UI_PrintStringSmallBold(pString, Start, Start, Line);
 }
 
 void UI_PrintStringSmallBoldCenter(const char *pString, uint8_t center, uint8_t Line)
@@ -336,36 +308,52 @@ void UI_PrintStringSmallBufferBold(const char *pString, uint8_t * buffer)
 
 void UI_DisplayFrequency(const char *string, uint8_t X, uint8_t Y, bool center)
 {
-    const unsigned int char_width  = 13;
-    uint8_t           *pFb0        = gFrameBuffer[Y] + X;
-    uint8_t           *pFb1        = pFb0 + 128;
-    bool               bCanDisplay = false;
+    const unsigned int char_width = 13;
+    uint8_t           *pFb0;
+    uint8_t           *pFb1;
 
-    uint8_t len = strlen(string);
-    for(int i = 0; i < len; i++) {
-        char c = string[i];
-        if(c=='-') c = '9' + 1;
-        if (bCanDisplay || c != ' ')
+    if (center)
+    {
+        // 1. Éliminer les espaces de tête (padding de cadrage, pas d'encre)
+        while (*string == ' ') string++;
+
+        // 2. Largeur réellement rendue : 13 px par chiffre, 3 px par point
+        uint16_t w = 0;
+        for (const char *p = string; *p; p++)
+            w += (*p == '.') ? 3u : (uint16_t)char_width;
+
+        // 3. X qui centre l'ENCRE (glyphe tracé de X+2 à X+w-1) sur 128 px :
+        //    X+2 = 127-(X+w-1)  =>  X = (126 - w) / 2
+        X = (w < 126u) ? (uint8_t)((126u - w) / 2u) : 0u;
+    }
+
+    pFb0 = gFrameBuffer[Y] + X;
+    pFb1 = pFb0 + 128;
+
+    for (const char *p = string; *p; p++)
+    {
+        char c = *p;
+        if (c == '-') c = '9' + 1;
+
+        if (c >= '0' && c <= '9' + 1)
         {
-            bCanDisplay = true;
-            if(c>='0' && c<='9' + 1) {
-                memcpy(pFb0 + 2, gFontBigDigits[c-'0'],                  char_width - 3);
-                memcpy(pFb1 + 2, gFontBigDigits[c-'0'] + char_width - 3, char_width - 3);
-            }
-            else if(c=='.') {
-                *pFb1 = 0x60; pFb0++; pFb1++;
-                *pFb1 = 0x60; pFb0++; pFb1++;
-                *pFb1 = 0x60; pFb0++; pFb1++;
-                continue;
-            }
-
+            memcpy(pFb0 + 2, gFontBigDigits[c - '0'],                  char_width - 3);
+            memcpy(pFb1 + 2, gFontBigDigits[c - '0'] + char_width - 3, char_width - 3);
+            pFb0 += char_width;
+            pFb1 += char_width;
         }
-        else if (center) {
-            pFb0 -= 6;
-            pFb1 -= 6;
+        else if (c == '.')
+        {
+            *pFb1 = 0x60; pFb0++; pFb1++;
+            *pFb1 = 0x60; pFb0++; pFb1++;
+            *pFb1 = 0x60; pFb0++; pFb1++;
         }
-        pFb0 += char_width;
-        pFb1 += char_width;
+        else
+        {
+            // tout autre caractère (espace interne, etc.) : cellule vide
+            pFb0 += char_width;
+            pFb1 += char_width;
+        }
     }
 }
 
@@ -524,85 +512,4 @@ void UI_DisplayClear()
 void UI_StatusClear()
 {
     memset(gStatusLine, 0, sizeof(gStatusLine));
-}
-
-// wide_spacing = true: 6 px
-// wide_spacing = false: 4 px
-void GUI_DisplaySmallestDark(const char *pString, uint8_t x, uint8_t y, bool statusbar, bool wide_spacing)
-{
-    if (!pString || !*pString) return;
-
-    const uint8_t char_height = 6;
-    const uint8_t char_width = wide_spacing ? 6 : 4;
-
-    uint8_t base_x = x;
-    uint8_t end_x = x;
-
-    uint8_t c;
-    const uint8_t *p = (const uint8_t *)pString;
-
-    // Define a local macro to simplify drawing calls
-    #define DRAW_PIXEL(px, py, color) \
-        if (statusbar) PutPixelStatus((px), (py), (color)); \
-        else PutPixel((px), (py), (color))
-
-    while ((c = *p++) != '\0')
-    {
-        if (c < 0x20) {
-            end_x += char_width;
-            continue;
-        }
-
-        c -= 0x20;
-
-        // Top line: changed to WHITE (false) for positive mode
-        if (y > 0)
-        {
-            for (uint8_t dx = 0; dx < char_width; dx++)
-            {
-                DRAW_PIXEL(end_x + dx, y - 1, false);
-            }
-        }
-
-        // Background: changed to WHITE (false)
-        for (uint8_t dy = 0; dy < char_height; dy++)
-        {
-            for (uint8_t dx = 0; dx < char_width; dx++)
-            {
-                DRAW_PIXEL(end_x + dx, y + dy, false);
-            }
-        }
-
-        // Letters: changed to BLACK (true)
-        const uint8_t *glyph = gFont3x5[c];
-        for (uint8_t col = 0; col < 3; col++)
-        {
-            uint8_t pixels = glyph[col];
-            for (uint8_t row = 0; row < 6; row++)
-            {
-                if (pixels & 1)
-                {
-                    uint8_t offset = wide_spacing ? 1 : 0;
-                    DRAW_PIXEL(end_x + col + offset, y + row, true);
-                }
-                pixels >>= 1;
-            }
-        }
-
-        end_x += char_width;
-    }
-
-    // Vertical border lines: changed to WHITE (false) to blend into the new background
-    for (uint8_t dy = 0; dy <= char_height; dy++)
-    {
-        uint8_t line_y = y + dy - 1;
-        if (line_y < 64)
-        {
-            if (base_x >= 2) {DRAW_PIXEL(base_x - 2, line_y, false);}
-            if (base_x >= 1) {DRAW_PIXEL(base_x - 1, line_y, false);}
-            if (end_x < 128) {DRAW_PIXEL(end_x, line_y, false);}
-        }
-    }
-
-    #undef DRAW_PIXEL // Clean up the local macro
 }

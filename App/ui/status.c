@@ -150,7 +150,7 @@ void UI_DisplayStatus()
         sprintf(str, "%u%%", BATTERY_VoltsToPercent(gBatteryVoltageAverage));
     }
     
-    uint8_t battPos = 127 - (strlen(str) * 7);
+    uint8_t battPos = 125 - (strlen(str) * 7);
     UI_PrintStringSmallBufferBold(str, gStatusLine + battPos);
 
     ST7565_BlitStatusLine();

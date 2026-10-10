@@ -171,9 +171,9 @@ static void mb_show_message(const char *line1, const char *line2, const char *li
 {
     UI_DisplayClear();
     mb_status_bar();
-    if (line1) UI_PrintStringSmallNormal(line1, 2, 126, 2);
-    if (line2) UI_PrintStringSmallNormal(line2, 2, 126, 4);
-    if (line3) UI_PrintStringSmallNormal(line3, 2, 126, 6);
+    if (line1) UI_PrintStringSmallBold(line1, 2, 126, 2);
+    if (line2) UI_PrintStringSmallBold(line2, 2, 126, 4);
+    if (line3) UI_PrintStringSmallBold(line3, 2, 126, 6);
     ST7565_BlitStatusLine();
     ST7565_BlitFullScreen();
 #ifdef ENABLE_FEAT_F4HWN_K5VIEWER
@@ -226,9 +226,9 @@ void UI_MultibootShowConfigError(uint8_t err)
 #endif
     UI_DisplayClear();
     UI_StatusClear();
-    UI_PrintStringSmallNormal("CFG ERROR", 2, 126, 2);
-    UI_PrintStringSmallNormal(mb_error_text(err), 2, 126, 4);
-    UI_PrintStringSmallNormal("Press any key", 2, 126, 6);
+    UI_PrintStringSmallBold("CFG ERROR", 2, 126, 2);
+    UI_PrintStringSmallBold(mb_error_text(err), 2, 126, 4);
+    UI_PrintStringSmallBold("Press any key", 2, 126, 6);
     ST7565_BlitStatusLine();
     ST7565_BlitFullScreen();
 #ifdef ENABLE_FEAT_F4HWN_K5VIEWER
@@ -285,8 +285,8 @@ static void mb_render_slots(uint8_t selected,
         else
             mb_copy_label(name, sizeof(name), mb_error_text(status[slot]), 20u);
 
-        UI_PrintStringSmallNormal(index, 2u, 0, fbLine);
-        UI_PrintStringSmallNormal(name, MB_NAME_TEXT_X, 0, fbLine);
+        UI_PrintStringSmallBold(index, 2u, 0, fbLine);
+        UI_PrintStringSmallBold(name, MB_NAME_TEXT_X, 0, fbLine);
         if (version_len)
             GUI_DisplaySmallest(version, version_x,
                                 (uint8_t)(fbLine * 8u + 1u), false, true);
@@ -319,9 +319,9 @@ __attribute__((noinline)) static void mb_prepare_progress_screen(const char *tit
 {
     UI_DisplayClear();
     mb_status_bar();
-    UI_PrintStringSmallNormal(title, 2, 126, 1);
-    UI_PrintStringSmallNormal("DO NOT POWER OFF", 2, 126, 3);
-    UI_PrintStringSmallNormal(detail, 2, 126, 5);
+    UI_PrintStringSmallBold(title, 2, 126, 1);
+    UI_PrintStringSmallBold("DO NOT POWER OFF", 2, 126, 3);
+    UI_PrintStringSmallBold(detail, 2, 126, 5);
     /* Empty gauge that the RAM copier fills as it reflashes. */
     mb_draw_progress_outline();
     ST7565_BlitStatusLine();
@@ -346,8 +346,8 @@ static void mb_backup_prepare(void)
 {
     UI_DisplayClear();
     UI_StatusClear();
-    UI_PrintStringSmallNormal("Init Main", 2, 126, 1);
-    UI_PrintStringSmallNormal("DO NOT POWER OFF", 2, 126, 3);
+    UI_PrintStringSmallBold("Init Main", 2, 126, 1);
+    UI_PrintStringSmallBold("DO NOT POWER OFF", 2, 126, 3);
     mb_draw_progress_outline();
     ST7565_BlitStatusLine();
     ST7565_BlitFullScreen();
@@ -382,7 +382,7 @@ static void mb_confirm_screen(uint8_t slot)
 
     UI_DisplayClear();
     mb_status_bar();
-    UI_PrintStringSmallNormal(title, 2, 126, 3);
+    UI_PrintStringSmallBold(title, 2, 126, 3);
     mb_key_hints("CONFIRM", "BACK");
     ST7565_BlitStatusLine();
     ST7565_BlitFullScreen();

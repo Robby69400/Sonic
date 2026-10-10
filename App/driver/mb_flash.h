@@ -59,7 +59,9 @@
 #define MB_NAME_LEN         16
 #define MB_VERSION_LEN      16
 
-typedef struct __attribute__((packed)) {
+/* Natural word alignment avoids bytewise field accesses. The on-flash layout
+ * is pinned by the size/offset assertions in mb_flash.c. */
+typedef struct {
     uint32_t magic;                    /* MB_SLOT_MAGIC                    */
     uint16_t hdr_version;              /* MB_HDR_VERSION                   */
     uint16_t flags;                    /* MB_FLAG_COMMITTED, ...           */
@@ -81,13 +83,19 @@ enum {
     MB_ERR_SPI,          /* external flash read/write timed out*/
     MB_ERR_SLOT,         /* slot or bank index out of range   */
     MB_ERR_AUTH,         /* write refused: timestamp mismatch */
-    MB_ERR_RAM_LOAD      /* restore stub RAM copy mismatch    */
+    MB_ERR_RAM_LOAD,     /* restore stub RAM copy mismatch    */
+    MB_ERR_PROTECTED     /* write overlaps protected data     */
 };
 
 /* CRC-32 (zlib) over a resident memory buffer.  Multiboot and overlay apps
  * share this implementation; keeping it here avoids carrying two identical
  * bitwise CRC loops in the MCU flash. */
 uint32_t MB_Crc32Bytes(const uint8_t *data, uint32_t len);
+
+#if defined(ENABLE_FEAT_F4HWN_EXT_FLASH_RW) || defined(ENABLE_AIRCOPY_FLASH)
+/* CRC-32 (zlib) over a physical external-flash range. */
+uint8_t MB_ExternalFlashCrc32(uint32_t address, uint32_t length, uint32_t *out_crc);
+#endif
 
 /* Multi-slot API used by the boot selector. Validation always covers the full
  * image CRC before restore. progress_line may point to a 128-byte LCD page; the
@@ -165,7 +173,8 @@ uint8_t MB_SlotWrite(uint8_t slot, uint32_t offset, const uint8_t *data, uint32_
 #define MB_STATE_LEGACY_MAGIC   0x31504D46u     /* "FMP1" (single 8-byte record)    */
 #define MB_STATE_V2_MAGIC       0x32504D46u     /* "FMP2" (slot == config bank)     */
 #define MB_STATE_MAGIC          0x33504D46u     /* "FMP3" (slot + bank separated)   */
-typedef struct __attribute__((packed)) {
+/* Keep this record naturally aligned in RAM, with the same serialized bytes. */
+typedef struct {
     uint32_t magic;         /* MB_STATE_MAGIC                          */
     uint32_t generation;    /* monotonically increasing record version */
     uint32_t image_size;    /* expected internal image size            */
@@ -206,11 +215,10 @@ uint8_t MB_SetActiveSlot(uint8_t slot);
  * Unlike MB_SetActiveSlot (which records that slot's image as the
  * expected identity, for the imminent reflash to that slot), this preserves the
  * running firmware's identity taken from the current marker and changes only the
- * config bank. The next boot therefore maps a different bank with no
- * reflash and is never mistaken for an out-of-multiboot firmware change (which
- * would self-backup + reset to bank 0). Requires a currently valid marker -
- * what every normal boot leaves behind - else MB_ERR_SPI / MB_ERR_MAGIC. The
- * caller resets the MCU afterwards; the new bank takes effect at the next boot. */
+ * config bank. It is therefore never mistaken for an out-of-multiboot firmware
+ * change (which would self-backup + reset to bank 0). Requires a currently valid
+ * marker - what every normal boot leaves behind - else MB_ERR_SPI / MB_ERR_MAGIC.
+ * The caller either resets the MCU or remaps the bank and reloads every setting. */
 uint8_t MB_SetActiveBank(uint8_t bank);
 
 /* Erase a whole config bank (host "Reset config" for a user slot):

@@ -41,6 +41,9 @@
 #define MB_PROGRESS_FIRST_COL     5u
 #define MB_PROGRESS_FILLED      0x2Du
 
+_Static_assert(MB_INT_APP_SIZE == MB_FLASH_PAGE * MB_PROGRESS_COLS * 4u,
+               "restore progress must advance one column every four pages");
+
 /* Number of erase/program retries per page before giving up (and resetting
  * anyway - the region is already erased, so USB recovery is the only option). */
 #define MB_PAGE_RETRIES 3u
@@ -235,8 +238,6 @@ static void MB_RamReflash(uint32_t intAddr, uint32_t extAddr, uint32_t imageSize
     uint32_t remaining = imageSize;
     uint32_t regionRemaining = MB_INT_APP_SIZE;
     uint32_t pagesDone = 0;
-    uint32_t progressAccumulator = 0;
-    uint32_t progressFilled = 0;
     uint32_t lcdEnabled = progressLine != NULL;
 
 
@@ -348,21 +349,13 @@ static void MB_RamReflash(uint32_t intAddr, uint32_t extAddr, uint32_t imageSize
         if (!success)
             goto fatal_reset;
 
-        /* Advance the gauge without division (which could call a helper
-         * in erased flash). Refresh once per 8 KiB internal sector. */
+        /* Exactly four pages per column; shifts keep all arithmetic in RAM.
+         * Refresh once per 8 KiB internal sector. */
         if (lcdEnabled)
         {
             pagesDone++;
-            progressAccumulator += MB_PROGRESS_COLS;
-            while (progressAccumulator >= (MB_INT_APP_SIZE / MB_FLASH_PAGE))
-            {
-                progressAccumulator -= (MB_INT_APP_SIZE / MB_FLASH_PAGE);
-                if (progressFilled < MB_PROGRESS_COLS)
-                {
-                    progressLine[MB_PROGRESS_FIRST_COL + progressFilled] = MB_PROGRESS_FILLED;
-                    progressFilled++;
-                }
-            }
+            if ((pagesDone & 3u) == 0u)
+                progressLine[MB_PROGRESS_FIRST_COL + (pagesDone >> 2) - 1u] = MB_PROGRESS_FILLED;
             if ((pagesDone & 31u) == 0u || regionRemaining == MB_FLASH_PAGE)
                 lcdEnabled = mb_ram_progress_blit(progressLine);
         }
@@ -506,6 +499,23 @@ static uint32_t mb_ext_image_crc32(uint32_t addr, uint32_t len)
 
     return crc ^ 0xFFFFFFFFu;
 }
+
+#if defined(ENABLE_FEAT_F4HWN_EXT_FLASH_RW) || defined(ENABLE_AIRCOPY_FLASH)
+uint8_t MB_ExternalFlashCrc32(uint32_t address, uint32_t length, uint32_t *out_crc)
+{
+    if (out_crc == NULL || length == 0u ||
+        address > PY25Q16_TOTAL_SIZE || length > PY25Q16_TOTAL_SIZE - address)
+        return MB_ERR_SIZE;
+
+    mb_spi_err = 0;
+    const uint32_t crc = mb_ext_image_crc32(address, length);
+    if (mb_spi_err)
+        return MB_ERR_SPI;
+
+    *out_crc = crc;
+    return MB_OK;
+}
+#endif
 
 /* Polled read of `len` bytes from external flash into `buf` (no DMA), matching
  * the technique the RAM copier uses. Sets mb_spi_err on a stuck SPI. */
@@ -783,12 +793,31 @@ uint8_t MB_SlotWrite(uint8_t slot, uint32_t offset, const uint8_t *data, uint32_
 /* All external-flash only, never brick-critical.                             */
 /* -------------------------------------------------------------------------- */
 
-_Static_assert(sizeof(mb_state_t) == 24u,
-               "FMP2/FMP3 marker layout must stay 24 bytes");
-_Static_assert(offsetof(mb_state_t, firmware_slot) == 16u,
-               "FMP2 migration reads the coupled index at byte 16");
-_Static_assert(offsetof(mb_state_t, state_crc32) == 20u,
-               "state CRC must cover the first 20 bytes (magic..bank_inv)");
+/* These records are aligned RAM objects, never casts into wire buffers. Keep
+ * every field offset fixed so existing slots, markers and UART replies agree. */
+_Static_assert(sizeof(mb_slot_header_t) == 64u && _Alignof(mb_slot_header_t) == 4u,
+               "FMB1 header must stay 64 bytes with word alignment");
+_Static_assert(offsetof(mb_slot_header_t, magic) == 0u &&
+               offsetof(mb_slot_header_t, hdr_version) == 4u &&
+               offsetof(mb_slot_header_t, flags) == 6u &&
+               offsetof(mb_slot_header_t, image_size) == 8u &&
+               offsetof(mb_slot_header_t, image_crc32) == 12u &&
+               offsetof(mb_slot_header_t, name) == 16u &&
+               offsetof(mb_slot_header_t, fw_version) == 32u &&
+               offsetof(mb_slot_header_t, reserved) == 48u,
+               "FMB1 header field offsets must not change");
+_Static_assert(sizeof(mb_state_t) == 24u && _Alignof(mb_state_t) == 4u,
+               "FMP2/FMP3 marker must stay 24 bytes with word alignment");
+_Static_assert(offsetof(mb_state_t, magic) == 0u &&
+               offsetof(mb_state_t, generation) == 4u &&
+               offsetof(mb_state_t, image_size) == 8u &&
+               offsetof(mb_state_t, image_crc32) == 12u &&
+               offsetof(mb_state_t, firmware_slot) == 16u &&
+               offsetof(mb_state_t, slot_inv) == 17u &&
+               offsetof(mb_state_t, config_bank) == 18u &&
+               offsetof(mb_state_t, bank_inv) == 19u &&
+               offsetof(mb_state_t, state_crc32) == 20u,
+               "FMP2/FMP3 marker field offsets must not change");
 
 uint32_t MB_Crc32Bytes(const uint8_t *p, uint32_t len)
 {
@@ -836,44 +865,31 @@ static mb_mark_status_t mb_read_state_copy(uint32_t base, mb_state_t *st)
         return MB_MARK_LEGACY;
     }
 
-    if (st->magic == MB_STATE_V2_MAGIC)
-    {
-        /* FMP2 stored one index for both the firmware slot and config bank at
-         * byte 16, followed by its inverse and two zeroed reserved bytes.
-         * Validate the on-flash record before normalizing it in RAM to FMP3. */
-        const uint8_t legacy_index = ((const uint8_t *)st)[16];
-        const uint8_t legacy_inv   = ((const uint8_t *)st)[17];
-        if ((uint8_t)~legacy_inv != legacy_index ||
-            legacy_index >= MB_BANK_COUNT)
-            return MB_MARK_CORRUPT;
-        if (st->image_size == 0u || st->image_size > MB_INT_APP_SIZE)
-            return MB_MARK_CORRUPT;
-        if (MB_Crc32Bytes((const uint8_t *)st,
-                           sizeof(*st) - sizeof(st->state_crc32)) != st->state_crc32)
-            return MB_MARK_CORRUPT;
-
-        st->magic         = MB_STATE_MAGIC;
-        st->firmware_slot = legacy_index;
-        st->slot_inv      = (uint8_t)~legacy_index;
-        st->config_bank   = legacy_index;
-        st->bank_inv      = (uint8_t)~legacy_index;
-        st->state_crc32   = MB_Crc32Bytes((const uint8_t *)st,
-                                           sizeof(*st) - sizeof(st->state_crc32));
-        return MB_MARK_VALID;
-    }
-
-    if (st->magic != MB_STATE_MAGIC)           return MB_MARK_CORRUPT;
+    const bool version2 = st->magic == MB_STATE_V2_MAGIC;
+    if (!version2 && st->magic != MB_STATE_MAGIC) return MB_MARK_CORRUPT;
     if ((uint8_t)~st->slot_inv != st->firmware_slot)
                                                     return MB_MARK_CORRUPT;
-    if (st->firmware_slot >= MB_SLOT_COUNT)       return MB_MARK_CORRUPT;
-    if ((uint8_t)~st->bank_inv != st->config_bank)
+    if (st->firmware_slot >= (version2 ? MB_BANK_COUNT : MB_SLOT_COUNT))
                                                     return MB_MARK_CORRUPT;
-    if (st->config_bank >= MB_BANK_COUNT)      return MB_MARK_CORRUPT;
+    /* FMP2 has no independent bank: bytes 18/19 belong to its original CRC. */
+    if (!version2 && ((uint8_t)~st->bank_inv != st->config_bank ||
+                     st->config_bank >= MB_BANK_COUNT))
+                                                    return MB_MARK_CORRUPT;
     if (st->image_size == 0u ||
         st->image_size > MB_INT_APP_SIZE)         return MB_MARK_CORRUPT;
     if (MB_Crc32Bytes((const uint8_t *)st,
                        sizeof(*st) - sizeof(st->state_crc32)) != st->state_crc32)
                                                     return MB_MARK_CORRUPT;
+
+    if (version2)
+    {
+        /* Normalize only after verifying the original FMP2 record. */
+        st->magic         = MB_STATE_MAGIC;
+        st->config_bank   = st->firmware_slot;
+        st->bank_inv      = st->slot_inv;
+        st->state_crc32   = MB_Crc32Bytes((const uint8_t *)st,
+                                           sizeof(*st) - sizeof(st->state_crc32));
+    }
     return MB_MARK_VALID;
 }
 

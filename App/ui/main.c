@@ -299,7 +299,7 @@ void DisplayRSSIBar(const bool now)
     }
     gSmeterLevel = (int8_t)(s_level + overS9Bars);
     sprintf(str, "%3d", -rssi_dBm);
-    UI_PrintStringSmallNormal(str, LCD_WIDTH + 8, 0, line - 1);
+    UI_PrintStringSmallBold(str, LCD_WIDTH + 8, 0, line - 1);
     DrawLevelBar(bar_x, line, s_level + overS9Bars, 13);
     ST7565_BlitLine(line);
 }
@@ -348,7 +348,7 @@ void UI_MAIN_PrintAGC(bool now)
     int16_t agcGain = lnaShortTab[agcGainReg.lnaS] + lnaTab[agcGainReg.lna] + mixerTab[agcGainReg.mixer] + pgaTab[agcGainReg.pga];
 
     sprintf(buf, "%d%2d %2d %2d %3d", reg7e.agcEnab, reg7e.gainIdx, -agcGain, reg7e.agcSigStrength, BK4819_GetRSSI());
-    UI_PrintStringSmallNormal(buf, 2, 0, 3);
+    UI_PrintStringSmallBold(buf, 2, 0, 3);
     if(now)
         ST7565_BlitLine(3);
 }
@@ -519,38 +519,27 @@ void UI_DisplayMain(void)
                 sprintf(String, "%u", gEeprom.ScreenChannel + 1);
             else
                 sprintf(String, "M%.4s", INPUTBOX_GetAscii());
-            UI_PrintStringSmallBold(String, 0, 0, 2);
-
-/*             const ChannelAttributes_t* att = MR_GetChannelAttributes(gEeprom.ScreenChannel);
-            if (att && att->scanlist > 0 && att->scanlist <= MR_CHANNELS_LIST) {
-                sprintf(String, "%02d", att->scanlist);
-                GUI_DisplaySmallestDark(String, 3, 25, false, false);
-            } */
+            UI_PrintStringSmallBold(String, 0, 0, 1);
 
             if (!inputting) {
                 char dispName[22];
                 SETTINGS_FetchChannelName(dispName, gEeprom.ScreenChannel);
                 if (dispName[0] == 0)
                     sprintf(dispName, "%u.%05u", frequency / 100000, frequency % 100000);
-                UI_PrintString(dispName, 40, 0, 1, 8);
+                UI_PrintStringRight(dispName, 125, 1);
             }
         }
 
         if (INPUTBOX_FrequencyIsActive())
         {
             const char *ascii = INPUTBOX_FrequencyGetString();
-            UI_DisplayFrequency(ascii, 0, 2, false);
+            UI_DisplayFrequency(ascii, 0, 2, 0);
         }
         else
-        {
+        {   
             sprintf(String, "%3u.%05u", frequency / 100000, frequency % 100000);
-            uint8_t small_y    = isMR ? 3 : 2;
-            uint8_t small_x    = 105;
-            UI_PrintString(String + 7, small_x - (strlen(String + 7) * 6 / 2), 0, small_y, 8);
-            String[7] = 0;
-            uint8_t big_y = isMR ? 3 : 2;
-            uint8_t big_x = 40;
-            UI_DisplayFrequency(String, big_x - (strlen(String) * 8 / 2), big_y, false);
+            RemoveTrailZeros(String);
+            UI_DisplayFrequency(String, 64, 3, true);
         }
 
         
@@ -605,7 +594,7 @@ void UI_DisplayMain(void)
             }
         }
         
-        UI_PrintStringSmallBoldRight(scanStepNames[vfoInfo->STEP_SETTING], 124, 6); // PRINT BOTTOM PARAMETERS
+        UI_PrintStringSmallBoldRight(scanStepNames[vfoInfo->STEP_SETTING], 125, 6); // PRINT BOTTOM PARAMETERS
         
         char sqlStr[4];
         sprintf(sqlStr, "S%u", gEeprom.SQUELCH_LEVEL);
@@ -631,7 +620,7 @@ void UI_DisplayMain(void)
         char str[19];
         if (isMR) {
             if (gEeprom.SCRAMBLING_TYPE)
-                sprintf(str, "CHA S%d", gEeprom.SCRAMBLING_TYPE);
+                sprintf(str, "SC%d", gEeprom.SCRAMBLING_TYPE);
             else
                 sprintf(str, "CHA");
 
@@ -641,11 +630,11 @@ void UI_DisplayMain(void)
             if (listAtt && listAtt->scanlist > 0 && listAtt->scanlist <= MR_CHANNELS_LIST)  {
                 char name[13];
                 GetScanListName(listAtt->scanlist-1, name);
-                UI_PrintStringSmallBoldRight(name, 122, 0);
+                UI_PrintStringSmallBoldRight(name, 125, 0);
             }
         } else {
             if (gEeprom.SCRAMBLING_TYPE)
-                sprintf(str, "VFO S%d", gEeprom.SCRAMBLING_TYPE);
+                sprintf(str, "SC%d", gEeprom.SCRAMBLING_TYPE);
             else
                 sprintf(str, "VFO");
             UI_PrintStringSmallBold(str, 0, 0, 0);
@@ -653,9 +642,10 @@ void UI_DisplayMain(void)
 
         // ── TX / RX INDICATOR ────────────────────────────────────────
         if (gCurrentFunction == FUNCTION_TRANSMIT)
-            GUI_DisplaySmallestDark("TX", 2, 25, false, false);
+            UI_PrintStringSmallBold("TX>",0,0,2);
         else if (FUNCTION_IsRx())
-            GUI_DisplaySmallestDark("RX", 2, 25, false, false);
+            UI_PrintStringSmallBold("RX>",0,0,2);
+            
 
         ST7565_BlitFullScreen();
         return;

@@ -43,9 +43,9 @@ void UI_DisplayFM(void)
     else
         UI_PrintStringSmallBold("RX",0,0,LINE);
     if (gFM_ManualMode)
-        UI_PrintStringSmallBoldRight("MA",126,LINE);
+        UI_PrintStringSmallBoldRight("MA",125,LINE);
     else
-        UI_PrintStringSmallBoldRight("AU",126,LINE);
+        UI_PrintStringSmallBoldRight("AU",125,LINE);
     const char *stationName = FM_FindRadioName(gEeprom.FM_FrequencyPlaying);
 
     if (gFmNameDisplay) {

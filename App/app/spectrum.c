@@ -1852,7 +1852,7 @@ static void DrawSpectrumSmooth(void) {
 
 
 
-static void RemoveTrailZeros(char *s) {
+void RemoveTrailZeros(char *s) {
     char *p;
     if (strchr(s, '.')) {
         p = s + strlen(s) - 1;
@@ -2052,6 +2052,7 @@ static void DrawF(uint32_t f) {
     char line1[19] = "";
     char line2[19] = "";
     sprintf(line1, "%s", freqStr);
+    RemoveTrailZeros(line1);
     char prefix[9] = "";
 #ifdef ENABLE_BENCH
     char bench[10];
@@ -2080,17 +2081,7 @@ static void DrawF(uint32_t f) {
     ArrowLine = 2;
     static char Text[20]="";
     DrawNums();
-
-    if(f < 100000000) {
-        UI_PrintStringSmallBold(line1 + 7, 86, 0, 1);
-        line1[7] = 0;
-        UI_DisplayFrequency(line1, 2, 0, 1);
-    } else {
-        UI_PrintStringSmallBold(line1 + 8, 99, 0, 1);
-        line1[8] = 0;
-        UI_DisplayFrequency(line1, 2, 0, 1);
-    }
-     
+    UI_DisplayFrequency(line1, 2, 0, 1);
     GUI_DisplaySmallest(StringCode, 128, 2, false, true);
     switch(SpectrumView) {
             case 1:
@@ -2104,8 +2095,8 @@ static void DrawF(uint32_t f) {
             case 2:
                 {       //SCAN
                 UI_PrintString(line2, 45, 45, 2, 8);
-                if (isListening)    UI_PrintStringSmallNormal("RX>", 0, 0, 2);
-                else                UI_PrintStringSmallNormal("RX", 0, 0, 2);
+                if (isListening)    UI_PrintStringSmallBold("RX>", 0, 0, 2);
+                else                UI_PrintStringSmallBold("RX", 0, 0, 2);
 
                 switch(PttEmission) {
                     case 1://NINJA
@@ -2117,7 +2108,7 @@ static void DrawF(uint32_t f) {
                     } else snprintf(Text, sizeof(Text), "%s",TxChannelName);
                         UI_PrintString(Text, 45, 45, 4, 8);
                         const char *status = last_ptt_state ? "TX>" : "TX";
-                        UI_PrintStringSmallNormal(status, 0, 0, 4);
+                        UI_PrintStringSmallBold(status, 0, 0, 4);
                         if (lastReceivingFreq >= FMIN && lastReceivingFreq <= FMAX) {
                             TxChNum = BOARD_gMR_fetchChannel(lastReceivingFreq);
                             if (TxChNum != 0xFFFF) {
@@ -2144,8 +2135,8 @@ static void DrawF(uint32_t f) {
                             {   // show the TX offset symbol
                                 i = gTxVfo->TX_OFFSET_FREQUENCY_DIRECTION % 3;
                             }
-                        if (last_ptt_state) UI_PrintStringSmallNormal("TX>", 0, 0, 4);
-                        else                UI_PrintStringSmallNormal(dir_list[i], 0, 0, 4);
+                        if (last_ptt_state) UI_PrintStringSmallBold("TX>", 0, 0, 4);
+                        else                UI_PrintStringSmallBold(dir_list[i], 0, 0, 4);
                         break;
                     
                     }
@@ -3480,7 +3471,7 @@ static void DrawMeter(int line) {
     }
     static char Text[8]="";
     sprintf(Text, "%d", Rssi2DBm(scanInfo.rssi));
-    UI_PrintStringSmallNormal(Text, 96, 96, line);
+    UI_PrintStringSmallBold(Text, 96, 96, line);
 }
 
 static void RenderStill() {

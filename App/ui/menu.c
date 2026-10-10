@@ -293,34 +293,7 @@ void UI_DisplayMenu(void)
     const int m = UI_MENU_GetCurrentMenuId();
     UI_DisplayClear();
 
-#ifndef ENABLE_CUSTOM_MENU_LAYOUT
-        // original menu layout
-    for (i = 0; i < 3; i++)
-        if (gMenuCursor > 0 || i > 0)
-            if ((gMenuListCount - 1) != gMenuCursor || i != 2)
-                UI_PrintString(MenuList[gMenuCursor + i - 1].name, 0, 0, i * 2, 8);
 
-    // invert the current menu list item pixels
-    for (i = 0; i < (8 * menu_list_width); i++)
-    {
-        gFrameBuffer[2][i] ^= 0xFF;
-        gFrameBuffer[3][i] ^= 0xFF;
-    }
-
-    // draw vertical separating dotted line
-    for (i = 0; i < 7; i++)
-        gFrameBuffer[i][(8 * menu_list_width) + 1] = 0xAA;
-
-    // draw the little sub-menu triangle marker
-    if (gIsInSubMenu)
-        memcpy(gFrameBuffer[0] + (8 * menu_list_width) + 1, BITMAP_CurrentIndicator, sizeof(BITMAP_CurrentIndicator));
-
-    // draw the menu index number/count
-    sprintf(String, "%2u.%u", 1 + gMenuCursor, gMenuListCount);
-
-    UI_PrintStringSmallNormal(String, 2, 0, 6);
-
-#else
     {   // custom menu layout: 4 visible items, selected at row 2, inverted
         const int menu_index = gMenuCursor;
 
@@ -343,7 +316,7 @@ void UI_DisplayMenu(void)
             if (slot == 2)
                 UI_PrintStringSmallBold(MenuList[ki].name, 0, 0, row);   // selected — bold
             else
-                UI_PrintStringSmallNormal(MenuList[ki].name, 0, 0, row); // others — normal
+                UI_PrintStringSmallBold(MenuList[ki].name, 0, 0, row); // others — normal
         }
 
         // Invert selected row (row 2), left side only
@@ -356,10 +329,9 @@ void UI_DisplayMenu(void)
                    BITMAP_CurrentIndicator, sizeof(BITMAP_CurrentIndicator));
 
         // Index counter at row 6
-        sprintf(String, "%02u/%u", 1 + gMenuCursor, gMenuListCount);
-        UI_PrintStringSmallNormal(String, 6, 0, 6);
+        sprintf(String, "%2u/%u", 1 + gMenuCursor, gMenuListCount);
+        UI_PrintStringSmallBold(String, 6, 0, 6);
     }
-#endif
 
     // **************
 
@@ -791,14 +763,6 @@ void UI_DisplayMenu(void)
                     lines = 7;
             }
 
-            // center vertically'ish
-            /*
-            if (small)
-                y = 3 - ((lines + 0) / 2);  // untested
-            else
-                y = 2 - ((lines + 0) / 2);
-            */
-
             // center vertically in rows 0..5 (row 6 = counter)
             y = (6 - (lines < 6 ? lines : 6)) / 2;
 
@@ -810,10 +774,10 @@ void UI_DisplayMenu(void)
                     BATTERY_VoltsToPercent(gBatteryVoltageAverage)
                 );
 
-                UI_PrintStringSmallNormal(edit, 54, 127, 1);
+                UI_PrintStringSmallBold(edit, 54, 127, 1);
 
                 #ifdef ENABLE_FEAT_F4HWN
-                    UI_PrintStringSmallNormal(Edition, 54, 127, 6);
+                    UI_PrintStringSmallBold(Edition, 54, 127, 6);
                 #endif
 
                 y = 2;
@@ -823,7 +787,7 @@ void UI_DisplayMenu(void)
             for (i = 0; i < len && lines > 0; lines--)
             {
                 if (small)
-                    UI_PrintStringSmallNormal(String + i, menu_item_x1, menu_item_x2, y);
+                    UI_PrintStringSmallBold(String + i, menu_item_x1, menu_item_x2, y);
                 else
                     UI_PrintStringSmallBold(String + i, menu_item_x1, menu_item_x2, y);
 
@@ -869,7 +833,7 @@ void UI_DisplayMenu(void)
         for (uint8_t i = 51; i <= 127; i += 2) {
             UI_DrawLineBuffer(gFrameBuffer, i, 44, i, 44, 1); // Hory X
         }
-    GUI_DisplaySmallestDark(" SONIC TEAM ", 55, 48, false, true);
+    UI_PrintStringSmallBoldRight("SONIC TEAM", 125,6);
 
     ST7565_BlitFullScreen();
 }

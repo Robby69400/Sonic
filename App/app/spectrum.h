@@ -213,6 +213,7 @@ void APP_RunSpectrum(void);
 void APP_RunSpectrumMode(Mode mode); // 0=FREQ, 1=SCANLIST, 2=RANGE, 3=BAND
 void ClearSettings(void);
 void LoadSettings(void);
+void RemoveTrailZeros(char *s);
 extern Mode Spectrum_state;
 
 #endif 
