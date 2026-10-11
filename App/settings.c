@@ -311,10 +311,11 @@ void SETTINGS_FactoryReset(bool bIsAll)
         for (uint32_t addr = 0x000000; addr < 0x00E000; addr += 0x1000) {
             PY25Q16_SectorErase(addr);
         }
+// CHANNEL_LOCATION
 #if defined(ENABLE_10K)
         for (uint32_t addr = 0x14C000; addr < 0x19F6C5; addr += 0x1000) {PY25Q16_SectorErase(addr);}
 #elif defined(ENABLE_4096)
-        for (uint32_t addr = 0x122000; addr < 0x144000; addr += 0x1000) {PY25Q16_SectorErase(addr);}
+        for (uint32_t addr = 0x1DE000; addr < 0x1FE000; addr += 0x1000) {PY25Q16_SectorErase(addr);}
 #endif
     }
     //gSetting_set_inv default OFF

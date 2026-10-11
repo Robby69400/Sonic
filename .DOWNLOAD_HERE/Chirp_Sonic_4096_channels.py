@@ -30,7 +30,7 @@ VALEUR_COMPILER = "ENABLE"
 MEM_FORMAT = """
 // -------------------- CHANNEL_LOCATION
 
-#seekto 0x122000;
+#seekto 0x1DE000;
 struct {
   ul32 freq;
   ul32 offset;
@@ -68,7 +68,7 @@ struct {
 
 // --------------------
 
-#seekto 0x132000;
+#seekto 0x1EE000;
 struct {
 char name[16];
 } channelname[4096];
@@ -76,7 +76,7 @@ char name[16];
 
 // --------------------
 
-#seekto 0x142000;
+#seekto 0x1FE000;
 struct {
   u8 __UNUSED04:3,
      compander:2,
@@ -590,8 +590,8 @@ ROGER_LIST = ["OFF", "MARIO", "BLAST", "R2D2", "ROGER", "AMBUL", "OURO","KLAC","
 RTE_LIST = ["OFF", "100ms", "200ms", "300ms", "400ms",
             "500ms", "600ms", "700ms", "800ms", "900ms", "1000ms"]
 
-MEM_SIZE =      0x144000    # size of all memory CHANNEL_LOCATION
-PROG_SIZE =     0x144001    # size of the memory that we will write (LAST ADDRESS + 1 !!!)
+MEM_SIZE =      0x1FE000    # size of all memory CHANNEL_LOCATION
+PROG_SIZE =     0x1FE001    # size of the memory that we will write (LAST ADDRESS + 1 !!!)
 MEM_BLOCK =     0x80        # largest block of memory that we can reliably write
 CAL_START =     0x00B000    # calibration memory start address
 
@@ -826,9 +826,9 @@ def do_download(radio):
     blocks_to_read = [
         (0x008900, 0x00A170),
         (0x00B000, 0x00B200),
-        (0x122000, 0x122000 + (MR_CHANNELS_MAX * 16)),
-        (0x132000, 0x132000 + (MR_CHANNELS_MAX * 16)),
-        (0x142000, 0x142000 + (MR_CHANNELS_MAX * 2)),
+        (0x1DE000, 0x1DE000 + (MR_CHANNELS_MAX * 16)),
+        (0x1EE000, 0x1EE000 + (MR_CHANNELS_MAX * 16)),
+        (0x1FE000, 0x1FE000 + (MR_CHANNELS_MAX * 2)),
     ]
 
     total_bytes = sum(stop - start for start, stop in blocks_to_read)
@@ -870,9 +870,9 @@ def do_upload(radio):
     # Plages de mémoire à écrire en mode standard CHANNEL_LOCATION
     blocks_to_write = [
         (0x008900, 0x00A170),  # Configs & VFOs
-        (0x122000, 0x122000 + (MR_CHANNELS_MAX * 16)),  # Canaux
-        (0x132000, 0x132000 + (MR_CHANNELS_MAX * 16)),  # Noms
-        (0x142000, 0x142000 + (MR_CHANNELS_MAX * 2)),   # Attributs
+        (0x1DE000, 0x1DE000 + (MR_CHANNELS_MAX * 16)),
+        (0x1EE000, 0x1EE000 + (MR_CHANNELS_MAX * 16)),
+        (0x1FE000, 0x1FE000 + (MR_CHANNELS_MAX * 2)),
     ]
 
     # Ajout du bloc de calibration si l'option est cochée
@@ -932,7 +932,7 @@ class UVK5RadioEgzumer(chirp_common.CloneModeRadio):
     BAUD_RATE = 38400
     NEEDS_COMPAT_SERIAL = False
     FIRMWARE_VERSION = ""
-    MEM_SIZE =      0x144001    # size of all memory CHANNEL_LOCATION
+    MEM_SIZE =      0x1FE001    # size of all memory CHANNEL_LOCATION
 
 # this change to send power level chan in the calibration but under macos it give error
 # bugfix calibration : put in comment next line: upload_calibration = False
