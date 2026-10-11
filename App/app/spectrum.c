@@ -2046,6 +2046,8 @@ static void DrawF(uint32_t f) {
     
     if (!last_ptt_state) {
         snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
+        //if (isListening) snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
+        //else snprintf(freqStr, sizeof(freqStr), "%u.%u", f / 100000, (f % 100000) / 10000);
     } else {
         snprintf(freqStr, sizeof(freqStr), "%u.%05u", gTxVfo->freq_config_TX.Frequency / 100000, gTxVfo->freq_config_TX.Frequency % 100000);
     }
@@ -2081,7 +2083,17 @@ static void DrawF(uint32_t f) {
     ArrowLine = 2;
     static char Text[20]="";
     DrawNums();
-    UI_DisplayFrequency(line1, 2, 0, 1);
+    if(f < 100000000) {
+          UI_PrintStringSmallBold(line1 + 7, 86, 0, 1);
+          line1[7] = 0;
+          UI_DisplayFrequency(line1, 2, 0, 0);
+      } else {
+          UI_PrintStringSmallBold(line1 + 8, 99, 0, 1);
+          line1[8] = 0;
+          UI_DisplayFrequency(line1, 2, 0, 0);
+      }
+
+    UI_DisplayFrequency(line1, 2, 0, 0);
     GUI_DisplaySmallest(StringCode, 128, 2, false, true);
     switch(SpectrumView) {
             case 1:
@@ -3479,7 +3491,7 @@ static void RenderStill() {
   //if (SpectrumMonitor) FormatFrequency(HFreqs[historyListIndex], freqStr, sizeof(freqStr));
   //else
   FormatFrequency(stillFreq, freqStr, sizeof(freqStr));
-  UI_DisplayFrequency(freqStr, 0, 0, 0);
+  UI_DisplayFrequency(freqStr, 0, 0, 1);
   DrawMeter(2);
   sLevelAttributes sLevelAtt;
   sLevelAtt = GetSLevelAttributes(scanInfo.rssi, stillFreq);
@@ -3841,13 +3853,6 @@ static void Tick() {
             BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, Toggle);
             BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, Toggle);
         }
-        /* toggleFilter = !toggleFilter;
-        if (toggleFilter && CloseCallActive) {
-            BK4819_PickRXFilterPathBasedOnFrequency(10000000);
-        } else {
-            BK4819_PickRXFilterPathBasedOnFrequency(40000000);
-        } */
-    
     }
 
     if (SPECTRUM_PAUSED && (SpectrumPauseCount == 0)) {
@@ -4058,6 +4063,7 @@ typedef struct {
     uint16_t UOO_trigger;
     uint8_t osdPopupIndex;
     uint8_t Spectrum_state;
+    uint8_t SpectrumView;
     uint8_t gSetting_set_audio_am;
     uint16_t TxChannel;
     bool Backlight_On;
@@ -4124,6 +4130,7 @@ void LoadSettings()
     TxChannel = eepromData.TxChannel;   
     gSetting_set_audio_am = eepromData.gSetting_set_audio_am;
     FastSpeed = eepromData.FastSpeed;
+    SpectrumView = eepromData.SpectrumView;
     #ifdef ENABLE_SAVE_REGISTERS
         BK4819_WriteRegister(BK4819_REG_40, eepromData.R40);
         BK4819_WriteRegister(BK4819_REG_29, eepromData.R29);
@@ -4151,26 +4158,27 @@ static void SaveSettings()
     for (int i = 0; i < MR_CHANNELS_LIST; i++) {
       if (settings.scanListEnabled[i]) eepromData.scanListFlags |= (1 << i);
     }
-    eepromData.Trigger = settings.rssiTriggerLevelUp;
-    eepromData.listenBw = settings.listenBw;
-    eepromData.RangeStart = RangeStart;
-    eepromData.RangeStop =  RangeStop;
-    eepromData.PttEmission = PttEmission;
-    eepromData.scanStepIndex = settings.scanStepIndex;
-    eepromData.ShowLines = ShowLines;
-    eepromData.SpectrumDelay = SpectrumDelay;
-    eepromData.IndexMaxLT = IndexMaxLT;
-    eepromData.IndexPS = IndexPS;
-    eepromData.Backlight_On = Backlight_On;
-    eepromData.Noislvl_OFF = Noislvl_OFF;
-    eepromData.UOO_trigger = UOO_trigger;
-    eepromData.osdPopupIndex = osdPopupIndex;
-    eepromData.Spectrum_state = Spectrum_state;    
-    eepromData.SoundBoost = SoundBoost;
-    eepromData.gMonitorScan = gMonitorScan;
-    eepromData.TxChannel = TxChannel;
-    eepromData.gSetting_set_audio_am = gSetting_set_audio_am;
-    eepromData.FastSpeed = FastSpeed;
+    eepromData.Trigger =                settings.rssiTriggerLevelUp;
+    eepromData.listenBw =               settings.listenBw;
+    eepromData.RangeStart =             RangeStart;
+    eepromData.RangeStop =              RangeStop;
+    eepromData.PttEmission =            PttEmission;
+    eepromData.scanStepIndex =          settings.scanStepIndex;
+    eepromData.ShowLines =              ShowLines;
+    eepromData.SpectrumDelay =          SpectrumDelay;
+    eepromData.IndexMaxLT =             IndexMaxLT;
+    eepromData.IndexPS =                IndexPS;
+    eepromData.Backlight_On =           Backlight_On;
+    eepromData.Noislvl_OFF =            Noislvl_OFF;
+    eepromData.UOO_trigger =            UOO_trigger;
+    eepromData.osdPopupIndex =          osdPopupIndex;
+    eepromData.Spectrum_state =         Spectrum_state;    
+    eepromData.SoundBoost =             SoundBoost;
+    eepromData.gMonitorScan =           gMonitorScan;
+    eepromData.TxChannel =              TxChannel;
+    eepromData.gSetting_set_audio_am =  gSetting_set_audio_am;
+    eepromData.FastSpeed =              FastSpeed;
+    eepromData.SpectrumView =           SpectrumView;
   
     for (int i = 0; i < MAX_BANDS; i++) { 
       if (settings.bandEnabled[i]) {
@@ -4265,6 +4273,7 @@ void ClearSettings()
     FastSpeed = 0;
     settings.bandEnabled[0] = 1;
     gSetting_set_audio_am = 1;
+    SpectrumView = 1;
     for (uint8_t i = 1; i < MAX_BANDS; i++) {settings.bandEnabled[i] = 0;}
     
     #ifdef ENABLE_SAVE_REGISTERS
