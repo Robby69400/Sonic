@@ -571,11 +571,7 @@ void UI_DisplayMain(void)
 
         // ── PTT TOGGLE ────────────────────────────────────────────────
         if (gSetting_set_ptt_session) {
-            uint8_t x_mr = 4, y_mr = 3;
-            uint8_t x_vfo = 4, y_vfo = 1;
-            uint8_t x = isMR ? x_mr : x_vfo;
-            uint8_t y = isMR ? y_mr : y_vfo;
-            UI_PrintStringSmallBold("T", LCD_WIDTH + x, 0, y);
+            UI_PrintStringSmallBold("T", 0, 0, 2);
         }
 
             const char *pwr_base[] = {"Low","Med","High"}; // index 0 (X) → show "L" as base
@@ -642,9 +638,9 @@ void UI_DisplayMain(void)
 
         // ── TX / RX INDICATOR ────────────────────────────────────────
         if (gCurrentFunction == FUNCTION_TRANSMIT)
-            UI_PrintStringSmallBold("TX>",0,0,2);
+            UI_PrintStringSmallBold("TX>",10,0,2);
         else if (FUNCTION_IsRx())
-            UI_PrintStringSmallBold("RX>",0,0,2);
+            UI_PrintStringSmallBold("RX>",10,0,2);
             
 
         ST7565_BlitFullScreen();

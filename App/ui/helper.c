@@ -253,42 +253,6 @@ void UI_PrintStringSmallBoldCenter(const char *pString, uint8_t center, uint8_t 
     UI_PrintStringSmallBold(pString, Start, End, Line);
 }
 
-// Inverted bold font: draw first, then XOR
-void UI_PrintStringSmallBoldInverse(const char *pString, uint8_t Start, uint8_t End, uint8_t Line)
-{
-    if (pString == NULL) return;
-    if (Line >= ARRAY_SIZE(gFrameBuffer)) return;
-
-    // First draw the bold text normally
-    UI_PrintStringSmallBold(pString, Start, End, Line);
-
-    // Calculate the text width
-    const uint8_t char_width = ARRAY_SIZE(gFontSmallBold[0]);
-    const size_t  Length     = strlen(pString);
-    size_t        text_width = 0;
-    for (size_t i = 0; i < Length; i++) {
-        char c = pString[i];
-        if (c > ' ') {
-            unsigned int idx = (unsigned int)c - ' ' - 1;
-            if (idx < ARRAY_SIZE(gFontSmallBold)) {
-                unsigned int w = char_width;
-                while (w > 0 && gFontSmallBold[idx][w-1] == 0) w--;
-                text_width += w + (i + 1 < Length ? 1 : 0);
-            }
-        } else {
-            text_width += 4;
-        }
-    }
-
-    uint8_t x_start = Start;
-    uint8_t x_end   = (uint8_t)((size_t)x_start + text_width);
-    if (x_end >= LCD_WIDTH) x_end = LCD_WIDTH - 1;
-
-    // XOR the entire line to invert the drawn text
-    for (uint8_t x = x_start; x <= x_end; x++)
-        gFrameBuffer[Line][x] ^= 0xFF;
-}
-
 void UI_PrintStringSmallBufferNormal(const char *pString, uint8_t * buffer)
 {
     UI_PrintStringBuffer(pString, buffer, ARRAY_SIZE(gFontSmall[0]), (uint8_t *)gFontSmall);
