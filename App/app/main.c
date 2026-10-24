@@ -6,7 +6,6 @@
 #include "nav_invert.h"
 
 #include "app/action.h"
-#include "app/close_call.h"
 #include "app/app.h"
 #include "app/common.h"
 #ifdef ENABLE_FMRADIO
@@ -224,11 +223,6 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             break;
 
         case KEY_9:
-#ifdef ENABLE_CLOSE_CALL
-            APP_RunCloseCall();
-            gRequestDisplayScreen = DISPLAY_MAIN;
-            break;
-#endif
         case KEY_UP:
         case KEY_DOWN:
             break;

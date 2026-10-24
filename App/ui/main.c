@@ -565,7 +565,7 @@ void UI_DisplayMain(void)
                     break;
             }
             if (s[0] != '\0') {
-                UI_PrintStringSmallBoldCenter(s, 43, 6); // PRINT BOTTOM PARAMETERS
+                UI_PrintStringSmallBoldCenter(s, 47, 6); // PRINT BOTTOM PARAMETERS
             }
         }
 
@@ -575,7 +575,7 @@ void UI_DisplayMain(void)
         }
 
             const char *pwr_base[] = {"Low","Med","High"}; // index 0 (X) → show "L" as base
-            UI_PrintStringSmallBoldCenter(pwr_base[vfoInfo->OUTPUT_POWER], 75, 6); // PRINT BOTTOM PARAMETERS
+            UI_PrintStringSmallBoldCenter(pwr_base[vfoInfo->OUTPUT_POWER], 79, 6); // PRINT BOTTOM PARAMETERS
 
         if (vfoInfo->freq_config_RX.Frequency != vfoInfo->freq_config_TX.Frequency)
         {
@@ -593,12 +593,12 @@ void UI_DisplayMain(void)
         UI_PrintStringSmallBoldRight(scanStepNames[vfoInfo->STEP_SETTING], 125, 6); // PRINT BOTTOM PARAMETERS
         
         char sqlStr[4];
-        sprintf(sqlStr, "S%u", gEeprom.SQUELCH_LEVEL);
+        sprintf(sqlStr, "SQ%u", gEeprom.SQUELCH_LEVEL);
         UI_PrintStringSmallBold(sqlStr, 0, 0, 6); // PRINT BOTTOM PARAMETERS
         
         const char *bwNames[] = {"W", "N"};
         const char *bw = bwNames[vfoInfo->CHANNEL_BANDWIDTH & 1];
-        UI_PrintStringSmallBoldCenter(bw, 23, 6); // PRINT BOTTOM PARAMETERS
+        UI_PrintStringSmallBoldCenter(bw, 27, 6); // PRINT BOTTOM PARAMETERS
         
         enum VfoState_t state = VfoState[vfo_num];
         if (state != VFO_STATE_NORMAL) {

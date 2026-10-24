@@ -1445,7 +1445,31 @@ static void ResetBenchStats(void) {
 }
 #endif
 
+static void CC_SetMaxGain(void)
+{
+    uint16_t regVal = BK4819_ReadRegister(BK4819_REG_7E);
+    regVal |= (1u << 15);           // 1 = AGC fix (manual) mode
+    regVal &= ~(0b111u << 12);      // clear gain index
+    regVal |= (3u << 12);           // 3 = gain-table index 3 (REG_13)
+    BK4819_WriteRegister(BK4819_REG_7E, regVal);
+    BK4819_WriteRegister(BK4819_REG_10, 0x03FF); // max gain tables (all fields 0 dB)
+    BK4819_WriteRegister(BK4819_REG_11, 0x03FF);
+    BK4819_WriteRegister(BK4819_REG_12, 0x03FF);
+    BK4819_WriteRegister(BK4819_REG_13, 0x03FF);
+}
+
+static void CC_RestoreGain(void)
+{
+    BK4819_WriteRegister(BK4819_REG_7E, 0x303E);
+    BK4819_WriteRegister(BK4819_REG_10, 0x0318);
+    BK4819_WriteRegister(BK4819_REG_11, 0x033A);
+    BK4819_WriteRegister(BK4819_REG_12, 0x03DB);
+    BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
+}
+
 void CloseCall(void){
+    CC_SetMaxGain();
+    BK4819_EnableFrequencyScan();
     SPECTRUM_PAUSED = true;
     BK4819_PickRXFilterPathBasedOnFrequency(0xFFFFFFFF);
     ShowOSDPopup("CLOSE CALL");
@@ -1459,7 +1483,6 @@ void SCANNER_CustomScanFrequency(void)
     static uint32_t resultFreq = 0;
     static uint32_t lastFreq = 0;
     SPECTRUM_PAUSED = true;
-    //static char str[19];
     SpectrumPauseCount = 2000;
     if (BK4819_GetFrequencyScanResult(&resultFreq)) {
         resultFreq = ((resultFreq + 12) / 25) * 25;
@@ -1470,18 +1493,15 @@ void SCANNER_CustomScanFrequency(void)
         BK4819_SetFrequencyScan(false);
         if (hitCount >= 2) {
             const uint32_t fundamental = resultFreq / 2;
-            //BK4819_PickRXFilterPathBasedOnFrequency(fundamental);
             BK4819_SetFrequency(fundamental);
             SYSTICK_DelayUs(25000);
             uint16_t rssiFundamental = BK4819_GetRSSI();
-            //BK4819_PickRXFilterPathBasedOnFrequency(resultFreq);
             BK4819_SetFrequency(resultFreq);
             SYSTICK_DelayUs(25000);
             uint16_t rssiHarmonic = BK4819_GetRSSI();
             if (rssiFundamental > rssiHarmonic) {resultFreq = fundamental;}
             peak.f = resultFreq;
             FillfreqHistory();
-            //sprintf(str,"F%u H%u",rssiFundamental,rssiHarmonic);ShowOSDPopup(str);
             hitCount = 0;
         }
         BK4819_SetFrequencyScan(true);
@@ -2951,6 +2971,7 @@ static void HandleKeySpectrum(uint8_t key) {
             SpectrumMonitor     = prevSpectrumMonitor;
             SetF(scanInfo.f);
             CloseCallActive = 0;
+            CC_RestoreGain();
             BK4819_SetFrequencyScan(false);
             SPECTRUM_PAUSED = false;
             StringCode[0] = '\0'; //Erase code
