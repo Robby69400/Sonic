@@ -1286,7 +1286,7 @@ void BK4819_EnableFrequencyScan(void)
     //         0 = disable
     //
     BK4819_WriteRegister(BK4819_REG_32, // 0x0245);   // 00 0000100100010 1
-        (  3u << 14) |          // 0 frequency scan time
+        (  0u << 14) |          // 0 frequency scan time
         (290u <<  1) |          // ???
         (  1u <<  0));          // 1 frequency scan enable
 }
