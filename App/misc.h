@@ -139,10 +139,6 @@ extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     #endif
     extern int8_t dBmCorrTable[7];
 #endif
-
-#ifdef ENABLE_AUDIO_BAR
-    extern bool              gSetting_mic_bar;
-#endif
 extern uint8_t               gSetting_battery_text;
 
 extern bool                  gMonitor;

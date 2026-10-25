@@ -62,9 +62,6 @@ enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     int8_t dBmCorrTable[7] = {-15, -25, -20, -4, -7, -6, -1}; // KA52 calibration
 #endif
 
-#ifdef ENABLE_AUDIO_BAR
-    bool          gSetting_mic_bar;
-#endif
 uint8_t           gSetting_battery_text;
 bool              gMonitor = false;           // true opens the squelch
 uint32_t          gCustomAesKey[4];

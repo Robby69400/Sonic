@@ -197,9 +197,6 @@ void SETTINGS_InitEEPROM(void)
     PY25Q16_ReadBuffer(0x00A150, Data, 8);
     gSetting_F_LOCK            = (Data[0] < F_LOCK_LEN) ? Data[0] : F_LOCK_136_500;
     gSetting_battery_text      = (((Data[7] >> 2) & 3u) <= 2) ? (Data[7] >> 2) & 3 : 2; // default PERCENT
-    #ifdef ENABLE_AUDIO_BAR
-        gSetting_mic_bar       = !!(Data[7] & (1u << 4));
-    #endif
     gSetting_backlight_on_tx_rx = (Data[7] >> 6) & 3u;
 
     // ======================================================================
@@ -612,16 +609,12 @@ void SETTINGS_SaveSettings(void)
     memset(SecBuf, 0xFF, 8);
 
     State = SecBuf;
-    State[0]  = gSetting_F_LOCK;
     
     // Preserve upper bits, update battery text (bits 2-3)
     PY25Q16_ReadBuffer(0x00A150, SecBuf, 8);
+    State[0]  = gSetting_F_LOCK;
     State[7] = SecBuf[7];
     State[7] = (State[7] & ~(3u << 2)) | ((gSetting_battery_text & 3u) << 2);
-    #ifdef ENABLE_AUDIO_BAR
-        if (!gSetting_mic_bar)
-            State[7] &= ~(1u << 4);
-    #endif
     State[7] = (State[7] & ~(3u << 6)) | ((gSetting_backlight_on_tx_rx & 3u) << 6);
 
     PY25Q16_WriteBuffer(0x00A150, SecBuf, 8, false);

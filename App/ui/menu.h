@@ -74,7 +74,6 @@ enum
     MENU_SET_INV,
     MENU_BTN_INV,
     MENU_SET_LCK,
-    MENU_SET_MET,
     #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER    
     MENU_SET_TMR,
     #endif
@@ -102,7 +101,6 @@ extern const char        gSubMenu_TOT[11][7];
 #ifdef ENABLE_FEAT_F4HWN
     extern const char    gSubMenu_SET_TOT[4][7];
     extern const char    gSubMenu_SET_LCK[2][9];
-    extern const char    gSubMenu_SET_MET[3][8];
     #ifdef ENABLE_FEAT_F4HWN_NARROWER
         extern const char    gSubMenu_SET_NFM[2][9];
     #endif

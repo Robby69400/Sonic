@@ -128,8 +128,6 @@ static void DrawLevelBar(uint8_t xpos, uint8_t line, uint8_t level, uint8_t bars
 
 void UI_DisplayAudioBar(void)
 {
-    if (!gSetting_mic_bar)
-        return;
     if (gLowBattery && !gLowBatteryConfirmed)
         return;
     if (gCurrentFunction != FUNCTION_TRANSMIT || gScreenToDisplay != DISPLAY_MAIN

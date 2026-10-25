@@ -83,7 +83,6 @@ const t_menu_item MenuList[] =
     {"BtnInv",      MENU_BTN_INV       },
     {"SetLck",      MENU_SET_LCK       },
     {"BatTxt",      MENU_BAT_TXT       },
-    {"MicBar",      MENU_SET_MET       },
     #ifdef ENABLE_FEAT_F4HWN_RX_TX_TIMER
     {"SetTmr",      MENU_SET_TMR       },
     {"SetRxA",      MENU_SET_AUD       },
@@ -701,10 +700,6 @@ void UI_DisplayMenu(void)
       */
         case MENU_SET_LCK:
             strcpy(String, gSubMenu_SET_LCK[gSubMenuSelection]);
-            break;
-
-        case MENU_SET_MET:
-            strcpy(String, gSubMenu_OFF_ON[gSubMenuSelection]);   
             break;
 
         case MENU_SET_AUD:
