@@ -124,6 +124,12 @@ enable_feature(ENABLE_FLASHLIGHT
     app/flashlight.c
 )
 
+# ---- CLOSE CALL (PTT opens Close Call) ----
+set(ENABLE_CLOSE_CALL TRUE)
+enable_feature(ENABLE_CLOSE_CALL
+    app/close_call.c
+)
+
 # ---- CUSTOM MODS ----
 
 # Spectrum + mem_stats required for Robzyl 999-channel spectrum
