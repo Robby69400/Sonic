@@ -131,7 +131,6 @@ static const int osdPopupTimes[] = {0, 500, 1000, 3000, 5000, 10000};
 #endif
 
 bool FastSpeed = false;
-bool CloseCallActive = 0;
 bool Cleared = 0;
 static bool SettingsLoaded = false;
 uint8_t  gKeylockCountdown = 0;
@@ -1444,69 +1443,6 @@ static void ResetBenchStats(void) {
     benchLastLapMs = 0;
 }
 #endif
-
-static void CC_SetMaxGain(void)
-{
-    uint16_t regVal = BK4819_ReadRegister(BK4819_REG_7E);
-    regVal |= (1u << 15);           // 1 = AGC fix (manual) mode
-    regVal &= ~(0b111u << 12);      // clear gain index
-    regVal |= (3u << 12);           // 3 = gain-table index 3 (REG_13)
-    BK4819_WriteRegister(BK4819_REG_7E, regVal);
-    BK4819_WriteRegister(BK4819_REG_10, 0x03FF); // max gain tables (all fields 0 dB)
-    BK4819_WriteRegister(BK4819_REG_11, 0x03FF);
-    BK4819_WriteRegister(BK4819_REG_12, 0x03FF);
-    BK4819_WriteRegister(BK4819_REG_13, 0x03FF);
-}
-
-static void CC_RestoreGain(void)
-{
-    BK4819_WriteRegister(BK4819_REG_7E, 0x303E);
-    BK4819_WriteRegister(BK4819_REG_10, 0x0318);
-    BK4819_WriteRegister(BK4819_REG_11, 0x033A);
-    BK4819_WriteRegister(BK4819_REG_12, 0x03DB);
-    BK4819_WriteRegister(BK4819_REG_13, 0x03DF);
-}
-
-void CloseCall(void){
-    CC_SetMaxGain();
-    BK4819_EnableFrequencyScan();
-    SPECTRUM_PAUSED = true;
-    BK4819_PickRXFilterPathBasedOnFrequency(0xFFFFFFFF);
-    ShowOSDPopup("CLOSE CALL");
-    BK4819_SetFrequencyScan(true);
-    CloseCallActive = 1;
-}
-
-void SCANNER_CustomScanFrequency(void)
-{
-    static uint8_t  hitCount = 0;
-    static uint32_t resultFreq = 0;
-    static uint32_t lastFreq = 0;
-    SPECTRUM_PAUSED = true;
-    SpectrumPauseCount = 2000;
-    if (BK4819_GetFrequencyScanResult(&resultFreq)) {
-        resultFreq = ((resultFreq + 12) / 25) * 25;
-        int32_t delta = (int32_t)resultFreq - (int32_t)lastFreq;
-        if (delta < 0) { delta = -delta; }
-        if (delta < 100) {hitCount++;} else {hitCount = 0;}
-        lastFreq = resultFreq;
-        BK4819_SetFrequencyScan(false);
-        if (hitCount >= 2) {
-            const uint32_t fundamental = resultFreq / 2;
-            BK4819_SetFrequency(fundamental);
-            SYSTICK_DelayUs(25000);
-            uint16_t rssiFundamental = BK4819_GetRSSI();
-            BK4819_SetFrequency(resultFreq);
-            SYSTICK_DelayUs(25000);
-            uint16_t rssiHarmonic = BK4819_GetRSSI();
-            if (rssiFundamental > rssiHarmonic) {resultFreq = fundamental;}
-            peak.f = resultFreq;
-            FillfreqHistory();
-            hitCount = 0;
-        }
-        BK4819_SetFrequencyScan(true);
-    }
-}
 
 static void ResetScanStats() {
   scanInfo.rssiMax = scanInfo.rssiMin + 20 ; 
@@ -2915,8 +2851,7 @@ static void HandleKeySpectrum(uint8_t key) {
                 break;
   
     case KEY_6: // next mode
-        if (historyListActive) {CloseCall();}
-            else NextAppMode();
+        NextAppMode();
         break;
     case KEY_SIDE1:
         if (SPECTRUM_PAUSED) return;
@@ -2970,9 +2905,6 @@ static void HandleKeySpectrum(uint8_t key) {
             historyListActive   = false;
             SpectrumMonitor     = prevSpectrumMonitor;
             SetF(scanInfo.f);
-            CloseCallActive = 0;
-            CC_RestoreGain();
-            BK4819_SetFrequencyScan(false);
             SPECTRUM_PAUSED = false;
             StringCode[0] = '\0'; //Erase code
             SetState(SPECTRUM);
@@ -3833,7 +3765,6 @@ static void Tick() {
         gNextTimeslice_10ms = 0;
         HandleUserInput();
         BACKLIGHT_Update();
-        if (CloseCallActive) SCANNER_CustomScanFrequency();
         if (osdPopupTimer) {
             osdPopupTimer -= 20; 
             UI_DisplayPopup(osdPopupText);
@@ -3858,7 +3789,6 @@ static void Tick() {
     }
     //static bool toggleFilter = 0;
     if (gNextTimeslice_500ms) {
-        static bool Toggle = 0;
         gNextTimeslice_500ms = false;
         if (gBacklightCountdown_500ms > 0) --gBacklightCountdown_500ms;
         if (gEeprom.BACKLIGHT_TIME <61 && gBacklightCountdown_500ms == 0) {BACKLIGHT_TurnOff();}
@@ -3869,11 +3799,6 @@ static void Tick() {
             gIsKeylocked = true;
 
 	    }
-        if (CloseCallActive && gEeprom.BACKLIGHT_MAX > 5) {
-            Toggle = !Toggle;
-            BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1_RED, Toggle);
-            BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, Toggle);
-        }
     }
 
     if (SPECTRUM_PAUSED && (SpectrumPauseCount == 0)) {

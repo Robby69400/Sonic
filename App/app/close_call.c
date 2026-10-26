@@ -86,8 +86,8 @@ static void CC_SetFrequencyScanGate(uint8_t gate)
 #define CC_RELEASE_MARGIN       6       // dBm below threshold counts as "gone"
 #define CC_SETTLE_US            4000    // re-tune settle before verifying RSSI
 #define CC_SHOWN_TIMEOUT_MS     5000    // blank the shown freq if no fresh hit for this long
-#define CC_MAX_BLOCKED          32      // temporary skip list
-#define CC_MAX_DISCOVERY        48      // newest-first discovery history
+#define CC_MAX_BLOCKED          10      // temporary skip list
+#define CC_MAX_DISCOVERY        20      // newest-first discovery history
 #define CC_CONSISTENT_HITS      1       // capture count required before locking
 #define CC_CONSISTENT_TOL       100     // 100 * 10 Hz = 1 kHz
 #define CC_FM_LO                8750000u// 87.5 MHz (10 Hz units)
@@ -101,7 +101,7 @@ static void CC_SetFrequencyScanGate(uint8_t gate)
 #define CC_KEY_REPEAT_DELAY     15      // 20 ms ticks before UP/DOWN auto-repeat (300 ms)
 #define CC_KEY_REPEAT_INTERVAL  6       // 20 ms ticks between repeats (120 ms)
 #define CC_VERIFY_COOLDOWN_MS   40      // pause after a failed verify before retrying
-    #define CC_VERIFY_MARGIN        20      // REG_67 LSB (0.5 dB each): candidates
+#define CC_VERIFY_MARGIN        20      // REG_67 LSB (0.5 dB each): candidates
                                                 // down to threshold-10 dBm are
                                                 // fine-tuned and judged (user request)
                                         // below the user floor before rejecting
@@ -194,15 +194,15 @@ static inline uint8_t CC_Dbm2Rssi8(int8_t dbm)
 // front-end LNA path (VHF < 28 MHz, UHF otherwise). Presets whose name is
 // marked "spans both" alternate the LNA path on each sweep.
 enum {
-    CC_PRESET_AIR = 0,
+    CC_PRESET_ALL = 0,
+    CC_PRESET_VUHF,
+    CC_PRESET_AIR,
     CC_PRESET_VHF,
     CC_PRESET_2M,
     CC_PRESET_MARINE,
     CC_PRESET_MILAIR,
     CC_PRESET_UHF,
     CC_PRESET_SATCOM,
-    CC_PRESET_VUHF,
-    CC_PRESET_ALL,
     CC_PRESET_10M,
     CC_PRESET_6M,
     CC_PRESET_COUNT
@@ -217,6 +217,8 @@ typedef struct {
 } cc_preset_t;
 
 static const cc_preset_t ccPresets[CC_PRESET_COUNT] = {
+    { 11800000u, 47000000u, 0u,         0u,         "ALL"     },   // 118-470 MHz, alternates VHF/UHF
+    { 11800000u, 17400000u, 40000000u,  47000000u,  "VHF+UHF" },   // 118-174 and 400-470 MHz
     { 11800000u, 13700000u, 0u,         0u,         "AIR"     },   // 118-137 MHz civil air
     { 13700000u, 17400000u, 0u,         0u,         "VHF"     },   // 137-174 MHz VHF
     { 14400000u, 14800000u, 0u,         0u,         "2M"      },   // 144-148 MHz 2m amateur
@@ -224,8 +226,6 @@ static const cc_preset_t ccPresets[CC_PRESET_COUNT] = {
     { 22500000u, 40000000u, 0u,         0u,         "MIL-AIR" },   // 225-400 MHz military air (UHF)
     { 40000000u, 47000000u, 0u,         0u,         "UHF"     },   // 400-470 MHz UHF
     { 24000000u, 27000000u, 0u,         0u,         "SATCOM"  },   // 240-270 MHz SATCOM
-    { 11800000u, 17400000u, 40000000u,  47000000u,  "VHF+UHF" },   // 118-174 and 400-470 MHz
-    { 11800000u, 47000000u, 0u,         0u,         "ALL"     },   // 118-470 MHz, alternates VHF/UHF
     { 28000000u, 29700000u, 0u,         0u,         "10M"     },   // 28.0-29.7 MHz 10m amateur
     { 50000000u, 54000000u, 0u,         0u,         "6M"      },   // 50-54 MHz 6m amateur
 };
@@ -286,7 +286,6 @@ static uint32_t ccBlocked[CC_MAX_BLOCKED];
 static uint8_t  ccBlockedCount = 0;
 
 static uint32_t ccDiscovery[CC_MAX_DISCOVERY];
-static uint16_t ccDiscoveryRssi[CC_MAX_DISCOVERY];  // REG_67 units at capture
 static uint8_t  ccDiscoveryCount = 0;
 static uint8_t  ccDiscoveryView  = 0;   // 0 = live, else 1..count
 
@@ -451,10 +450,8 @@ static void CC_Discover(uint32_t f, uint16_t rssi)
             // Move to front and refresh the RSSI.
             for (uint8_t j = i; j > 0; j--) {
                 ccDiscovery[j]     = ccDiscovery[j - 1];
-                ccDiscoveryRssi[j] = ccDiscoveryRssi[j - 1];
             }
             ccDiscovery[0]     = f;
-            ccDiscoveryRssi[0] = rssi;
             ccDiscoveryView    = 0;
             return;
         }
@@ -462,10 +459,8 @@ static void CC_Discover(uint32_t f, uint16_t rssi)
     if (ccDiscoveryCount < CC_MAX_DISCOVERY) ccDiscoveryCount++;
     for (uint8_t j = ccDiscoveryCount - 1; j > 0; j--) {
         ccDiscovery[j]     = ccDiscovery[j - 1];
-        ccDiscoveryRssi[j] = ccDiscoveryRssi[j - 1];
     }
     ccDiscovery[0]     = f;
-    ccDiscoveryRssi[0] = rssi;
     ccDiscoveryView    = 0;
 }
 
@@ -1528,9 +1523,7 @@ static void CC_Render(void)
     // Row 4 replaces the old "MHz" label with the ACTUAL dBm the radio sees
     // right now (live REG_67 sample; the discovery list keeps its own value).
     uint16_t shownRssi = 0;
-    if (ccDiscoveryView > 0 && ccDiscoveryView <= ccDiscoveryCount) {
-        shownRssi = ccDiscoveryRssi[ccDiscoveryView - 1];
-    } else if (ccLocked) {
+    if (ccLocked) {
         shownRssi = ccRssi;
     } else {
         shownRssi = ccLiveRssi;
