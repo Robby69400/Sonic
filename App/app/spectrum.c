@@ -1891,12 +1891,6 @@ static void DrawStatus() {
     GUI_DisplaySmallest(String, 128, 0, true,true);
 }
 
-// ------------------ Frequency string ------------------
-static void FormatFrequency(uint32_t f, char *buf, size_t buflen) {
-    snprintf(buf, buflen, "%u.%05u", f / 100000, f % 100000);
-
-}
-
 static void ScanProgress_DrawGaugeLine(uint8_t line)
 {
     if (line >= 8) return; 
@@ -2007,10 +2001,23 @@ static void DrawF(uint32_t f) {
     } else {
         snprintf(freqStr, sizeof(freqStr), "%u.%05u", gTxVfo->freq_config_TX.Frequency / 100000, gTxVfo->freq_config_TX.Frequency % 100000);
     }
+
     char line1[19] = "";
     char line2[19] = "";
     sprintf(line1, "%s", freqStr);
     RemoveTrailZeros(line1);
+    
+    if(f < 100000000) {
+          UI_PrintStringSmallBold(line1 + 7, 86, 0, 1);
+          line1[7] = 0;
+    } else {
+          UI_PrintStringSmallBold(line1 + 8, 99, 0, 1);
+          line1[8] = 0;
+    }
+    UI_DisplayFrequency(line1, 2, 0, 0);
+    GUI_DisplaySmallest(StringCode, 128, 2, false, true);
+    if (currentState == STILL) return;
+    DrawNums();
     char prefix[9] = "";
 #ifdef ENABLE_BENCH
     char bench[10];
@@ -2038,19 +2045,7 @@ static void DrawF(uint32_t f) {
 
     ArrowLine = 2;
     static char Text[20]="";
-    DrawNums();
-    if(f < 100000000) {
-          UI_PrintStringSmallBold(line1 + 7, 86, 0, 1);
-          line1[7] = 0;
-          UI_DisplayFrequency(line1, 2, 0, 0);
-      } else {
-          UI_PrintStringSmallBold(line1 + 8, 99, 0, 1);
-          line1[8] = 0;
-          UI_DisplayFrequency(line1, 2, 0, 0);
-      }
 
-    UI_DisplayFrequency(line1, 2, 0, 0);
-    GUI_DisplaySmallest(StringCode, 128, 2, false, true);
     switch(SpectrumView) {
             case 1:
             case 3:
@@ -3071,20 +3066,20 @@ static void OnKeyDownStill(KEY_Code_t key) {
         break;
           
       case KEY_SIDE1: 
-          SpectrumMonitor++;
-    if (SpectrumMonitor > 2) SpectrumMonitor = 0;
+            SpectrumMonitor++;
+            if (SpectrumMonitor > 2) SpectrumMonitor = 0;
 
-    if (SpectrumMonitor == 1) {
-        if (lastReceivingFreq < FMIN || lastReceivingFreq > FMAX) {
-            lastReceivingFreq = (stillFreq >= FMIN) ? stillFreq : scanInfo.f;
-        }
-        peak.f = lastReceivingFreq;
-        scanInfo.f = lastReceivingFreq;
-        SetF(lastReceivingFreq);
-    }
+            if (SpectrumMonitor == 1) {
+                if (lastReceivingFreq < FMIN || lastReceivingFreq > FMAX) {
+                    lastReceivingFreq = (stillFreq >= FMIN) ? stillFreq : scanInfo.f;
+                }
+                peak.f = lastReceivingFreq;
+                scanInfo.f = lastReceivingFreq;
+                SetF(lastReceivingFreq);
+            }
 
-    if (SpectrumMonitor == 2) ToggleRX(1);
-      break;
+            if (SpectrumMonitor == 2) ToggleRX(1);
+            break;
 
       case KEY_PTT:
         SpectrumTransmit();
@@ -3440,11 +3435,7 @@ static void DrawMeter(int line) {
 }
 
 static void RenderStill() {
-  char freqStr[18];
-  //if (SpectrumMonitor) FormatFrequency(HFreqs[historyListIndex], freqStr, sizeof(freqStr));
-  //else
-  FormatFrequency(stillFreq, freqStr, sizeof(freqStr));
-  UI_DisplayFrequency(freqStr, 0, 0, 1);
+  DrawF(stillFreq);
   DrawMeter(2);
   sLevelAttributes sLevelAtt;
   sLevelAtt = GetSLevelAttributes(scanInfo.rssi, stillFreq);
@@ -3618,6 +3609,7 @@ static void HandleUserInput(void) {
             default:
                 break;
         }
+        ST7565_BlitFullScreen();
     }
 }
 

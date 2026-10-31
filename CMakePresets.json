@@ -16,7 +16,7 @@
         "ENABLE_1024": false,
         "ENABLE_4096": false,
         "ENABLE_10K": false,
-        "ENABLE_SAVE_REGISTERS": false,
+        "ENABLE_SAVE_REGISTERS": true,
         "ENABLE_ADVANCED_SPECTRUM": false,
         "ENABLE_PERSIST": false,
         "ENABLE_BENCH": true,
