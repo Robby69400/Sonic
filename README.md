@@ -30,3 +30,17 @@ Build artifacts follow the shared metadata convention
 `f4hwn.<name>.<variant>.v<version>.bin`: Sonic V52b is emitted as
 `usb.V52b.bin` or `rs232.V52b.bin`. UVStudio derives the
 slot name from `<name>` and stores `v<version>` in the slot header.
+
+## POCSAG scan firmware
+
+The normal Sonic spectrum scanner can be replaced at build time with POCSAG
+scan mode:
+
+```powershell
+cmake --preset S1K -DENABLE_POCSAG=ON
+cmake --build --preset S1K
+```
+
+Create a memory scanlist named `POCSAG` and add up to 20 channels to it. The
+firmware scans those channels and runs the POCSAG decoder when it detects a
+carrier. Leave `ENABLE_POCSAG` off for the normal Sonic spectrum scanner.

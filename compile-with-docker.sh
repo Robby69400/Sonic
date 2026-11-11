@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
       CLEAN_BUILD=true
       shift
       ;;
-    S1K|NC4K|S4K|S10K|All)
+    S1K|SPOC|S4K|S10K|All)
       PRESET="$1"
       shift
       ;;
@@ -46,9 +46,9 @@ fi
 # ---------------------------------------------
 # Validate preset name
 # ---------------------------------------------
-if [[ ! "$PRESET" =~ ^(S1K|NC4K|S4K|S10K|All)$ ]]; then
+if [[ ! "$PRESET" =~ ^(S1K|SPOC|S4K|S10K|All)$ ]]; then
   echo "❌ Unknown preset: '$PRESET'"
-  echo "Valid presets are: S1K NC4K S4K S10K All"
+  echo "Valid presets are: S1K SPOC S4K S10K All"
   exit 1
 fi
 
@@ -72,7 +72,7 @@ build_preset() {
   case "$preset" in
     S1K) target="f4hwn.sonic1k.${VERSION_NO}" ;;
     S10K) target="f4hwn.sonic10k.${VERSION_NO}" ;;
-    NC4K) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
+    SPOC) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
     S4K)     target="f4hwn.sonic4k.${VERSION_NO}" ;; # Default value
   esac
   echo -e "\n 🚀 Building: ${preset}"
@@ -103,7 +103,7 @@ flash_preset() {
   case "$preset" in
     S1K) target="f4hwn.sonic1k.${VERSION_NO}" ;;
     S10K) target="f4hwn.sonic10k.${VERSION_NO}" ;;
-    NC4K) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
+    SPOC) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
     S4K)     target="f4hwn.sonic4k.${VERSION_NO}" ;; # Default value
   esac
   local ifile="./build/${preset}/${target}.bin"

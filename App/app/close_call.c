@@ -24,7 +24,7 @@
 // and verifies it with a real RSSI read before opening the audio. This mirrors
 // the Uniden analog "Close Call" behaviour: grab a strong nearby signal and
 // hold on it.
-
+#ifdef ENABLE_CLOSE_CALL
 #include "close_call.h"
 
 #include <string.h>
@@ -2224,3 +2224,4 @@ void APP_RunCloseCall(void)
     RADIO_SetupRegisters(true);
     UI_DisplayClear();
 }
+#endif

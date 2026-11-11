@@ -430,7 +430,9 @@ void SETTINGS_FactoryReset(bool bIsAll)
     gScheduleVfoSave = true;
     
     SETTINGS_SaveVfoIndicesFlush();
+#ifndef ENABLE_POCSAG
     ClearSettings();
+#endif
 }
 
 #ifdef ENABLE_FMRADIO

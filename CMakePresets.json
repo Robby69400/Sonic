@@ -64,16 +64,19 @@
         "ENABLE_AGC_SHOW_DATA": false,
         "ENABLE_UART_RW_BK_REGS": false,
         "ENABLE_SWD": false,
-        "ENABLE_LARGE_HISTORY": false
+        "ENABLE_LARGE_HISTORY": false,
+        "ENABLE_CLOSE_CALL":true
       }
     },
     {
-      "name": "NC4K",
+      "name": "SPOC",
       "inherits": "default",
       "cacheVariables": {
-        "ENABLE_LARGE_HISTORY":true,
-        "ENABLE_4096": true,
-        "EDITION_STRING": "NC Sonic 4K"
+        "ENABLE_1024": true,
+        "ENABLE_USB": true,
+        "ENABLE_POCSAG": true,
+        "ENABLE_CLOSE_CALL":false,
+        "EDITION_STRING": "Pocsag"
       }
     },
     {
@@ -109,8 +112,8 @@
   ],
   "buildPresets": [
     {
-      "name": "NC4K",
-      "configurePreset": "NC4K"
+      "name": "SPOC",
+      "configurePreset": "SPOC"
     },
     {
       "name": "S1K",

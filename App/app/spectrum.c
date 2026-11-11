@@ -1,3 +1,29 @@
+#ifdef ENABLE_POCSAG
+#include <stdbool.h>
+#include <string.h>
+#include "app/pocsag.h"
+#include "app/spectrum.h"
+Mode Spectrum_state;
+
+void APP_RunSpectrum(void)
+{
+    g_pocsagScanStop = false;
+    while (!g_pocsagScanStop) {
+        APP_RunPocsagScan();
+    }
+}
+
+void RemoveTrailZeros(char *s)
+{
+    char *decimal = strchr(s, '.');
+    if (decimal == NULL) return;
+    char *end = s + strlen(s);
+    while (end > decimal + 1 && end[-1] == '0') *--end = '\0';
+    if (end > decimal && end[-1] == '.') *--end = '\0';
+}
+
+#else
+
 //K1 Spectrum Sonic
 /* Copyright 2026 Robby
  * https://github.com/Robby69400
@@ -4660,3 +4686,5 @@ static void RenderHistoryList() {
     RenderUnifiedList(title, false, count, historyListIndex,
                       historyScrollOffset, true, GetHistoryRow);
 }
+
+#endif
