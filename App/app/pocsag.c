@@ -1,4 +1,20 @@
-/* pocsag.c — décodeur POCSAG résident + scan SCANLIST « POCSAG »*/
+/* pocsag.c — décodeur POCSAG résident + scan SCANLIST « POCSAG »
+ *
+ * Backlight (modèle spectrum.c, adapté à backlight.c) :
+ *   - BACKLIGHT_Update() ne fait QUE le fade de luminosité. Il ne
+ *     décrémente PAS gBacklightCountdown_500ms et n'appelle PAS
+ *     BACKLIGHT_TurnOff().
+ *   - Le timeout est géré par un tick 500 ms explicite (comme le
+ *     fait spectrum.c dans gNextTimeslice_500ms) :
+ *         if (--gBacklightCountdown_500ms == 0 && BACKLIGHT_TIME < 61)
+ *             BACKLIGHT_TurnOff();
+ *   - BACKLIGHT_TurnOn() n'est appelé QUE sur touche, jamais sur
+ *     réception de message (sinon l'activité POCSAG réarme le timer
+ *     en boucle et l'écran ne s'éteint jamais).
+ *   - Note : dans ce firmware, BACKLIGHT_TIME = N signifie N * 5 s
+ *     (cf. BACKLIGHT_TurnOn : gBacklightCountdown_500ms = 1 + N*5*2).
+ *     Pour un timeout réel de 5 s, mettre BACKLIGHT_TIME = 1.
+ */
 
 #ifdef ENABLE_POCSAG
 
@@ -23,6 +39,7 @@
 #include "misc.h"
 #include "radio.h"
 #include "scheduler.h"
+#include "settings.h"
 #include "helper/battery.h"
 #include "py32f0xx.h"
 
@@ -36,13 +53,19 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY    480u
+#define HOUSE_EVERY    480u        /* 50 ms */
 #define BUSY_MAX       19200u
 #define LED_STEP       960u
 #define SYNC_SLOT      8u
 #define REFRESH_SLOTS  100u
 #define REDRAW_ON      1u
 #define REDRAW_FRAME   2u
+
+/* Backlight : ticks internes.
+ *  - BL_FADE_SAMPLES : BACKLIGHT_Update() toutes les 10 ms (fade)
+ *  - BL_500MS_SAMPLES : décompte du timeout toutes les 500 ms  */
+#define BL_FADE_SAMPLES   (FS / 100u)   /* 96 samples = 10 ms  */
+#define BL_500MS_SAMPLES  (FS / 2u)     /* 4800 samples = 500 ms */
 
 #define REG_2B      0x2B
 #define REG_73      0x73
@@ -83,27 +106,8 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define ROWS            3u
 #define SPK_X           59u
 
-/* ============================================================
- * Paramètres du scan — DOUBLE TIMEOUT
- * ============================================================ */
 #define POCSAG_LIST_NAME        "POCSAG"
-
-/* Fenêtre de découverte : si rien vu en 100 ms → canal vide. */
-#define POCSAG_SCAN_DWELL_MS    100u
-
-/* Délai de stabilisation après tune (ms) avant de compter les SYNC. */
 #define POCSAG_SETTLE_MS        30u
-
-/* Timeout total quand on est sur un canal "accroché" (ms). */
-#define POCSAG_LISTEN_TIMEOUT_MS 20u
-
-/* Nombre minimal de transitions slicer en 100 ms pour considérer
- * qu'il y a de la modulation (bruit seul ≈ quelques transitions ;
- * POCSAG 1200 bps ≈ 120 transitions max, on prend une marge basse). */
-#define POCSAG_LIVE_BITS_MIN    20u
-
-/* Anti-rebond : un canal qui a déclenché est ignoré pendant ce temps (ms). */
-#define POCSAG_REBOND_MS        500u
 
 /* ============================================================
  * Structures
@@ -149,7 +153,6 @@ static char     *g_pool = NULL;
 static uint16_t *g_pool_head = NULL;
 static page_t   *g_pages = NULL;
 
-/* Buffers statiques : évitent 3,5 Ko sur la pile (HardFault sinon). */
 static char     g_local_pool[POOL_SIZE];
 static page_t   g_local_pages[MAX_MSGS];
 static sl_t     g_sl[NSL];
@@ -173,23 +176,15 @@ static struct {
     uint16_t busyFor;
     uint32_t n;
     uint32_t current_freq;
+    uint16_t blFade;        /* 10 ms pour BACKLIGHT_Update (fade) */
+    uint16_t bl500;         /* 500 ms pour le timeout           */
     char     *text;
     sl_t     *sl;
-    /* Transitions slicer (bits "live") pendant la fenêtre de découverte. */
-    uint16_t liveBits;
 } g;
 #define str g.text
 
 volatile bool g_pocsagScanStop = false;
-
-static uint32_t last_triggered_freq = 0;
-static uint32_t last_triggered_tick = 0;
-
-/* Fréquence affichée quand g.count == 0 (scan en cours) */
 static uint32_t scan_freq = 0;
-
-/* Timeout total (prolongation) pour listen() — piloté par APP_RunPocsagScan */
-uint32_t g_listen_timeout_ms = POCSAG_LISTEN_TIMEOUT_MS;
 
 /* ============================================================
  * Helpers
@@ -222,13 +217,11 @@ static void pocsag_afc_select_pa4(void)
                   (((g_afc.smpr3 >> APP_AFC_SMP8_POS) & 7u) << APP_AFC_SMP4_POS);
     ADC1->SQR3  = (g_afc.sqr3 & ~0x1Fu) | APP_AFC_ADC_CH_PA4;
 }
-
 static void pocsag_afc_select_battery(void)
 {
     ADC1->SQR3  = g_afc.sqr3;
     ADC1->SMPR3 = g_afc.smpr3;
 }
-
 static void pocsag_af_capture_open(void)
 {
     if (g_afc.open) return;
@@ -246,14 +239,12 @@ static void pocsag_af_capture_open(void)
     DAC1->SWTRIGR = 1u;
     pocsag_afc_select_pa4();
 }
-
 static uint16_t pocsag_af_capture_sample(void)
 {
     ADC1->CR2 |= ADC_CR2_SWSTART | ADC_CR2_EXTTRIG;
     for (uint16_t n = 0; !(ADC1->SR & ADC_SR_EOC) && n < 2000u; n++) {}
     return (uint16_t)(ADC1->DR & 0x0FFFu);
 }
-
 static void pocsag_af_capture_close(void)
 {
     if (!g_afc.open) return;
@@ -264,30 +255,16 @@ static void pocsag_af_capture_close(void)
     RCC->APBENR1  = g_afc.rcc;
     GPIOA->MODER  = g_afc.moder;
 }
-
 static bool pocsag_afc_yield_adc(void)
 {
     if (!g_afc.open) return false;
     pocsag_afc_select_battery();
     return true;
 }
-
 static void pocsag_afc_resume_adc(void)
 {
     pocsag_afc_select_pa4();
 }
-
-/* ============================================================
- * Contrôle audio : couper le HP sans couper PA4
- * ============================================================
- * Le signal POCSAG sur PA4 est prélevé AVANT l'étage de volume
- * du BK4819. Mettre le volume à 0 rend le HP totalement muet
- * sans affecter le décodeur.
- *
- * Aucune touche ne réactive le son pendant le scan : le scan
- * POCSAG est TOUJOURS silencieux.
- * ============================================================ */
-
 
 /* ============================================================
  * Compteur 48 MHz
@@ -311,7 +288,6 @@ static uint32_t pocsag_cycles_raw(void)
     }
     return tick * (SysTick->LOAD + 1u) + (SysTick->LOAD - val);
 }
-
 static uint32_t pocsag_cycles_48mhz(void)
 {
     return pocsag_cycles_raw() + g_cyc_base;
@@ -324,14 +300,42 @@ static inline int16_t pocsag_rssi_dbm(void)
 {
     return BK4819_GetRSSI_dBm() + dBmCorrTable[gRxVfo->Band];
 }
-
 static inline uint32_t pocsag_ticks_ms(void)
 {
     return gGlobalSysTickCounter * 10u;
 }
 
 /* ============================================================
- * Scan
+ * Backlight — tick explicite (modèle spectrum.c)
+ *
+ * BACKLIGHT_Update() ne gère QUE le fade de luminosité. Le timeout
+ * est géré par le firmware principal (ou spectrum.c) via un tick
+ * 500 ms qui décrémente gBacklightCountdown_500ms et appelle
+ * BACKLIGHT_TurnOff() quand il atteint 0. On reproduit ce tick.
+ * ============================================================ */
+static inline void pocsag_backlight_fade_tick(void)
+{
+    /* 10 ms : laisse le fade de BACKLIGHT_TurnOn/Off progresser.
+     * N'affecte pas gBacklightCountdown_500ms.
+     * gUpdateBacklight est privé à backlight.c : on appelle
+     * BACKLIGHT_Update() inconditionnellement, il ne fait rien
+     * si aucun fade n'est en cours. */
+    BACKLIGHT_Update();
+}
+
+static inline void pocsag_backlight_500ms_tick(void)
+{
+    if (gBacklightCountdown_500ms > 0) {
+        if (--gBacklightCountdown_500ms == 0) {
+            if (gEeprom.BACKLIGHT_TIME < 61) {
+                BACKLIGHT_TurnOff();
+            }
+        }
+    }
+}
+
+/* ============================================================
+ * Scan — helpers
  * ============================================================ */
 static uint32_t pocsag_channel_freq(uint16_t ch)
 {
@@ -342,7 +346,6 @@ static uint32_t pocsag_channel_freq(uint16_t ch)
     if (freq < 1400000u || freq > 116000000u) return 0u;
     return freq;
 }
-
 static bool pocsag_name_match(const char *n, const char *name)
 {
     uint8_t k = 0;
@@ -357,7 +360,6 @@ static bool pocsag_name_match(const char *n, const char *name)
     }
     return true;
 }
-
 static int8_t pocsag_find_scanlist(const char *name)
 {
     for (uint8_t i = 0; i < MR_CHANNELS_LIST; i++) {
@@ -366,7 +368,6 @@ static int8_t pocsag_find_scanlist(const char *name)
     }
     return -1;
 }
-
 static bool pocsag_channel_in_list(uint16_t ch, int8_t listIdx)
 {
     ChannelAttributes_t att;
@@ -417,7 +418,7 @@ static void closePage(sl_t *m){
     while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' '))) lost |= t[--n] == GAP;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
     if((!n) || 2u * gaps > n) return;
-    g.redraw |= REDRAW_FRAME;
+    g.redraw |= REDRAW_FRAME;   /* PAS de TurnOn ici */
 
     for(unsigned j = 0; j < g.count; j++){
         page_t *q = &g_pages[j];
@@ -479,13 +480,11 @@ static unsigned ones(uint32_t v){
     for(; v; v &= v - 1u) n++;
     return n;
 }
-
 static uint32_t syndrome(uint32_t cw){
     uint32_t r = cw >> 1;
     for(unsigned i = 30; i >= 10u; i--) if(r & (1u << i)) r ^= GEN << (i - 10u);
     return r;
 }
-
 static unsigned fix(uint32_t *pcw){
     uint32_t cw = *pcw, s = syndrome(cw);
     unsigned q = 1;
@@ -706,14 +705,20 @@ static void draw(void){
         GUI_DisplaySmallest("WAIT...", NOTEXT_X, 0, 2, true);
     }
     g.lim = (uint8_t)lim;
-    
 }
 
-/* Traitement des touches */
+/* Touches : TurnOn uniquement ici (pas sur réception) */
 static void handleKeys(void){
     uint8_t key = KEYBOARD_GetKey();
     if(key == KEY_INVALID || key == g.prevKey){ g.prevKey = key; return; }
     g.prevKey = key;
+
+    if(!backlightOn && gEeprom.BACKLIGHT_TIME){
+        BACKLIGHT_TurnOn();
+        return;                              /* touche consommée */
+    }
+    BACKLIGHT_TurnOn();                      /* réarme le timer (interne) */
+
     g.redraw |= REDRAW_ON;
     int d = (key == KEY_DOWN) - (key == KEY_UP);
     if(d){
@@ -724,9 +729,6 @@ static void handleKeys(void){
     else if(key == KEY_EXIT) {
         g.running = false;
         g_pocsagScanStop = true;
-    }
-    else if(key == KEY_1) {
-        BACKLIGHT_TurnOn();
     }
     else if(key == KEY_2){
         g.count = g.cur = 0; g.nOk = 0; g.top = 0;
@@ -743,7 +745,8 @@ static void handleKeys(void){
 static void house(void){
     handleKeys();
     if(!g.running) return;
-    if(g.redraw & REDRAW_FRAME) BACKLIGHT_TurnOn();   /* nouveau message */
+    /* PAS de BACKLIGHT_TurnOn sur REDRAW_FRAME : sinon l'activité
+     * POCSAG réarme le timer en boucle et l'écran ne s'éteint jamais. */
     if(++g.refresh >= REFRESH_SLOTS) g.redraw |= REDRAW_ON;
     if(!g.redraw) return;
     g.redraw = 0;
@@ -769,28 +772,21 @@ static void rateFind(bool flipped){
 }
 
 /* ============================================================
- * Boucle de décodage en continu — DOUBLE TIMEOUT
+ * Boucle de décodage — sans timeout
  *
- *  Phase 1 (découverte) : 0 .. POCSAG_SCAN_DWELL_MS
- *      → si nSync == 0 ET nOk == 0 ET liveBits < POCSAG_LIVE_BITS_MIN
- *        alors canal vide → sortie immédiate.
- *
- *  Phase 2 (prolongation) : POCSAG_SCAN_DWELL_MS .. g_listen_timeout_ms
- *      → on continue tant que rien n'est décodé ou timeout atteint.
- *
- *  AUDIO : GPIO_EnableAudioPath() est appelé INCONDITIONNELLEMENT
- *  pour garder PA4 alimenté. Le HP est déjà muet via pocsag_mute_speaker()
- *  (volume BK4819 = 0), donc aucun son n'est émis.
+ * Deux ticks backlight, indépendants de house() :
+ *   - 10 ms : BACKLIGHT_Update (fade uniquement)
+ *   - 500 ms : décompte gBacklightCountdown_500ms + TurnOff
+ *              (reproduit gNextTimeslice_500ms de spectrum.c)
  * ============================================================ */
 static void listen(void){
-    /* Buffers statiques (pas sur la pile → évite HardFault) */
     g_pool = g_local_pool;
     g_pool_head = &g_local_pool_head;
     g_pages = g_local_pages;
 
     pocsag_memset(g_local_pool, 0, POOL_SIZE);
     pocsag_memset(g_local_pages, 0, sizeof(g_local_pages));
-    g_local_pool_head = 0;   /* reset tête de pool à chaque canal */
+    g_local_pool_head = 0;
 
     sl_t *sl = g_sl;
     int32_t box4[4], sum4 = 0, dc = (int32_t)(BIAS_CODE << 4);
@@ -806,40 +802,19 @@ static void listen(void){
     }
 
     g.sl = sl;
-    g.liveBits = 0;
     g.nSync = 0;
     g.nOk = 0;
 
     uint32_t next = pocsag_cycles_48mhz();
     uint16_t cnt = 0;
+    g.blFade = 0;
+    g.bl500 = 0;
     g.redraw = REDRAW_ON;
-
-    uint32_t listen_start = gGlobalSysTickCounter;
-    bool dwell_expired = false;
 
     while(g.running){
         if (g_pocsagScanStop) { g.running = false; break; }
 
-        /* --- Détection de fin de fenêtre (dwell puis prolongation) --- */
-        uint32_t elapsed_ms = (gGlobalSysTickCounter - listen_start) * 10u;
-
-        if (!dwell_expired && elapsed_ms >= POCSAG_SCAN_DWELL_MS) {
-            dwell_expired = true;
-            /* Canal vide ? Aucun SYNC, aucun codeword valide,
-             * et pas assez de transitions → on abandonne. */
-            if (g.nSync == 0 && g.nOk == 0 && g.liveBits < POCSAG_LIVE_BITS_MIN) {
-                g.running = false;
-                break;
-            }
-            /* Sinon on prolonge : on garde listen_start pour le timeout total. */
-        }
-
-        if (dwell_expired && elapsed_ms >= g_listen_timeout_ms) {
-            g.running = false;
-            break;
-        }
-
-        /* --- Échantillonnage temps réel --- */
+        /* Échantillonnage */
         while((int32_t)(pocsag_cycles_48mhz() - next) < 0){}
         next += CYC_PER_SAMPLE;
         g.n++;
@@ -851,15 +826,23 @@ static void listen(void){
         bi = (bi + 1u) & 3u;
         int32_t before = sl[0].rprev;
         for(unsigned k = 0; k < NSL; k++) slice(&sl[k], sum4);
-        /* Détection de transition sur le slicer k=0 (=1200 bps nominal) */
-        if (sl[0].rprev != before) {
-            if (g.liveBits < 0xFFFFu) g.liveBits++;
-        }
         rateFind(sl[0].rprev != before);
         if(++g.ledCnt >= LED_STEP){
             g.ledCnt = 0;
             if(g.led){ g.led--; BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u); }
         }
+
+        /* Backlight : tick 10 ms (fade) */
+        if(++g.blFade >= BL_FADE_SAMPLES){
+            g.blFade = 0;
+            pocsag_backlight_fade_tick();
+        }
+        /* Backlight : tick 500 ms (timeout) */
+        if(++g.bl500 >= BL_500MS_SAMPLES){
+            g.bl500 = 0;
+            pocsag_backlight_500ms_tick();
+        }
+
         if(cnt < HOUSE_EVERY){ cnt++; continue; }
         bool wait = false;
         for(unsigned k = 0; k < NSL; k++){
@@ -869,8 +852,6 @@ static void listen(void){
         if(wait && ++g.busyFor < BUSY_MAX) continue;
         g.busyFor = 0;
         cnt = 0;
-        /* PA4 doit rester alimenté pour le décodeur : chemin audio
-         * TOUJOURS actif. Le HP est déjà muet via volume BK4819 = 0. */
         GPIO_EnableAudioPath();
         house();
 
@@ -894,22 +875,17 @@ static void listen(void){
 }
 
 /* ============================================================
- * Affichage des messages — PERMANENT jusqu'au prochain message
- * ou action utilisateur (EXIT, KEY_2).
- *
- * Backlight : rallumé à l'arrivée du message et sur chaque touche.
- * BACKLIGHT_Update() gère l'extinction auto après le timeout configuré,
- * mais l'affichage reste permanent (pas de timeout de showMessages).
- *
- * Aucune touche ne réactive le son : le scan reste muet.
+ * Affichage des messages — PERMANENT
  * ============================================================ */
 static bool showMessages(void)
 {
     g.cur = 0;
     g.top = 0;
     g.redraw = REDRAW_ON;
+    BACKLIGHT_TurnOn();
 
-    BACKLIGHT_TurnOn();   /* écran allumé à l'arrivée du message */
+    uint32_t last_fade = gGlobalSysTickCounter;
+    uint32_t last_500  = gGlobalSysTickCounter;
 
     for (;;) {
         if (g.redraw) {
@@ -922,48 +898,55 @@ static bool showMessages(void)
         uint8_t key = KEYBOARD_GetKey();
         if (key != KEY_INVALID && key != g.prevKey) {
             g.prevKey = key;
-            BACKLIGHT_TurnOn();   /* toute touche rallume l'écran */
-            g.redraw |= REDRAW_ON;
-
-            if (key == KEY_1) {
+            if (!backlightOn && gEeprom.BACKLIGHT_TIME) {
+                BACKLIGHT_TurnOn();       /* touche consommée */
+            }
+            else {
                 BACKLIGHT_TurnOn();
-            }
-            if (key == KEY_EXIT) {
-                g_pocsagScanStop = true;
-                return true;
-            }
-            else if (key == KEY_DOWN) {
-                if (g.cur + 1u < g.count) { g.cur++; g.top = 0; }
-            }
-            else if (key == KEY_UP) {
-                if (g.cur > 0) { g.cur--; g.top = 0; }
-            }
-            else if (key == KEY_STAR) {
-                g.cw ^= CW_COMPACT;
-                g.top = 0;
-            }
-            else if (key == KEY_2) {
-                g.count = 0;
-                g.cur = 0;
-                g.nOk = 0;
-                return false;
+                g.redraw |= REDRAW_ON;
+                if (key == KEY_EXIT) {
+                    g_pocsagScanStop = true;
+                    return true;
+                }
+                else if (key == KEY_DOWN) {
+                    if (g.cur + 1u < g.count) { g.cur++; g.top = 0; }
+                }
+                else if (key == KEY_UP) {
+                    if (g.cur > 0) { g.cur--; g.top = 0; }
+                }
+                else if (key == KEY_STAR) {
+                    g.cw ^= CW_COMPACT;
+                    g.top = 0;
+                }
+                else if (key == KEY_2) {
+                    g.count = 0;
+                    g.cur = 0;
+                    g.nOk = 0;
+                    return false;
+                }
             }
         }
         else {
             g.prevKey = key;
         }
 
-        /* Gestion du timeout backlight (extinction auto configurable
-         * par l'utilisateur). L'affichage reste permanent, lui. */
-        BACKLIGHT_Update();
+        /* Ticks backlight en mode affichage (basés sur SysTick 10 ms) */
+        uint32_t now = gGlobalSysTickCounter;
+        if (now != last_fade) { last_fade = now; pocsag_backlight_fade_tick(); }
 
-        /* PAS de timeout d'affichage : on reste affiché indéfiniment */
-        SYSTEM_DelayMs(20);
+        static uint8_t tick500 = 0;
+        if (++tick500 >= 50) {            /* 50 × 10 ms = 500 ms */
+            tick500 = 0;
+            pocsag_backlight_500ms_tick();
+        }
+        (void)last_500;
+
+        SYSTEM_DelayMs(10);
     }
 }
 
 /* ============================================================
- * APP_RunPocsagScan — scan OPTION B
+ * APP_RunPocsagScan
  * ============================================================ */
 void APP_RunPocsagScan(void)
 {
@@ -975,27 +958,44 @@ void APP_RunPocsagScan(void)
         SYSTEM_DelayMs(1500);
         return;
     }
+
     pocsag_af_capture_open();
     BK4819_WriteRegister((BK4819_REGISTER_t)REG_2B,
                          (uint16_t)((BK4819_ReadRegister((BK4819_REGISTER_t)REG_2B) | 0x0700u) & ~0x0007u));
     BK4819_WriteRegister((BK4819_REGISTER_t)REG_73,
                          (uint16_t)(BK4819_ReadRegister((BK4819_REGISTER_t)REG_73) | 0x0010u));
-    BK4819_SetAF(BK4819_AF_MUTE);
-    BK4819_WriteRegister(REG_48,0);
+    BK4819_SetAF(BK4819_AF_FM);
+    BK4819_WriteRegister(REG_48, 0);
     BACKLIGHT_TurnOn();
 
     g_cyc_base = APP_CYC_DIAGNOSTIC_START - pocsag_cycles_raw();
 
+    uint16_t chans[MR_CHANNEL_LAST - MR_CHANNEL_FIRST + 1u];
+    uint16_t nch = 0;
     for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
-        if (g_pocsagScanStop) break;
-
         uint32_t freq = pocsag_channel_freq(ch);
         if (freq == 0u) continue;
         if (!pocsag_channel_in_list(ch, listIdx)) continue;
+        chans[nch++] = ch;
+    }
 
-        if (freq == last_triggered_freq &&
-            (gGlobalSysTickCounter - last_triggered_tick) * 10u < POCSAG_REBOND_MS)
-            continue;
+    if (nch == 0u) {
+        UI_DisplayClear();
+        UI_PrintStringSmallBold("POCSAG LIST EMPTY", 0, 0, 2);
+        ST7565_BlitFullScreen();
+        SYSTEM_DelayMs(1500);
+        pocsag_af_capture_close();
+        GPIO_DisableAudioPath();
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
+        return;
+    }
+
+    uint16_t idx = 0;
+
+    while (!g_pocsagScanStop) {
+        uint16_t ch = chans[idx];
+        uint32_t freq = pocsag_channel_freq(ch);
+        if (freq == 0u) { if (++idx >= nch) idx = 0; continue; }
 
         BK4819_SetFrequency(freq);
         BK4819_PickRXFilterPathBasedOnFrequency(freq);
@@ -1005,38 +1005,28 @@ void APP_RunPocsagScan(void)
 
         g.current_freq = freq;
         scan_freq = freq;
-
-        /* Timeout total (prolongation) ; la fenêtre de découverte
-         * de 100 ms est gérée en interne par listen(). */
-        g_listen_timeout_ms = POCSAG_LISTEN_TIMEOUT_MS;
-
         g.nSync = 0;
         g.count = 0;
         g.nOk = 0;
-
         g.redraw |= REDRAW_ON;
         house();
 
         g.running = true;
+        GPIO_EnableAudioPath();
         listen();
 
         if (g_pocsagScanStop) break;
 
         if (g.count) {
-            last_triggered_freq = freq;
-            last_triggered_tick = gGlobalSysTickCounter;
-
             bool exit_scan = showMessages();
-            if (exit_scan) {
-                g_pocsagScanStop = true;
-                break;
-            }
-            /* Après KEY_2, on reprend le scan au canal suivant */
+            if (exit_scan) { g_pocsagScanStop = true; break; }
         }
+
+        if (++idx >= nch) idx = 0;
     }
 
     pocsag_af_capture_close();
-    BK4819_SetAF(BK4819_AF_MUTE);
+    BK4819_SetAF(BK4819_AF_FM);
     GPIO_DisableAudioPath();
     BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
 }
