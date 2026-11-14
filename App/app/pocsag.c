@@ -1,40 +1,4 @@
-/* pocsag.c — décodeur POCSAG résident + scan SCANLIST « POCSAG »
- *
- * OPTION B : décodage en continu, changement de fréquence sans couper l'audio.
- *
- * STRATÉGIE DOUBLE TIMEOUT :
- *   - Fenêtre de découverte = POCSAG_SCAN_DWELL_MS (100 ms).
- *     En 100 ms à 1200 bps on a ~120 bits = ~3,7 codewords : assez pour
- *     capter un SYNC (26,7 ms) ou quelques codewords valides si le PLL
- *     a accroché, ou pour mesurer l'activité du signal (transitions).
- *   - Si à l'échéance rien n'a été vu (ni SYNC, ni codeword OK, ni
- *     suffisamment de transitions) → canal vide → on passe au suivant.
- *   - Sinon → canal ACTIF → on prolonge jusqu'à POCSAG_LISTEN_TIMEOUT_MS
- *     (3000 ms) ou jusqu'à réception d'un message complet (g.count > 0).
- *
- * AUDIO — AUCUN SON :
- *   - PA4 (entrée ADC du décodeur) reste TOUJOURS alimenté pendant le scan,
- *     sinon aucun décodage n'est possible.
- *   - Le haut-parleur est rendu TOTALEMENT muet en forçant le volume BK4819
- *     à 0 (pocsag_mute_speaker). Le signal sur PA4 est prélevé AVANT l'étage
- *     de volume, donc le décodeur n'est pas affecté.
- *   - AUCUNE touche ne réactive le son pendant le scan.
- *   - À la sortie du scan, le volume utilisateur est restauré.
- *
- * BACKLIGHT :
- *   - Rallumé à l'arrivée d'un message (REDRAW_FRAME).
- *   - Rallumé sur toute action utilisateur (touche valide).
- *   - Extinction auto gérée par BACKLIGHT_Update() selon le timeout
- *     configuré par l'utilisateur.
- *   - L'affichage reste permanent (pas de timeout de showMessages).
- *
- * Touches :
- *  - EXIT : quitte le scan (g_pocsagScanStop = true)
- *  - UP/DOWN : parcourt les messages
- *  - KEY_STAR : mode compact
- *  - KEY_2 : efface les messages → reprise du scan
- *  - KEY_3 : debug (compteurs)
- */
+/* pocsag.c — décodeur POCSAG résident + scan SCANLIST « POCSAG »*/
 
 #ifdef ENABLE_POCSAG
 
@@ -750,7 +714,6 @@ static void handleKeys(void){
     uint8_t key = KEYBOARD_GetKey();
     if(key == KEY_INVALID || key == g.prevKey){ g.prevKey = key; return; }
     g.prevKey = key;
-    BACKLIGHT_TurnOn();                /* toute touche rallume l'écran */
     g.redraw |= REDRAW_ON;
     int d = (key == KEY_DOWN) - (key == KEY_UP);
     if(d){
@@ -761,6 +724,9 @@ static void handleKeys(void){
     else if(key == KEY_EXIT) {
         g.running = false;
         g_pocsagScanStop = true;
+    }
+    else if(key == KEY_1) {
+        BACKLIGHT_TurnOn();
     }
     else if(key == KEY_2){
         g.count = g.cur = 0; g.nOk = 0; g.top = 0;
@@ -778,7 +744,6 @@ static void house(void){
     handleKeys();
     if(!g.running) return;
     if(g.redraw & REDRAW_FRAME) BACKLIGHT_TurnOn();   /* nouveau message */
-    BACKLIGHT_Update();                                /* extinction auto */
     if(++g.refresh >= REFRESH_SLOTS) g.redraw |= REDRAW_ON;
     if(!g.redraw) return;
     g.redraw = 0;
@@ -960,6 +925,9 @@ static bool showMessages(void)
             BACKLIGHT_TurnOn();   /* toute touche rallume l'écran */
             g.redraw |= REDRAW_ON;
 
+            if (key == KEY_1) {
+                BACKLIGHT_TurnOn();
+            }
             if (key == KEY_EXIT) {
                 g_pocsagScanStop = true;
                 return true;
@@ -1067,7 +1035,6 @@ void APP_RunPocsagScan(void)
         }
     }
 
-    BACKLIGHT_TurnOn();
     pocsag_af_capture_close();
     BK4819_SetAF(BK4819_AF_MUTE);
     GPIO_DisableAudioPath();
