@@ -1,19 +1,32 @@
-/* pocsag.c — décodeur POCSAG résident + scan SCANLIST « POCSAG »
+/* pocsag.c — scan POCSAG résident (scanlist « POCSAG »), décodage 1200 bauds
  *
- * Backlight (modèle spectrum.c, adapté à backlight.c) :
- *   - BACKLIGHT_Update() ne fait QUE le fade de luminosité. Il ne
- *     décrémente PAS gBacklightCountdown_500ms et n'appelle PAS
- *     BACKLIGHT_TurnOff().
- *   - Le timeout est géré par un tick 500 ms explicite (comme le
- *     fait spectrum.c dans gNextTimeslice_500ms) :
- *         if (--gBacklightCountdown_500ms == 0 && BACKLIGHT_TIME < 61)
- *             BACKLIGHT_TurnOff();
- *   - BACKLIGHT_TurnOn() n'est appelé QUE sur touche, jamais sur
- *     réception de message (sinon l'activité POCSAG réarme le timer
- *     en boucle et l'écran ne s'éteint jamais).
- *   - Note : dans ce firmware, BACKLIGHT_TIME = N signifie N * 5 s
- *     (cf. BACKLIGHT_TurnOn : gBacklightCountdown_500ms = 1 + N*5*2).
- *     Pour un timeout réel de 5 s, mettre BACKLIGHT_TIME = 1.
+ * Le décodeur (filtre, 3 slicers à hystérésis, DPLL, mot de synchro dans
+ * les deux polarités, BCH avec correction d'un bit, assemblage des pages) est
+ * celui de l'app POCSAG RX, inchangé.
+ *
+ * SCAN
+ *  - Les canaux de la scanlist « POCSAG » sont lus une fois au lancement.
+ *  - Sur chaque canal : accord, POCSAG_SETTLE_MS de stabilisation, puis
+ *    POCSAG_DWELL_MS d'écoute : signal à 1200 bauds (préambule ou lots,
+ *    même pris en cours d'émission) ou mot de synchro ?
+ *  - Rien : canal suivant. Trouvé : on décode jusqu'à la fin de l'émission
+ *    (plus aucun lot pendant POCSAG_END_MS), puis on affiche la ou les pages
+ *    reçues avec la fréquence en en-tête, et le scan reprend.
+ *  - Les pages restent affichées (10 dernières, toutes fréquences) pendant
+ *    que le scan continue ; une nouvelle page rallume l'écran.
+ *
+ * AUDIO
+ *  - Le décodeur lit la sortie audio du BK4829 (broche AF, vue par l'ADC sur
+ *    PA4). Cette sortie doit donc rester active : AF en FM et gain AF
+ *    (REG_48) inchangé. Couper l'AF ou mettre REG_48 à 0 coupe aussi le
+ *    signal du décodeur.
+ *  - Le haut-parleur est coupé par l'ampli (GPIO_DisableAudioPath), qui est
+ *    en aval : le scan est muet sans toucher au signal du décodeur.
+ *  - REG_2B, REG_73 et REG_48 sont rétablis à la sortie.
+ *
+ * Touches : EXIT quitte · UP/DOWN pages (puis défilement) · * vue compacte ·
+ *           1 tient le canal en cours (H) · 2 efface les pages ·
+ *           3 diagnostic en bas d'écran.
  */
 
 #ifdef ENABLE_POCSAG
@@ -38,8 +51,8 @@
 #include "board.h"
 #include "misc.h"
 #include "radio.h"
-#include "scheduler.h"
 #include "settings.h"
+#include "scheduler.h"
 #include "helper/battery.h"
 #include "py32f0xx.h"
 
@@ -48,34 +61,28 @@
 extern char gListName[MR_CHANNELS_LIST][10];
 
 /* ============================================================
- * Constantes POCSAG
+ * Constantes POCSAG (app POCSAG RX)
  * ============================================================ */
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY    480u        /* 50 ms */
+#define HOUSE_EVERY    480u    /* 50 ms entre deux services touches/écran */
 #define BUSY_MAX       19200u
 #define LED_STEP       960u
+#define LED_STEPS      4u
 #define SYNC_SLOT      8u
 #define REFRESH_SLOTS  100u
 #define REDRAW_ON      1u
 #define REDRAW_FRAME   2u
 
-/* Backlight : ticks internes.
- *  - BL_FADE_SAMPLES : BACKLIGHT_Update() toutes les 10 ms (fade)
- *  - BL_500MS_SAMPLES : décompte du timeout toutes les 500 ms  */
-#define BL_FADE_SAMPLES   (FS / 100u)   /* 96 samples = 10 ms  */
-#define BL_500MS_SAMPLES  (FS / 2u)     /* 4800 samples = 500 ms */
-
-#define REG_2B      0x2B
-#define REG_73      0x73
-#define REG_48      0x48
+#define REG_2B      0x2B   /* <10:8> = 1 : RX HPF300, LPF3K, désaccentuation off */
+#define REG_73      0x73   /* <4> = 1 : AFC off (il suivrait les bits)            */
+#define REG_48      0x48   /* gain AF : le laisser, le décodeur en dépend          */
 
 #define NSL         3
 #define STEP_1200   8192u
 #define DUP_1200    128u
 #define PLL_SHIFT   3
-#define PRE_RUNS    32u
 #define DIRTY_WORDS 8u
 
 #define SYNC        0x7CD215D8u
@@ -96,18 +103,37 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define MAX_MSGS    10u
 
 /* Layout texte */
-#define NO_MSG_STR      "NO MSG"
-#define TONE_STR        "TONE"
-#define NOTEXT_X        60
+#define TONE_STR        "TONE ONLY"
+#define LOST_STR        "TEXT LOST"
+#define NOTEXT_X        28
 #define TITLE_X         2u
 #define CAPS_END        127u
 #define ROW_CHARS       18u
 #define CW_COMPACT      14u
 #define ROWS            3u
-#define SPK_X           59u
 
-#define POCSAG_LIST_NAME        "POCSAG"
-#define POCSAG_SETTLE_MS        30u
+/* ============================================================
+ * Paramètres du scan
+ * ============================================================ */
+#define POCSAG_LIST_NAME    "POCSAG"
+#define POCSAG_MAX_CH       64u     /* canaux de la scanlist gardés          */
+#define POCSAG_SETTLE_MS    40u     /* après l'accord, avant d'écouter       */
+#define POCSAG_DWELL_MS     50u     /* recherche du préambule par canal      */
+/* Signal à 1200 bauds : les changements du slicer tombent sur des multiples
+ * de la durée d'un bit (8 échantillons), au préambule (1 0 1 0) comme dans
+ * les lots. Le bruit les place n'importe où. On compte les écarts à +/-1
+ * échantillon d'un multiple (good) et les autres (bad). Détecte aussi une
+ * émission prise en cours, après son préambule. */
+#define POCSAG_LOCK_GOOD    24u
+#define POCSAG_LOCK_RATIO   4u      /* bad * 4 <= good                       */
+/* Après le préambule, le premier mot de synchro arrive au plus tard à la
+ * fin du préambule (480 ms normalisés, plus long sur certains réseaux). */
+#define POCSAG_SYNC_WAIT_MS 1500u
+/* Fin d'émission : plus aucun slicer dans un lot depuis ce temps. */
+#define POCSAG_END_MS       600u
+#define POCSAG_MAX_RX_MS    30000u  /* plafond d'une émission                */
+
+#define MS_SAMPLES(ms)  ((uint32_t)(ms) * (FS / 1000u))
 
 /* ============================================================
  * Structures
@@ -149,14 +175,17 @@ typedef struct {
     char     atext[MSG_MAX];
 } sl_t;
 
-static char     *g_pool = NULL;
-static uint16_t *g_pool_head = NULL;
-static page_t   *g_pages = NULL;
-
+/* Buffers statiques : pas sur la pile (HardFault sinon). Les pages et le
+ * pool sont gardés d'un canal à l'autre. */
 static char     g_local_pool[POOL_SIZE];
 static page_t   g_local_pages[MAX_MSGS];
 static sl_t     g_sl[NSL];
-static uint16_t g_local_pool_head = 0;
+static uint16_t g_local_pool_head;
+static uint32_t g_chFreq[POCSAG_MAX_CH];
+
+static char     *const g_pool = g_local_pool;
+static uint16_t *const g_pool_head = &g_local_pool_head;
+static page_t   *const g_pages = g_local_pages;
 
 static struct {
     uint8_t  prevKey, redraw;
@@ -170,21 +199,18 @@ static struct {
     uint8_t  led;
     uint16_t ledCnt;
     uint16_t nSync;
-    uint16_t preRate;
-    uint16_t rfCls;
-    uint8_t  rfRun, rfStreak;
     uint16_t busyFor;
     uint32_t n;
     uint32_t current_freq;
-    uint16_t blFade;        /* 10 ms pour BACKLIGHT_Update (fade) */
-    uint16_t bl500;         /* 500 ms pour le timeout           */
-    char     *text;
+    uint16_t nCh, nHits;
+    uint16_t lastGood, lastBad, lastQ; /* flips au pas d'un bit / autres / au demi-bit, dernière fenêtre */
+    uint16_t nWords;                   /* mots BCH bons, cumulés (le compteur des slicers repart à chaque canal) */
+    uint8_t  hold;                     /* touche 1 : reste sur le canal en cours */
+    uint8_t  battOk;                   /* une mesure de batterie faite */
     sl_t     *sl;
 } g;
-#define str g.text
 
 volatile bool g_pocsagScanStop = false;
-static uint32_t scan_freq = 0;
 
 /* ============================================================
  * Helpers
@@ -217,11 +243,13 @@ static void pocsag_afc_select_pa4(void)
                   (((g_afc.smpr3 >> APP_AFC_SMP8_POS) & 7u) << APP_AFC_SMP4_POS);
     ADC1->SQR3  = (g_afc.sqr3 & ~0x1Fu) | APP_AFC_ADC_CH_PA4;
 }
+
 static void pocsag_afc_select_battery(void)
 {
     ADC1->SQR3  = g_afc.sqr3;
     ADC1->SMPR3 = g_afc.smpr3;
 }
+
 static void pocsag_af_capture_open(void)
 {
     if (g_afc.open) return;
@@ -239,12 +267,14 @@ static void pocsag_af_capture_open(void)
     DAC1->SWTRIGR = 1u;
     pocsag_afc_select_pa4();
 }
+
 static uint16_t pocsag_af_capture_sample(void)
 {
     ADC1->CR2 |= ADC_CR2_SWSTART | ADC_CR2_EXTTRIG;
     for (uint16_t n = 0; !(ADC1->SR & ADC_SR_EOC) && n < 2000u; n++) {}
     return (uint16_t)(ADC1->DR & 0x0FFFu);
 }
+
 static void pocsag_af_capture_close(void)
 {
     if (!g_afc.open) return;
@@ -255,12 +285,14 @@ static void pocsag_af_capture_close(void)
     RCC->APBENR1  = g_afc.rcc;
     GPIOA->MODER  = g_afc.moder;
 }
+
 static bool pocsag_afc_yield_adc(void)
 {
     if (!g_afc.open) return false;
     pocsag_afc_select_battery();
     return true;
 }
+
 static void pocsag_afc_resume_adc(void)
 {
     pocsag_afc_select_pa4();
@@ -288,6 +320,7 @@ static uint32_t pocsag_cycles_raw(void)
     }
     return tick * (SysTick->LOAD + 1u) + (SysTick->LOAD - val);
 }
+
 static uint32_t pocsag_cycles_48mhz(void)
 {
     return pocsag_cycles_raw() + g_cyc_base;
@@ -300,42 +333,14 @@ static inline int16_t pocsag_rssi_dbm(void)
 {
     return BK4819_GetRSSI_dBm() + dBmCorrTable[gRxVfo->Band];
 }
+
 static inline uint32_t pocsag_ticks_ms(void)
 {
     return gGlobalSysTickCounter * 10u;
 }
 
 /* ============================================================
- * Backlight — tick explicite (modèle spectrum.c)
- *
- * BACKLIGHT_Update() ne gère QUE le fade de luminosité. Le timeout
- * est géré par le firmware principal (ou spectrum.c) via un tick
- * 500 ms qui décrémente gBacklightCountdown_500ms et appelle
- * BACKLIGHT_TurnOff() quand il atteint 0. On reproduit ce tick.
- * ============================================================ */
-static inline void pocsag_backlight_fade_tick(void)
-{
-    /* 10 ms : laisse le fade de BACKLIGHT_TurnOn/Off progresser.
-     * N'affecte pas gBacklightCountdown_500ms.
-     * gUpdateBacklight est privé à backlight.c : on appelle
-     * BACKLIGHT_Update() inconditionnellement, il ne fait rien
-     * si aucun fade n'est en cours. */
-    BACKLIGHT_Update();
-}
-
-static inline void pocsag_backlight_500ms_tick(void)
-{
-    if (gBacklightCountdown_500ms > 0) {
-        if (--gBacklightCountdown_500ms == 0) {
-            if (gEeprom.BACKLIGHT_TIME < 61) {
-                BACKLIGHT_TurnOff();
-            }
-        }
-    }
-}
-
-/* ============================================================
- * Scan — helpers
+ * Scan
  * ============================================================ */
 static uint32_t pocsag_channel_freq(uint16_t ch)
 {
@@ -346,6 +351,7 @@ static uint32_t pocsag_channel_freq(uint16_t ch)
     if (freq < 1400000u || freq > 116000000u) return 0u;
     return freq;
 }
+
 static bool pocsag_name_match(const char *n, const char *name)
 {
     uint8_t k = 0;
@@ -360,6 +366,7 @@ static bool pocsag_name_match(const char *n, const char *name)
     }
     return true;
 }
+
 static int8_t pocsag_find_scanlist(const char *name)
 {
     for (uint8_t i = 0; i < MR_CHANNELS_LIST; i++) {
@@ -368,6 +375,7 @@ static int8_t pocsag_find_scanlist(const char *name)
     }
     return -1;
 }
+
 static bool pocsag_channel_in_list(uint16_t ch, int8_t listIdx)
 {
     ChannelAttributes_t att;
@@ -376,7 +384,7 @@ static bool pocsag_channel_in_list(uint16_t ch, int8_t listIdx)
 }
 
 /* ============================================================
- * Décodage
+ * Décodage (app POCSAG RX, inchangé)
  * ============================================================ */
 static bool preferAlpha(const sl_t *m, unsigned nn){
     if(m->func != FUNC_NUMERIC || m->alen < AUTO_MIN_ALPHA) return false;
@@ -418,7 +426,7 @@ static void closePage(sl_t *m){
     while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' '))) lost |= t[--n] == GAP;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
     if((!n) || 2u * gaps > n) return;
-    g.redraw |= REDRAW_FRAME;   /* PAS de TurnOn ici */
+    g.redraw |= REDRAW_FRAME;
 
     for(unsigned j = 0; j < g.count; j++){
         page_t *q = &g_pages[j];
@@ -480,11 +488,13 @@ static unsigned ones(uint32_t v){
     for(; v; v &= v - 1u) n++;
     return n;
 }
+
 static uint32_t syndrome(uint32_t cw){
     uint32_t r = cw >> 1;
     for(unsigned i = 30; i >= 10u; i--) if(r & (1u << i)) r ^= GEN << (i - 10u);
     return r;
 }
+
 static unsigned fix(uint32_t *pcw){
     uint32_t cw = *pcw, s = syndrome(cw);
     unsigned q = 1;
@@ -629,126 +639,151 @@ static void slice(sl_t *m, int32_t y){
 /* ============================================================
  * Affichage
  * ============================================================ */
+static void printFreq(char *s, uint32_t f)
+{
+    sprintf(s, "%u.%05u", (unsigned)(f / 100000u), (unsigned)(f % 100000u));
+}
+
 __attribute__((noinline))
 static void draw(void){
-    char s[32] __attribute__((aligned(4)));
-    char *o;
+    char s[64] __attribute__((aligned(4)));
     const page_t *p = &g_pages[g.cur];
     unsigned lim = 0;
 
     UI_DisplayClear();
     UI_StatusClear();
 
-    {
-        uint32_t f = (g.count > 0) ? p->freq : scan_freq;
-        char hdr[16];
-        snprintf(hdr, sizeof(hdr), "%u.%05u",
-                 (unsigned)(f / 100000u),
-                 (unsigned)(f % 100000u));
-        GUI_DisplaySmallestInverse(hdr, TITLE_X, 0, true, true,
-                                   (uint8_t)(TITLE_X + 10u * 4u));
-    }
+    /* En-tête : fréquence de la page affichée, sinon celle du scan. */
+    printFreq(s, g.count ? p->freq : g.current_freq);
+    GUI_DisplaySmallestInverse(s, TITLE_X, 0, true, true,
+                               (uint8_t)(TITLE_X + 4u * (unsigned)strlen(s)));
 
     {
-        bool yielded = pocsag_afc_yield_adc();
-        BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[gBatteryCheckCounter++ % 4], &gBatteryCurrent);
-        if (yielded) pocsag_afc_resume_adc();
-
-        uint16_t voltage = (gBatteryVoltages[0] + gBatteryVoltages[1] +
-                            gBatteryVoltages[2] + gBatteryVoltages[3]) / 4 * 760 / gBatteryCalibration[3];
-        unsigned perc = BATTERY_VoltsToPercent(voltage);
-        sprintf(s, "%d%%", perc);
+        /* Batterie : l'ADC repasse sur sa voie le temps de la mesure. La
+         * première conversion après le changement de voie est jetée (elle
+         * peut encore porter l'audio de PA4), puis le calcul est celui de
+         * la barre d'état (BATTERY_GetReadings). Une mesure toutes les 5 s. */
+        if (g.refresh == 0 || !g.battOk) {
+            bool yielded = pocsag_afc_yield_adc();
+            uint16_t v, cur;
+            BOARD_ADC_GetBatteryInfo(&v, &cur);
+            BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[gBatteryCheckCounter++ % 4], &gBatteryCurrent);
+            if (yielded) pocsag_afc_resume_adc();
+            BATTERY_GetReadings(false);
+            g.battOk = 1;
+        }
+        sprintf(s, "%u%%", (unsigned)BATTERY_VoltsToPercent(gBatteryVoltageAverage));
         GUI_DisplaySmallest(s, 128, 0, true, true);
     }
 
-    if(g.count){
-        o = s;
-        o += sprintf(o, "%lu", (unsigned long)p->ric);
-        *o = '\0';
+    if (g.count) {
+        sprintf(s, "%lu", (unsigned long)p->ric);
         UI_PrintStringSmallBold(s, 0, 0, 0);
 
         unsigned capsEnd = CAPS_END;
-        if(g.count > 1u){
-            o = s;
-            o += sprintf(o, "%u/%u", g.cur + 1, g.count);
-            *o = '\0';
-            capsEnd -= 4u * (unsigned)(o - s);
-            GUI_DisplaySmallestInverse(s, (uint8_t)capsEnd, 0, false, true, CAPS_END);
-            capsEnd -= 4u;
-        }
-        o = s;
-        o += sprintf(o, "%u", g.nOk);
-        *o = '\0';
-        GUI_DisplaySmallestInverse(s, (uint8_t)(capsEnd - 4u * (unsigned)(o - s)),
-                                   0, false, true, (uint8_t)capsEnd);
+        char *o = s + sprintf(s, "%u/%u", g.cur + 1u, g.count);
+        capsEnd -= 4u * (unsigned)(o - s);
+        GUI_DisplaySmallestInverse(s, (uint8_t)capsEnd, 0, false, true, CAPS_END);
 
         unsigned w = ROW_CHARS + g.cw, rows = 0;
-        for(unsigned i = 0; i < p->len; i += w, rows++){
+        for (unsigned i = 0; i < p->len; i += w, rows++) {
             unsigned n = p->len - i, r = rows - g.top;
-            if(n > w) n = w;
-            for(unsigned j = 0; j < n; j++){
+            if (n > w) n = w;
+            for (unsigned j = 0; j < n; j++) {
                 char ch = g_pool[(p->offset + i + j) % POOL_SIZE];
                 s[j] = (uint8_t)ch == GAP ? '?' : ch;
             }
             s[n] = '\0';
-            if(g.cw){ if(r < 8u) GUI_DisplaySmallest(s, 0, (uint8_t)(8u + r * 6u), false, true); }
-            else if(r < ROWS) UI_PrintStringSmallBold(s, 0, 0, (uint8_t)(1u + r));
+            if (g.cw) { if (r < 8u) GUI_DisplaySmallest(s, 0, (uint8_t)(8u + r * 6u), false, true); }
+            else if (r < ROWS) UI_PrintStringSmallBold(s, 0, 0, (uint8_t)(1u + r));
         }
-
-        if(!p->len){
-            char lost_val = g_pool[p->offset % POOL_SIZE];
-            const char *msg = lost_val ? NO_MSG_STR : TONE_STR;
-            GUI_DisplaySmallest(msg, NOTEXT_X, 0, 2, true);
-        }
-        if(!g.cw && rows > ROWS) lim = rows - ROWS;
+        if (!p->len)
+            UI_PrintStringSmallBold(g_pool[p->offset % POOL_SIZE] ? LOST_STR : TONE_STR, NOTEXT_X, 0, 2);
+        if (!g.cw && rows > ROWS) lim = rows - ROWS;
     } else {
-        GUI_DisplaySmallest("WAIT...", NOTEXT_X, 0, 2, true);
+        sprintf(s, "SCAN %u CH", g.nCh);
+        UI_PrintStringSmallBold(s, 0, 0, 2);
+    }
+
+    if (g.dbg) {
+        /* Touche 3, diagnostic :
+         *  A  niveau audio vu par le décodeur (crête, codes ADC filtrés) :
+         *     ~0 = aucun signal sur PA4 (réception ou AF coupée)
+         *  R  RSSI du canal (dBm)   P signaux détectés   S synchros
+         *  puis mots BCH bons par slicer. */
+        sprintf(s, "A%ld R%d P%u S%u W%u", (long)g.sl[0].amp, pocsag_rssi_dbm(),
+                g.nHits, g.nSync, g.nWords);
+        GUI_DisplaySmallest(s, 0, 50, false, true);
+        /* G/B : flips au pas d'un bit / autres sur la dernière fenêtre de
+         * 50 ms (détection : G >= 24 et B * 4 <= G). Q : flips au pas d'un
+         * demi-bit (4, 12, 20 échantillons) : élevé = émission à 2400 bauds,
+         * non décodée. H : canal tenu. */
+        sprintf(s, "G%u B%u Q%u%s", g.lastGood, g.lastBad, g.lastQ, g.hold ? " H" : "");
+        GUI_DisplaySmallest(s, 0, 43, false, true);
     }
     g.lim = (uint8_t)lim;
 }
 
-/* Touches : TurnOn uniquement ici (pas sur réception) */
 static void handleKeys(void){
     uint8_t key = KEYBOARD_GetKey();
-    if(key == KEY_INVALID || key == g.prevKey){ g.prevKey = key; return; }
+    if (key == KEY_INVALID || key == g.prevKey) { g.prevKey = key; return; }
     g.prevKey = key;
-
-    if(!backlightOn && gEeprom.BACKLIGHT_TIME){
+    if (!BACKLIGHT_IsOn() && gEeprom.BACKLIGHT_TIME) { /* 1re touche : rallume seulement */
         BACKLIGHT_TurnOn();
-        return;                              /* touche consommée */
+        return;
     }
-    BACKLIGHT_TurnOn();                      /* réarme le timer (interne) */
-
+    BACKLIGHT_TurnOn();
     g.redraw |= REDRAW_ON;
     int d = (key == KEY_DOWN) - (key == KEY_UP);
-    if(d){
+    if (d) {
         unsigned top = (unsigned)(g.top + d);
-        if(top <= g.lim) g.top = (uint8_t)top;
-        else if((unsigned)(g.cur + d) < g.count){ g.cur = (uint8_t)(g.cur + d); g.top = 0; }
+        if (top <= g.lim) g.top = (uint8_t)top;
+        else if ((unsigned)(g.cur + d) < g.count) { g.cur = (uint8_t)(g.cur + d); g.top = 0; }
     }
-    else if(key == KEY_EXIT) {
+    else if (key == KEY_EXIT) {
         g.running = false;
         g_pocsagScanStop = true;
     }
-    else if(key == KEY_2){
+    else if (key == KEY_2) {
         g.count = g.cur = 0; g.nOk = 0; g.top = 0;
         *g_pool_head = 0;
         pocsag_memset(g_pool, 0, POOL_SIZE);
         pocsag_memset(g_pages, 0, sizeof(page_t) * MAX_MSGS);
-        g.nSync = 0; g.preRate = 0;
-        for(unsigned k = 0; k < NSL; k++) g.sl[k].ok = 0;
+        g.nSync = 0; g.nHits = 0; g.nWords = 0;
+        for (unsigned k = 0; k < NSL; k++) g.sl[k].ok = 0;
     }
-    else if(key == KEY_3) g.dbg ^= 1u;
-    else if(key == KEY_STAR){ g.cw ^= CW_COMPACT; g.top = 0; }
+    else if (key == KEY_3) g.dbg ^= 1u;
+    else if (key == KEY_1) g.hold ^= 1u;
+    else if (key == KEY_STAR) { g.cw ^= CW_COMPACT; g.top = 0; }
+}
+
+/* Rétroéclairage : extinction après la durée réglée (BACKLIGHT_TIME), comme
+ * le spectre de Sonic ; BACKLIGHT_Update fait le fondu. */
+static void backlightTick(void){
+    BACKLIGHT_Update();
+    if (gNextTimeslice_500ms) {
+        gNextTimeslice_500ms = false;
+        if (gBacklightCountdown_500ms > 0) --gBacklightCountdown_500ms;
+        if (gEeprom.BACKLIGHT_TIME < 61 && gBacklightCountdown_500ms == 0) BACKLIGHT_TurnOff();
+    }
+}
+
+/* Pendant une réception : touches et rétroéclairage seulement. Le dessin
+ * de l'écran (polices en flash externe, envoi à l'écran) prendrait des
+ * dizaines de millisecondes, donc des bits perdus : il attend la fin de
+ * l'émission. */
+static void houseLight(void){
+    handleKeys();
+    backlightTick();
 }
 
 static void house(void){
     handleKeys();
-    if(!g.running) return;
-    /* PAS de BACKLIGHT_TurnOn sur REDRAW_FRAME : sinon l'activité
-     * POCSAG réarme le timer en boucle et l'écran ne s'éteint jamais. */
-    if(++g.refresh >= REFRESH_SLOTS) g.redraw |= REDRAW_ON;
-    if(!g.redraw) return;
+    if (g_pocsagScanStop) return;
+    if (g.redraw & REDRAW_FRAME) BACKLIGHT_TurnOn();
+    backlightTick();
+    if (++g.refresh >= REFRESH_SLOTS || g.dbg) g.redraw |= REDRAW_ON; /* diagnostic : en direct */
+    if (!g.redraw) return;
     g.redraw = 0;
     g.refresh = 0;
     draw();
@@ -756,66 +791,42 @@ static void house(void){
     ST7565_BlitFullScreen();
 }
 
-static void rateFind(bool flipped){
-    if(g.rfRun < 255u) g.rfRun++;
-    if(!flipped) return;
-    unsigned r = g.rfRun, c = 0;
-    if(r - 3u <= 2u) c = 2400u;
-    else if(r - 6u <= 4u) c = 1200u;
-    g.rfRun = 0;
-    if(c && c == g.rfCls){
-        if(g.rfStreak < PRE_RUNS && ++g.rfStreak == PRE_RUNS) g.preRate = (uint16_t)c;
-    } else {
-        g.rfCls = (uint16_t)c;
-        g.rfStreak = 1;
-    }
-}
-
 /* ============================================================
- * Boucle de décodage — sans timeout
+ * Écoute d'un canal
  *
- * Deux ticks backlight, indépendants de house() :
- *   - 10 ms : BACKLIGHT_Update (fade uniquement)
- *   - 500 ms : décompte gBacklightCountdown_500ms + TurnOff
- *              (reproduit gNextTimeslice_500ms de spectrum.c)
+ * Phase 1 (POCSAG_DWELL_MS) : signal à 1200 bauds ou mot de synchro ?
+ *   Non : retour tout de suite, canal suivant.
+ * Phase 2 : décodage. L'écoute dure tant que des lots arrivent ; elle
+ *   s'arrête POCSAG_END_MS après le dernier lot (fin d'émission), ou si le
+ *   premier mot de synchro ne vient pas dans POCSAG_SYNC_WAIT_MS.
+ * Les échantillons sautés pendant le service touches/écran sont rattrapés
+ * par les horloges des slicers (alignement des mots gardé), comme l'app.
  * ============================================================ */
 static void listen(void){
-    g_pool = g_local_pool;
-    g_pool_head = &g_local_pool_head;
-    g_pages = g_local_pages;
-
-    pocsag_memset(g_local_pool, 0, POOL_SIZE);
-    pocsag_memset(g_local_pages, 0, sizeof(g_local_pages));
-    g_local_pool_head = 0;
-
     sl_t *sl = g_sl;
-    int32_t box4[4], sum4 = 0, dc = (int32_t)(BIAS_CODE << 4);
+    int32_t box4[4] = {0, 0, 0, 0}, sum4 = 0, dc = (int32_t)(BIAS_CODE << 4);
     unsigned bi = 0;
     pocsag_memset(sl, 0, sizeof(g_sl));
-    pocsag_memset(box4, 0, sizeof box4);
-    for(unsigned k = 0; k < NSL; k++){
+    for (unsigned k = 0; k < NSL; k++) {
         sl_t *m = &sl[k];
         m->num = (uint8_t)(2u + k);
         m->word = HUNT;
         m->step = STEP_1200;
         m->dup = DUP_1200;
     }
-
     g.sl = sl;
-    g.nSync = 0;
-    g.nOk = 0;
+    uint16_t good = 0, bad = 0, q = 0;
+    uint8_t run = 0;
 
+    const uint32_t start = g.n;
+    const uint16_t sync0 = g.nSync;
+    uint32_t lastBatch = 0;        /* dernier échantillon vu dans un lot  */
+    bool active = false;           /* préambule ou synchro trouvé          */
     uint32_t next = pocsag_cycles_48mhz();
     uint16_t cnt = 0;
-    g.blFade = 0;
-    g.bl500 = 0;
-    g.redraw = REDRAW_ON;
 
-    while(g.running){
-        if (g_pocsagScanStop) { g.running = false; break; }
-
-        /* Échantillonnage */
-        while((int32_t)(pocsag_cycles_48mhz() - next) < 0){}
+    while (!g_pocsagScanStop) {
+        while ((int32_t)(pocsag_cycles_48mhz() - next) < 0) {}
         next += CYC_PER_SAMPLE;
         g.n++;
         int32_t adc = pocsag_af_capture_sample();
@@ -825,210 +836,163 @@ static void listen(void){
         box4[bi & 3u] = x;
         bi = (bi + 1u) & 3u;
         int32_t before = sl[0].rprev;
-        for(unsigned k = 0; k < NSL; k++) slice(&sl[k], sum4);
-        rateFind(sl[0].rprev != before);
-        if(++g.ledCnt >= LED_STEP){
+        for (unsigned k = 0; k < NSL; k++) slice(&sl[k], sum4);
+        if (run < 255u) run++;
+        if (sl[0].rprev != before) {
+            const unsigned m = run & 7u, err = m <= 4u ? m : 8u - m;
+            if (run >= 6u && run <= 44u && err <= 1u) good++;
+            else bad++;
+            if (run >= 3u && run <= 44u && (m == 3u || m == 4u || m == 5u)) q++;
+            run = 0;
+        }
+        if (++g.ledCnt >= LED_STEP) {
             g.ledCnt = 0;
-            if(g.led){ g.led--; BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u); }
+            if (g.led) { g.led--; BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u); }
         }
 
-        /* Backlight : tick 10 ms (fade) */
-        if(++g.blFade >= BL_FADE_SAMPLES){
-            g.blFade = 0;
-            pocsag_backlight_fade_tick();
-        }
-        /* Backlight : tick 500 ms (timeout) */
-        if(++g.bl500 >= BL_500MS_SAMPLES){
-            g.bl500 = 0;
-            pocsag_backlight_500ms_tick();
-        }
+        bool inBatch = false;
+        for (unsigned k = 0; k < NSL; k++)
+            if (sl[k].word != HUNT) inBatch = true;
+        if (inBatch) lastBatch = g.n;
 
-        if(cnt < HOUSE_EVERY){ cnt++; continue; }
+        const uint32_t elapsed = g.n - start;
+        if (!active) {
+            if (g.nSync != sync0 ||
+                (good >= POCSAG_LOCK_GOOD && bad * POCSAG_LOCK_RATIO <= good)) {
+                active = true;
+                g.nHits++;
+                lastBatch = g.n;
+            } else if (elapsed >= MS_SAMPLES(POCSAG_DWELL_MS)) {
+                g.lastGood = good; g.lastBad = bad; g.lastQ = q;
+                return;                                   /* canal vide */
+            }
+            continue;                                     /* pas de service : 50 ms */
+        }
+        if (g.nSync == sync0) {                           /* pas encore de synchro */
+            if (elapsed >= MS_SAMPLES(POCSAG_SYNC_WAIT_MS)) break;
+        } else if (!inBatch && g.n - lastBatch >= MS_SAMPLES(POCSAG_END_MS)) {
+            break;                                        /* fin d'émission */
+        }
+        if (elapsed >= MS_SAMPLES(POCSAG_MAX_RX_MS)) break;
+
+        if (cnt < HOUSE_EVERY) { cnt++; continue; }
         bool wait = false;
-        for(unsigned k = 0; k < NSL; k++){
+        for (unsigned k = 0; k < NSL; k++) {
             unsigned w = sl[k].word;
-            if(w != HUNT && (w != BATCH_WORDS || sl[k].nb >= SYNC_SLOT)) wait = true;
+            if (w != HUNT && (w != BATCH_WORDS || sl[k].nb >= SYNC_SLOT)) wait = true;
         }
-        if(wait && ++g.busyFor < BUSY_MAX) continue;
+        if (wait && ++g.busyFor < BUSY_MAX) continue;
         g.busyFor = 0;
         cnt = 0;
-        GPIO_EnableAudioPath();
-        house();
-
-        if (!g.running) break;
-
-        if (g.count > 0) {
-            g.running = false;
-            break;
-        }
-
-        while((int32_t)(pocsag_cycles_48mhz() - next) >= 0){
+        houseLight();
+        while ((int32_t)(pocsag_cycles_48mhz() - next) >= 0) {
             next += CYC_PER_SAMPLE;
             g.n++;
-            for(unsigned k = 0; k < NSL; k++){
-                if(sl[k].word == BATCH_WORDS) sl[k].excuse = 1;
+            for (unsigned k = 0; k < NSL; k++) {
+                if (sl[k].word == BATCH_WORDS) sl[k].excuse = 1;
                 sl[k].phase += sl[k].step;
-                if(sl[k].phase >= 65536){ sl[k].phase -= 65536; seqBit(&sl[k], 0); }
+                if (sl[k].phase >= 65536) { sl[k].phase -= 65536; seqBit(&sl[k], 0); }
             }
         }
+    }
+    for (unsigned k = 0; k < NSL; k++) {
+        closePage(&sl[k]);                                 /* page en cours */
+        g.nWords += sl[k].ok;
     }
 }
 
 /* ============================================================
- * Affichage des messages — PERMANENT
+ * Accord rapide (comme SetF du spectre) : fréquence, filtre, relance
+ * du synthé par REG_30.
+ * La valeur de réception de REG_30 est lue une fois, après
+ * BK4819_RX_TurnOn. Attention : BK4819_WriteRegister met reg_30_cache à
+ * jour et ignore une écriture égale au cache. Écrire 0x200 puis
+ * reg_30_cache réécrirait 0x200 (ignoré) et laisserait la réception coupée.
  * ============================================================ */
-static bool showMessages(void)
+static uint16_t g_rx30;
+
+static void pocsag_tune(uint32_t f)
 {
-    g.cur = 0;
-    g.top = 0;
-    g.redraw = REDRAW_ON;
-    BACKLIGHT_TurnOn();
+    BK4819_SetFrequency(f);
+    BK4819_PickRXFilterPathBasedOnFrequency(f);
+    BK4819_WriteRegister(BK4819_REG_30, 0x200);
+    BK4819_WriteRegister(BK4819_REG_30, g_rx30);
+}
 
-    uint32_t last_fade = gGlobalSysTickCounter;
-    uint32_t last_500  = gGlobalSysTickCounter;
-
-    for (;;) {
-        if (g.redraw) {
-            g.redraw = 0;
-            draw();
-            ST7565_BlitStatusLine();
-            ST7565_BlitFullScreen();
-        }
-
-        uint8_t key = KEYBOARD_GetKey();
-        if (key != KEY_INVALID && key != g.prevKey) {
-            g.prevKey = key;
-            if (!backlightOn && gEeprom.BACKLIGHT_TIME) {
-                BACKLIGHT_TurnOn();       /* touche consommée */
-            }
-            else {
-                BACKLIGHT_TurnOn();
-                g.redraw |= REDRAW_ON;
-                if (key == KEY_EXIT) {
-                    g_pocsagScanStop = true;
-                    return true;
-                }
-                else if (key == KEY_DOWN) {
-                    if (g.cur + 1u < g.count) { g.cur++; g.top = 0; }
-                }
-                else if (key == KEY_UP) {
-                    if (g.cur > 0) { g.cur--; g.top = 0; }
-                }
-                else if (key == KEY_STAR) {
-                    g.cw ^= CW_COMPACT;
-                    g.top = 0;
-                }
-                else if (key == KEY_2) {
-                    g.count = 0;
-                    g.cur = 0;
-                    g.nOk = 0;
-                    return false;
-                }
-            }
-        }
-        else {
-            g.prevKey = key;
-        }
-
-        /* Ticks backlight en mode affichage (basés sur SysTick 10 ms) */
-        uint32_t now = gGlobalSysTickCounter;
-        if (now != last_fade) { last_fade = now; pocsag_backlight_fade_tick(); }
-
-        static uint8_t tick500 = 0;
-        if (++tick500 >= 50) {            /* 50 × 10 ms = 500 ms */
-            tick500 = 0;
-            pocsag_backlight_500ms_tick();
-        }
-        (void)last_500;
-
-        SYSTEM_DelayMs(10);
+static uint16_t pocsag_load_channels(int8_t listIdx)
+{
+    uint16_t n = 0;
+    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST && n < POCSAG_MAX_CH; ch++) {
+        uint32_t freq = pocsag_channel_freq(ch);
+        if (freq && pocsag_channel_in_list(ch, listIdx))
+            g_chFreq[n++] = freq;
     }
+    return n;
 }
 
 /* ============================================================
- * APP_RunPocsagScan
+ * APP_RunPocsagScan : tourne jusqu'à EXIT (g_pocsagScanStop).
  * ============================================================ */
 void APP_RunPocsagScan(void)
 {
     int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
-    if (listIdx < 0) {
+    g.nCh = listIdx < 0 ? 0 : pocsag_load_channels(listIdx);
+    if (!g.nCh) {
         UI_DisplayClear();
         UI_PrintStringSmallBold("NO " POCSAG_LIST_NAME " LIST", 0, 0, 2);
         ST7565_BlitFullScreen();
         SYSTEM_DelayMs(1500);
+        g_pocsagScanStop = true;
         return;
     }
 
+    const uint16_t r2b = BK4819_ReadRegister((BK4819_REGISTER_t)REG_2B);
+    const uint16_t r73 = BK4819_ReadRegister((BK4819_REGISTER_t)REG_73);
+    const uint16_t r48 = BK4819_ReadRegister((BK4819_REGISTER_t)REG_48);
+
+    GPIO_DisableAudioPath();                       /* HP muet, AF intact */
     pocsag_af_capture_open();
-    BK4819_WriteRegister((BK4819_REGISTER_t)REG_2B,
-                         (uint16_t)((BK4819_ReadRegister((BK4819_REGISTER_t)REG_2B) | 0x0700u) & ~0x0007u));
-    BK4819_WriteRegister((BK4819_REGISTER_t)REG_73,
-                         (uint16_t)(BK4819_ReadRegister((BK4819_REGISTER_t)REG_73) | 0x0010u));
+    BK4819_ToggleGpioOut(BK4819_GPIO0_PIN28_RX_ENABLE, true);
+    BK4819_SetFrequency(g_chFreq[0]);
+    BK4819_PickRXFilterPathBasedOnFrequency(g_chFreq[0]);
+    BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false);
+    BK4819_RX_TurnOn();
+    g_rx30 = BK4819_ReadRegister(BK4819_REG_30);  /* réception complète */
+    BK4819_WriteRegister((BK4819_REGISTER_t)REG_2B, (uint16_t)((r2b | 0x0700u) & ~0x0007u));
+    BK4819_WriteRegister((BK4819_REGISTER_t)REG_73, (uint16_t)(r73 | 0x0010u));
     BK4819_SetAF(BK4819_AF_FM);
-    BK4819_WriteRegister(REG_48, 0);
     BACKLIGHT_TurnOn();
-
     g_cyc_base = APP_CYC_DIAGNOSTIC_START - pocsag_cycles_raw();
+    g.redraw = REDRAW_ON;
 
-    uint16_t chans[MR_CHANNEL_LAST - MR_CHANNEL_FIRST + 1u];
-    uint16_t nch = 0;
-    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
-        uint32_t freq = pocsag_channel_freq(ch);
-        if (freq == 0u) continue;
-        if (!pocsag_channel_in_list(ch, listIdx)) continue;
-        chans[nch++] = ch;
-    }
-
-    if (nch == 0u) {
-        UI_DisplayClear();
-        UI_PrintStringSmallBold("POCSAG LIST EMPTY", 0, 0, 2);
-        ST7565_BlitFullScreen();
-        SYSTEM_DelayMs(1500);
-        pocsag_af_capture_close();
-        GPIO_DisableAudioPath();
-        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
-        return;
-    }
-
-    uint16_t idx = 0;
-
-    while (!g_pocsagScanStop) {
-        uint16_t ch = chans[idx];
-        uint32_t freq = pocsag_channel_freq(ch);
-        if (freq == 0u) { if (++idx >= nch) idx = 0; continue; }
-
-        BK4819_SetFrequency(freq);
-        BK4819_PickRXFilterPathBasedOnFrequency(freq);
-        BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false);
-        BK4819_RX_TurnOn();
-        SYSTEM_DelayMs(POCSAG_SETTLE_MS);
-
-        g.current_freq = freq;
-        scan_freq = freq;
-        g.nSync = 0;
-        g.count = 0;
-        g.nOk = 0;
-        g.redraw |= REDRAW_ON;
-        house();
-
-        g.running = true;
-        GPIO_EnableAudioPath();
-        listen();
-
-        if (g_pocsagScanStop) break;
-
-        if (g.count) {
-            bool exit_scan = showMessages();
-            if (exit_scan) { g_pocsagScanStop = true; break; }
+    uint32_t tuned = g_chFreq[0];
+    SYSTEM_DelayMs(POCSAG_SETTLE_MS);
+    for (uint16_t i = 0; !g_pocsagScanStop; i = g.hold ? i : (uint16_t)((i + 1u) % g.nCh)) {
+        g.current_freq = g_chFreq[i];
+        if (g.current_freq != tuned) {             /* un seul canal, ou tenu : pas de réaccord */
+            tuned = g.current_freq;
+            pocsag_tune(tuned);
+            SYSTEM_DelayMs(POCSAG_SETTLE_MS);
         }
 
-        if (++idx >= nch) idx = 0;
+        const uint16_t before = g.nOk;
+        listen();
+        if (g.nOk != before) {                     /* nouvelle(s) page(s) */
+            g.cur = 0; g.top = 0;
+            g.led = LED_STEPS;
+            g.redraw |= REDRAW_FRAME;
+        }
+        house();                                   /* touches, écran, rétroéclairage */
     }
 
-    pocsag_af_capture_close();
-    BK4819_SetAF(BK4819_AF_FM);
     GPIO_DisableAudioPath();
+    BK4819_SetAF(BK4819_AF_MUTE);
+    pocsag_af_capture_close();
+    BK4819_WriteRegister((BK4819_REGISTER_t)REG_2B, r2b);
+    BK4819_WriteRegister((BK4819_REGISTER_t)REG_73, r73);
+    BK4819_WriteRegister((BK4819_REGISTER_t)REG_48, r48);
     BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
+    BACKLIGHT_TurnOn();
 }
 
 #endif /* ENABLE_POCSAG */
