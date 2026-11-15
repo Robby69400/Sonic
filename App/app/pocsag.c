@@ -17,14 +17,14 @@
  *    préambule) est affiché en haut, avant la fréquence.
  *
  * SCAN
- *  - Les canaux de la scanlist « POCSAG » sont lus une fois au lancement.
+ *  - Les canaux de la scanlist « POCSAG » sont relus à la volée.
  *  - Sur chaque canal : accord, POCSAG_SETTLE_MS de stabilisation, puis
  *    POCSAG_DWELL_MS d'écoute : signal à 1200 ou 512 bauds (préambule ou
  *    lots, même pris en cours d'émission) ou mot de synchro ?
  *  - Rien : canal suivant. Trouvé : on décode jusqu'à la fin de l'émission
  *    (plus aucun lot pendant POCSAG_END_MS), puis on affiche la ou les pages
  *    reçues avec la fréquence en en-tête, et le scan reprend.
- *  - Les pages restent affichées (10 dernières, toutes fréquences) pendant
+ *  - Les pages restent affichées (200 dernières, toutes fréquences) pendant
  *    que le scan continue ; une nouvelle page rallume l'écran.
  *
  * AUDIO
@@ -36,9 +36,32 @@
  *    en aval : le scan est muet sans toucher au signal du décodeur.
  *  - REG_2B, REG_73 et REG_48 sont rétablis à la sortie.
  *
- * Touches : EXIT quitte · UP/DOWN pages (puis défilement) · * vue compacte ·
- *           1 tient le canal en cours (H) · 2 efface les pages ·
- *           3 diagnostic en bas d'écran.
+ * STOCKAGE (flash externe, 0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
+ *   [0x012000, 0x012010) : en-tête (16 o)
+ *                          magic + crc + pool_head + count + head
+ *   [0x012010, 0x012970) : anneau pages (200 × 12 o = 2 400 o)
+ *                          page_t = { ric, freq, offset, len, flags }
+ *                          flags = func(2) | alpha(1) | baud(1)
+ *   [0x012970, 0x018000) : pool froid (22 160 o, circulaire)
+ *                          texte des pages, écrit en blocs contigus
+ *
+ *  - Les pages forment un anneau circulaire de MAX_MSGS cases physiques.
+ *    `head` est l'index physique de la page logique 0 (la plus récente).
+ *    Insertion O(1) : head = (head + MAX_MSGS - 1) % MAX_MSGS.
+ *    Accès logique k → physique (head + k) % MAX_MSGS (PAS % count).
+ *  - Le pool froid est circulaire : à chaque page, on écrit le texte à
+ *    `pool_head` puis pool_head avance de len. Quand le pool est plein,
+ *    les nouveaux messages écrasent les plus anciens caractères (compor-
+ *    tement anneau assumé). Avec 22 160 o et ~80 o/message, on couvre
+ *    ~277 pages : 200 pages tiennent en moyenne sans débordement.
+ *  - Pendant la réception, aucun accès flash : le texte s'accumule dans
+ *    sl_t.text (RAM). À la fin du message (closePage), on copie dans
+ *    g_pool_ram[MSG_MAX] puis on écrit en flash en UN SEUL appel
+ *    PY25Q16_WriteBuffer (au plus 2 si le message traverse la fin du pool).
+ *
+ * Touches : EXIT quitte · UP/DOWN pages (puis défilement, avec répétition
+ *            quand on maintient la touche) · * vue compacte · 1 tient le
+ *            canal en cours (H) · 2 efface les pages · 3 diagnostic.
  */
 
 #ifdef ENABLE_POCSAG
@@ -78,7 +101,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY    480u    /* 50 ms entre deux services touches/écran */
+#define HOUSE_EVERY    480u
 #define BUSY_MAX       19200u
 #define LED_STEP       960u
 #define LED_STEPS      4u
@@ -87,26 +110,21 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define REDRAW_ON      1u
 #define REDRAW_FRAME   2u
 
-#define REG_2B      0x2B   /* <10:8> = 1 : RX HPF300, LPF3K, désaccentuation off */
-#define REG_73      0x73   /* <4> = 1 : AFC off (il suivrait les bits)            */
-#define REG_48      0x48   /* gain AF : le laisser, le décodeur en dépend          */
+#define REG_2B      0x2B
+#define REG_73      0x73
+#define REG_48      0x48
 
-#define NSL         3
-#define STEP_1200   8192u  /* 8 échantillons par bit à 1200 bauds    */
+#define NSL         3u
+#define STEP_1200   8192u
 #define DUP_1200    128u
-/* 512 bauds : 9600/512 = 18.75 éch/bit.
- * STEP = 65536 * 512 / 9600 = 3495.25  ->  3495
- * DUP  = moitié d'un mot (32 bits) : 16 * 18.75 = 300 */
 #define STEP_512    3495u
 #define DUP_512     300u
 #define PLL_SHIFT   3
 #define DIRTY_WORDS 8u
 
-/* Débits (valeurs stockées dans g.baud / g.preRate, en valeur POCSAG). */
 #define BAUD_1200   1200u
 #define BAUD_512    512u
 
-/* rateFind : PRE_RUNS flips consécutifs dans la même classe valident le débit. */
 #define PRE_RUNS    32u
 
 #define SYNC        0x7CD215D8u
@@ -119,12 +137,23 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define AUTO_MIN_ALPHA 6u
 #define AUTO_MIN_LETTERS 4u
 #define AUTO_MARGIN    9
-#define MSG_MAX     254u
+#define MSG_MAX     254u       /* limite POCSAG, tient dans uint8_t (254 ≤ 255) */
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
-#define POOL_SIZE   4200u
-#define MAX_MSGS    40u
+/* ============================================================
+ * Stockage flash (0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
+ *   [0x012000, 0x012010) : en-tête (16 o)
+ *   [0x012010, 0x012970) : anneau pages (200 × 12 o = 2 400 o)
+ *   [0x012970, 0x018000) : pool froid (22 160 o, circulaire)
+ * ============================================================ */
+#define POCSAG_FLASH_BASE        0x012000u
+#define POCSAG_FLASH_END         0x018000u
+
+#define MAX_MSGS                 200u
+
+#define POCSAG_META_FLASH_ADDR   (POCSAG_FLASH_BASE)                       /* 0x012000 */
+#define POCSAG_PAGES_FLASH_ADDR  (POCSAG_META_FLASH_ADDR + 16u)            /* 0x012010 */
 
 /* Layout texte */
 #define TONE_STR        "TONE ONLY"
@@ -134,48 +163,60 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define CAPS_END        127u
 #define ROW_CHARS       18u
 #define CW_COMPACT      14u
-#define ROWS            3u
+#define ROWS            6u
+
+/* Répétition touches UP/DOWN (ticks de 50 ms) */
+#define KEY_REPEAT_DELAY   8u
+#define KEY_REPEAT_PERIOD  2u
 
 /* ============================================================
  * Paramètres du scan
  * ============================================================ */
 #define POCSAG_LIST_NAME    "POCSAG"
-#define POCSAG_MAX_CH       64u     /* canaux de la scanlist gardés          */
-#define POCSAG_SETTLE_MS    40u     /* après l'accord, avant d'écouter       */
-#define POCSAG_DWELL_MS     100u    /* recherche du préambule par canal :
-                                       assez pour 512 bauds (préambule plus
-                                       long, lock plus lent à obtenir)       */
-/* Signal à 1200 ou 512 bauds : les changements du slicer tombent sur des
- * multiples de la durée d'un bit (8 éch à 1200, 18/19 à 512), au préambule
- * (1 0 1 0) comme dans les lots. Le bruit les place n'importe où. On compte
- * les écarts à +/-1 échantillon d'un multiple (good) et les autres (bad).
- * Détecte aussi une émission prise en cours, après son préambule. */
+#define POCSAG_MAX_CH       64u
+#define POCSAG_SETTLE_MS    40u
+#define POCSAG_DWELL_MS     100u
+
 #define POCSAG_LOCK_GOOD    24u
-#define POCSAG_LOCK_RATIO   4u      /* bad * 4 <= good                       */
-/* Après le préambule, le premier mot de synchro arrive au plus tard à la
- * fin du préambule (480 ms normalisés à 1200, 1.125 s à 512, plus long sur
- * certains réseaux). */
+#define POCSAG_LOCK_RATIO   4u
 #define POCSAG_SYNC_WAIT_MS 1500u
-/* Fin d'émission : plus aucun slicer dans un lot depuis ce temps. */
 #define POCSAG_END_MS       600u
-#define POCSAG_MAX_RX_MS    30000u  /* plafond d'une émission                */
+#define POCSAG_MAX_RX_MS    30000u
 
 #define MS_SAMPLES(ms)  ((uint32_t)(ms) * (FS / 1000u))
 
 /* ============================================================
  * Structures
  * ============================================================ */
+
+/* page_t compacte : 12 octets.
+ * Le champ flags regroupe func(2 bits), alpha(1 bit) et baud(1 bit). */
 typedef struct {
-    uint32_t ric;
-    uint32_t t;
-    uint32_t at;
-    uint32_t freq;
-    int16_t  rssi;
-    uint16_t offset;
-    uint16_t len;
-    uint8_t  func, alpha;
-    uint16_t baud;     /* débit de réception de cette page (1200 ou 512) */
+    uint32_t ric;      /* identifiant destinataire                */
+    uint32_t freq;     /* fréquence en Hz                         */
+    uint16_t offset;   /* offset du texte dans le pool froid      */
+    uint8_t  len;      /* longueur du texte (0..254)              */
+    uint8_t  flags;    /* bits 1:0 func | 2 alpha | 3 baud        */
 } page_t;
+
+/* Accès aux champs binaires de page_t.flags. */
+#define PAGE_FLAG_FUNC(f)    ((uint8_t)((f) & 3u))
+#define PAGE_FLAG_ALPHA(a)   ((uint8_t)(((a) & 1u) << 2))
+#define PAGE_FLAG_BAUD(b)    ((uint8_t)(((b) & 1u) << 3))
+
+#define PAGE_GET_FUNC(p)     ((unsigned)((p)->flags & 3u))
+#define PAGE_GET_ALPHA(p)    ((unsigned)(((p)->flags >> 2) & 1u))
+#define PAGE_GET_BAUD(p)     ((unsigned)(((p)->flags >> 3) & 1u))
+
+static inline void page_set_func(page_t *p, unsigned f) {
+    p->flags = (uint8_t)((p->flags & ~3u) | PAGE_FLAG_FUNC(f));
+}
+static inline void page_set_alpha(page_t *p, unsigned a) {
+    p->flags = (uint8_t)((p->flags & ~(1u << 2)) | PAGE_FLAG_ALPHA(a));
+}
+static inline void page_set_baud(page_t *p, unsigned b) {
+    p->flags = (uint8_t)((p->flags & ~(1u << 3)) | PAGE_FLAG_BAUD(b));
+}
 
 typedef struct {
     int32_t  amp;
@@ -203,22 +244,50 @@ typedef struct {
     char     atext[MSG_MAX];
 } sl_t;
 
-/* Buffers statiques : pas sur la pile (HardFault sinon). Les pages et le
- * pool sont gardés d'un canal à l'autre. */
-static char     g_local_pool[POOL_SIZE];
-static page_t   g_local_pages[MAX_MSGS];
-static sl_t     g_sl[NSL];
-static uint16_t g_local_pool_head;
-static uint32_t g_chFreq[POCSAG_MAX_CH];
+/* En-tête persistant en flash (16 octets). */
+typedef struct {
+    uint32_t magic;      /* POCSAG_META_MAGIC = "POCS"             */
+    uint32_t crc;        /* XOR/rotations sur pool_head,count,head */
+    uint16_t pool_head;  /* curseur d'allocation dans le pool      */
+    uint16_t count;      /* nombre de pages valides (0..MAX_MSGS)  */
+    uint16_t head;       /* index physique de la page logique 0    */
+    uint16_t _pad;
+} pocsag_hdr_t;
 
-static char     *const g_pool = g_local_pool;
-static uint16_t *const g_pool_head = &g_local_pool_head;
-static page_t   *const g_pages = g_local_pages;
+#define POCSAG_META_MAGIC  0x504F4353u     /* "POCS" */
 
-static struct {
+_Static_assert(sizeof(page_t) == 12u, "page_t doit faire 12 octets");
+_Static_assert(sizeof(pocsag_hdr_t) == 16u, "hdr doit faire 16 octets");
+
+/* Pool froid : de la fin de l'anneau à la fin de la zone. */
+#define POCSAG_POOL_FLASH_ADDR  (POCSAG_PAGES_FLASH_ADDR + MAX_MSGS * (uint32_t)sizeof(page_t))
+#define POCSAG_POOL_SIZE        (POCSAG_FLASH_END - POCSAG_POOL_FLASH_ADDR)
+
+_Static_assert(POCSAG_POOL_FLASH_ADDR < POCSAG_FLASH_END,
+               "le pool froid doit être non vide");
+
+/* ============================================================
+ * État global (RAM minimale)
+ * ============================================================ */
+static sl_t          g_sl[NSL];
+
+static pocsag_hdr_t  g_hdr;
+static bool          g_hdr_dirty;
+
+static page_t        g_cur_page;
+static bool          g_cur_valid;
+
+/* Buffer de transfert RAM → flash, dimensionné pour UN message (254 o).
+ * Accumule le texte à écrire en bloc dans le pool à la fin de chaque
+ * page. Aucune écriture flash pendant la réception. */
+static char          g_pool_ram[MSG_MAX];
+
+struct {
     uint8_t  prevKey, redraw;
+    uint8_t  repKey;
+    uint16_t repCount;
     bool     running;
-    uint8_t  count, cur;
+    uint16_t cur;
     uint8_t  cw;
     uint8_t  refresh;
     uint8_t  top, lim;
@@ -230,18 +299,17 @@ static struct {
     uint32_t n;
     uint32_t current_freq;
     uint16_t nCh, nHits;
-    uint16_t lastGood, lastBad, lastQ; /* flips au pas d'un bit / autres / au demi-bit, dernière fenêtre */
-    uint16_t nWords;                   /* mots BCH bons, cumulés (le compteur des slicers repart à chaque canal) */
-    uint8_t  battOk;                   /* une mesure de batterie faite */
-    uint16_t baud;                     /* débit effectif des slicers : 1200 ou 512 */
-    uint8_t  baudLocked;               /* 1 : débit validé par un sync, plus de réinit */
-    /* Détection du baudrate (rateFind de l'app POCSAG RX) */
-    uint16_t preRate;                  /* dernier débit mesuré sur le préambule (0 = aucun) */
-    uint16_t rfCls;                    /* classe de débit des flips en cours */
-    uint8_t  rfRun;                    /* échantillons depuis le dernier flip */
-    uint8_t  rfStreak;                 /* flips consécutifs dans rfCls */
+    uint16_t lastGood, lastBad, lastQ;
+    uint16_t nWords;
+    uint8_t  battOk;
+    uint16_t baud;
+    uint8_t  baudLocked;
+    uint16_t preRate;
+    uint16_t rfCls;
+    uint8_t  rfRun;
+    uint8_t  rfStreak;
     sl_t     *sl;
-} g  = { .cw = 1, .baud = BAUD_1200 };
+} g = { .cw = 1, .baud = BAUD_1200 };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -254,6 +322,107 @@ static void *pocsag_memset(void *d, int c, size_t n) {
 static void *pocsag_memcpy(void *d, const void *s, size_t n) {
     uint8_t *p = d; const uint8_t *q = s;
     while (n) { --n; p[n] = q[n]; } return d;
+}
+
+/* ============================================================
+ * Accès flash : en-tête et pages
+ * ============================================================ */
+static uint32_t pocsag_hdr_crc(const pocsag_hdr_t *h)
+{
+    uint32_t c = 0xA5A5A5A5u;
+    c ^= (uint32_t)h->pool_head << 16;
+    c ^= (uint32_t)h->count;
+    c ^= (uint32_t)h->head << 8;
+    return c;
+}
+
+static void pocsag_hdr_flush(void)
+{
+    if (!g_hdr_dirty) return;
+    g_hdr.magic = POCSAG_META_MAGIC;
+    g_hdr.crc   = pocsag_hdr_crc(&g_hdr);
+    PY25Q16_WriteBuffer(POCSAG_META_FLASH_ADDR, &g_hdr, sizeof(g_hdr), false);
+    g_hdr_dirty = false;
+}
+
+static void pocsag_hdr_load(void)
+{
+    PY25Q16_ReadBuffer(POCSAG_META_FLASH_ADDR, &g_hdr, sizeof(g_hdr));
+    if (g_hdr.magic != POCSAG_META_MAGIC || g_hdr.count > MAX_MSGS ||
+        g_hdr.crc != pocsag_hdr_crc(&g_hdr)) {
+        pocsag_memset(&g_hdr, 0, sizeof(g_hdr));
+        g_hdr.magic = POCSAG_META_MAGIC;
+        g_hdr_dirty = true;
+    } else {
+        g_hdr_dirty = false;
+    }
+    g_cur_valid = false;
+}
+
+/* Index physique d'une page logique k (0 = plus récente).
+ * Modulo MAX_MSGS (PAS count) : l'anneau a toujours MAX_MSGS cases
+ * physiques et head pointe sur la case de la page logique 0. */
+static uint16_t pocsag_phys(unsigned k)
+{
+    return (uint16_t)((g_hdr.head + k) % MAX_MSGS);
+}
+
+static void pocsag_page_load(unsigned k, page_t *p)
+{
+    uint16_t phys = pocsag_phys(k);
+    PY25Q16_ReadBuffer(POCSAG_PAGES_FLASH_ADDR + (uint32_t)phys * sizeof(page_t),
+                       p, sizeof(page_t));
+}
+
+static void pocsag_page_store_phys(uint16_t phys, const page_t *p)
+{
+    PY25Q16_WriteBuffer(POCSAG_PAGES_FLASH_ADDR + (uint32_t)phys * sizeof(page_t),
+                        p, sizeof(page_t), false);
+}
+
+static void pocsag_cur_load(void)
+{
+    if (g_cur_valid || !g_hdr.count) return;
+    if (g.cur >= g_hdr.count) g.cur = g_hdr.count - 1u;
+    pocsag_page_load(g.cur, &g_cur_page);
+    g_cur_valid = true;
+}
+
+/* ============================================================
+ * Accès flash : pool froid (lecture/écriture contiguës, circulaire)
+ * ============================================================ */
+static void pocsag_pool_read(uint16_t off, char *dst, unsigned n)
+{
+    while (n) {
+        unsigned chunk = n;
+        if ((uint32_t)off + chunk > POCSAG_POOL_SIZE)
+            chunk = (unsigned)(POCSAG_POOL_SIZE - off);
+        PY25Q16_ReadBuffer(POCSAG_POOL_FLASH_ADDR + off, dst, chunk);
+        dst += chunk; off = 0; n -= chunk;
+    }
+}
+
+static void pocsag_pool_write(uint16_t off, const char *src, unsigned n)
+{
+    while (n) {
+        unsigned chunk = n;
+        if ((uint32_t)off + chunk > POCSAG_POOL_SIZE)
+            chunk = (unsigned)(POCSAG_POOL_SIZE - off);
+        PY25Q16_WriteBuffer(POCSAG_POOL_FLASH_ADDR + off, src, chunk, false);
+        src += chunk; off = 0; n -= chunk;
+    }
+}
+
+static void pocsag_flash_wipe(void)
+{
+    for (uint32_t a = POCSAG_FLASH_BASE; a < POCSAG_FLASH_END; a += SECTOR_SIZE)
+        PY25Q16_SectorErase(a);
+    pocsag_memset(&g_hdr, 0, sizeof(g_hdr));
+    g_hdr.magic = POCSAG_META_MAGIC;
+    g_hdr_dirty = true;
+    pocsag_hdr_flush();
+    g.cur = 0;
+    g_cur_valid = false;
 }
 
 /* ============================================================
@@ -276,13 +445,11 @@ static void pocsag_afc_select_pa4(void)
                   (((g_afc.smpr3 >> APP_AFC_SMP8_POS) & 7u) << APP_AFC_SMP4_POS);
     ADC1->SQR3  = (g_afc.sqr3 & ~0x1Fu) | APP_AFC_ADC_CH_PA4;
 }
-
 static void pocsag_afc_select_battery(void)
 {
     ADC1->SQR3  = g_afc.sqr3;
     ADC1->SMPR3 = g_afc.smpr3;
 }
-
 static void pocsag_af_capture_open(void)
 {
     if (g_afc.open) return;
@@ -300,14 +467,12 @@ static void pocsag_af_capture_open(void)
     DAC1->SWTRIGR = 1u;
     pocsag_afc_select_pa4();
 }
-
 static uint16_t pocsag_af_capture_sample(void)
 {
     ADC1->CR2 |= ADC_CR2_SWSTART | ADC_CR2_EXTTRIG;
     for (uint16_t n = 0; !(ADC1->SR & ADC_SR_EOC) && n < 2000u; n++) {}
     return (uint16_t)(ADC1->DR & 0x0FFFu);
 }
-
 static void pocsag_af_capture_close(void)
 {
     if (!g_afc.open) return;
@@ -318,18 +483,13 @@ static void pocsag_af_capture_close(void)
     RCC->APBENR1  = g_afc.rcc;
     GPIOA->MODER  = g_afc.moder;
 }
-
 static bool pocsag_afc_yield_adc(void)
 {
     if (!g_afc.open) return false;
     pocsag_afc_select_battery();
     return true;
 }
-
-static void pocsag_afc_resume_adc(void)
-{
-    pocsag_afc_select_pa4();
-}
+static void pocsag_afc_resume_adc(void) { pocsag_afc_select_pa4(); }
 
 /* ============================================================
  * Compteur 48 MHz
@@ -353,7 +513,6 @@ static uint32_t pocsag_cycles_raw(void)
     }
     return tick * (SysTick->LOAD + 1u) + (SysTick->LOAD - val);
 }
-
 static uint32_t pocsag_cycles_48mhz(void)
 {
     return pocsag_cycles_raw() + g_cyc_base;
@@ -362,18 +521,13 @@ static uint32_t pocsag_cycles_48mhz(void)
 /* ============================================================
  * Accès matériel
  * ============================================================ */
-static inline int16_t pocsag_rssi_dbm(void)
-{
-    return BK4819_GetRSSI_dBm() + dBmCorrTable[gRxVfo->Band];
-}
-
 static inline uint32_t pocsag_ticks_ms(void)
 {
     return gGlobalSysTickCounter * 10u;
 }
 
 /* ============================================================
- * Scan
+ * Scan (canaux relus à la volée, pas de tableau en RAM)
  * ============================================================ */
 static uint32_t pocsag_channel_freq(uint16_t ch)
 {
@@ -384,7 +538,6 @@ static uint32_t pocsag_channel_freq(uint16_t ch)
     if (freq < 1400000u || freq > 116000000u) return 0u;
     return freq;
 }
-
 static bool pocsag_name_match(const char *n, const char *name)
 {
     uint8_t k = 0;
@@ -399,21 +552,40 @@ static bool pocsag_name_match(const char *n, const char *name)
     }
     return true;
 }
-
 static int8_t pocsag_find_scanlist(const char *name)
 {
-    for (uint8_t i = 0; i < MR_CHANNELS_LIST; i++) {
-        if (pocsag_name_match(gListName[i], name))
-            return (int8_t)i;
-    }
+    for (uint8_t i = 0; i < MR_CHANNELS_LIST; i++)
+        if (pocsag_name_match(gListName[i], name)) return (int8_t)i;
     return -1;
 }
-
 static bool pocsag_channel_in_list(uint16_t ch, int8_t listIdx)
 {
     ChannelAttributes_t att;
     MR_LoadChannelAttributesFromFlash(ch, &att);
     return (int8_t)(att.scanlist - 1) == listIdx;
+}
+
+static uint16_t pocsag_load_channels(int8_t listIdx)
+{
+    uint16_t n = 0;
+    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
+        uint32_t freq = pocsag_channel_freq(ch);
+        if (freq && pocsag_channel_in_list(ch, listIdx)) n++;
+    }
+    return n;
+}
+
+static uint32_t pocsag_channel_freq_at(int8_t listIdx, uint16_t idx)
+{
+    uint16_t n = 0;
+    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
+        uint32_t freq = pocsag_channel_freq(ch);
+        if (freq && pocsag_channel_in_list(ch, listIdx)) {
+            if (n == idx) return freq;
+            n++;
+        }
+    }
+    return 0;
 }
 
 /* ============================================================
@@ -444,6 +616,9 @@ static bool preferAlpha(const sl_t *m, unsigned nn){
            (unsigned)letters * 3u >= m->alen * 2u && score >= AUTO_MARGIN;
 }
 
+/* closePage : écrit en flash (pool + anneau pages). Insertion O(1).
+ * Pendant la réception, aucune écriture flash n'a eu lieu : le texte
+ * est dans sl_t.text. Ici, on le transfère en un seul bloc. */
 static void closePage(sl_t *m){
     if(!m->has) return;
     m->has = 0;
@@ -456,65 +631,89 @@ static void closePage(sl_t *m){
     }
     const uint8_t *t = (const uint8_t *)m->text;
     unsigned n = m->len, gaps = 0, lost = 0;
-    while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' '))) lost |= t[--n] == GAP;
+    while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' ')))
+        lost |= t[--n] == GAP;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
     if((!n) || 2u * gaps > n) return;
     g.redraw |= REDRAW_FRAME;
 
-    for(unsigned j = 0; j < g.count; j++){
-        page_t *q = &g_pages[j];
-        if(q->ric != m->ric || q->func != m->func ||
-           (uint32_t)(m->at - q->at + m->dup) >= 2u * m->dup) continue;
-        if(q->alpha != m->alpha){
+    /* Fusion avec une des deux dernières pages (même RIC/fonction).
+     * Sans timestamp (supprimé de page_t), on se base sur l'ordre : un
+     * message en deux parties arrive toujours dans les dernières pages. */
+    for(unsigned j = 0; j < g_hdr.count && j < 2u; j++){
+        page_t q;
+        pocsag_page_load(j, &q);
+        if(q.ric != m->ric || PAGE_GET_FUNC(&q) != m->func) continue;
+
+        char merged[MSG_MAX];
+        for(unsigned i = 0; i < n; i++)
+            merged[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
+
+        if(PAGE_GET_ALPHA(&q) != m->alpha){
             if(!m->alpha) return;
-            q->alpha = 1;
-            q->len = (uint8_t)n;
-            for(unsigned i = 0; i < n; i++){
-                g_pool[(q->offset + i) % POOL_SIZE] = ((uint8_t)t[i] == GAP) ? '?' : t[i];
-            }
+            page_set_alpha(&q, 1);
+            q.len = (uint8_t)n;
+            pocsag_pool_write(q.offset, merged, n);
+            pocsag_page_store_phys(pocsag_phys(j), &q);
+            g_hdr_dirty = true;
+            pocsag_hdr_flush();
+            if (j == 0) g_cur_valid = false;
             return;
         }
-        for(unsigned i = 0; i < n; i++)
-            if(i >= q->len || (uint8_t)g_pool[(q->offset + i) % POOL_SIZE] == GAP)
-                g_pool[(q->offset + i) % POOL_SIZE] = (char)((uint8_t)t[i] == GAP ? '?' : t[i]);
-        if(n > q->len) q->len = (uint8_t)n;
+
+        /* Fusion : relire l'ancien bloc, garder les octets valides, réécrire. */
+        char old[MSG_MAX];
+        pocsag_pool_read(q.offset, old, n);
+        for (unsigned i = 0; i < n; i++)
+            if (i < q.len && (uint8_t)old[i] != GAP)
+                merged[i] = old[i];
+        pocsag_pool_write(q.offset, merged, n);
+        if(n > q.len) q.len = (uint8_t)n;
+        pocsag_page_store_phys(pocsag_phys(j), &q);
+        g_hdr_dirty = true;
+        pocsag_hdr_flush();
+        if (j == 0) g_cur_valid = false;
         return;
     }
 
+    /* Nouvelle page : allocation dans le pool circulaire, écriture en bloc. */
     unsigned msg_len = (n > 0) ? n : 1u;
-    if ((uint32_t)(*g_pool_head) + msg_len > POOL_SIZE) {
-        *g_pool_head = 0;
-    }
-    uint16_t current_offset = *g_pool_head;
+    if ((uint32_t)g_hdr.pool_head + msg_len > POCSAG_POOL_SIZE)
+        g_hdr.pool_head = 0;
+    uint16_t current_offset = g_hdr.pool_head;
 
     if (n > 0) {
-        for(unsigned i = 0; i < n; i++) {
-            g_pool[(*g_pool_head) % POOL_SIZE] = ((uint8_t)t[i] == GAP) ? '?' : t[i];
-            *g_pool_head = (*g_pool_head + 1) % POOL_SIZE;
-        }
+        for(unsigned i = 0; i < n; i++)
+            g_pool_ram[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
+        pocsag_pool_write(current_offset, g_pool_ram, n);
     } else {
-        g_pool[(*g_pool_head) % POOL_SIZE] = (char)lost;
-        *g_pool_head = (*g_pool_head + 1) % POOL_SIZE;
+        char c = (char)lost;
+        pocsag_pool_write(current_offset, &c, 1);
     }
+    g_hdr.pool_head = (uint16_t)((current_offset + msg_len) % POCSAG_POOL_SIZE);
 
-    if(g.count < MAX_MSGS) g.count++;
-    for(unsigned k = g.count - 1u; k; k--) g_pages[k] = g_pages[k - 1u];
+    /* Insertion O(1) dans l'anneau. Si l'anneau est plein, la nouvelle
+     * page écrase la plus ancienne (déjà la bonne case physique). */
+    g_hdr.head = (uint16_t)((g_hdr.head + MAX_MSGS - 1u) % MAX_MSGS);
+    if (g_hdr.count < MAX_MSGS) g_hdr.count++;
 
-    page_t *p = &g_pages[0];
-    p->rssi = pocsag_rssi_dbm();
-    p->ric = m->ric;
-    p->func = m->func;
-    p->alpha = m->alpha;
-    p->at = m->at;
-    p->t = pocsag_ticks_ms();
-    p->freq = g.current_freq;
-    p->offset = current_offset;
-    p->len = (uint16_t)n;
-    p->baud = g.baud;          /* débit de cette réception (1200 ou 512) */
+    page_t p;
+    p.ric = m->ric;
+    p.freq = g.current_freq;
+    p.offset = current_offset;
+    p.len = (uint8_t)n;
+    p.flags = 0;
+    page_set_func(&p, m->func);
+    page_set_alpha(&p, m->alpha);
+    page_set_baud(&p, (g.baud == BAUD_512) ? 1u : 0u);
+    pocsag_page_store_phys(g_hdr.head, &p);
 
     g.nOk++;
     g.cur = 0;
     g.top = 0;
+    g_cur_valid = false;
+    g_hdr_dirty = true;
+    pocsag_hdr_flush();
 }
 
 static unsigned ones(uint32_t v){
@@ -522,13 +721,11 @@ static unsigned ones(uint32_t v){
     for(; v; v &= v - 1u) n++;
     return n;
 }
-
 static uint32_t syndrome(uint32_t cw){
     uint32_t r = cw >> 1;
     for(unsigned i = 30; i >= 10u; i--) if(r & (1u << i)) r ^= GEN << (i - 10u);
     return r;
 }
-
 static unsigned fix(uint32_t *pcw){
     uint32_t cw = *pcw, s = syndrome(cw);
     unsigned q = 1;
@@ -560,7 +757,6 @@ static void addc(sl_t *m, unsigned ch){
 static void adda(sl_t *m, unsigned ch){
     if(m->alen < MSG_MAX) m->atext[m->alen++] = (char)ch;
 }
-
 static void codeword(sl_t *m, uint32_t cw){
     unsigned good = fix(&cw);
     if(!good) m->dirty = DIRTY_WORDS;
@@ -637,7 +833,7 @@ static void seqBit(sl_t *m, uint32_t b){
             m->word = 0;
             m->nb = 0;
             g.nSync++;
-            g.baudLocked = 1u;   /* sync trouvé : le débit est validé */
+            g.baudLocked = 1u;
         }
         return;
     }
@@ -653,7 +849,6 @@ static void seqBit(sl_t *m, uint32_t b){
     codeword(m, cw);
     m->word++;
 }
-
 static void slice(sl_t *m, int32_t y){
     int32_t a = y < 0 ? -y : y;
     if(a > m->amp) m->amp += (a - m->amp) >> 2;
@@ -672,13 +867,7 @@ static void slice(sl_t *m, int32_t y){
 }
 
 /* ============================================================
- * Détection du baudrate (méthode de l'app POCSAG RX : rateFind)
- *
- * La durée entre deux flips du slicer 0 est classée :
- *   3 ou 4 éch  → 2400 bauds (reconnu, pas décodé)
- *   6 à 10 éch  → 1200 bauds
- *   16 à 20 éch → 512 bauds
- * PRE_RUNS flips consécutifs dans la même classe valident le débit.
+ * Détection du baudrate
  * ============================================================ */
 static void pocsag_rate_find(bool flipped)
 {
@@ -698,7 +887,6 @@ static void pocsag_rate_find(bool flipped)
     }
 }
 
-/* Réinitialise l'état de décodage d'un slicer (sans toucher à num/step/dup). */
 static void pocsag_reset_slicer(sl_t *m)
 {
     m->amp = 0; m->rprev = 0; m->phase = 0;
@@ -715,7 +903,6 @@ static void pocsag_reset_slicer(sl_t *m)
     m->ok = 0;
 }
 
-/* Applique g.baud aux 3 slicers (step et dup) et réinitialise leur état. */
 static void pocsag_apply_baud(void)
 {
     for (unsigned k = 0; k < NSL; k++) {
@@ -739,41 +926,30 @@ static void draw(void){
     char s1[6] __attribute__((aligned(4)));
     char s2[64] __attribute__((aligned(4)));
     char f[16];
-    const page_t *p = &g_pages[g.cur];
     unsigned lim = 0;
 
     UI_DisplayClear();
     UI_StatusClear();
-    /* En-tête : baudrate de la page affichée (B1200, B512...), puis la
-     * fréquence décalée de 4 caractères (16 px) vers la droite.
-     * Sans page : on garde le dernier préambule mesuré (g.preRate).
-     * Si aucun baudrate n'est connu : rien n'est affiché à gauche, et la
-     * fréquence reprend sa position d'origine (pas de décalage). */
-    printFreq(f, g.count ? p->freq : g.current_freq);
 
-    unsigned baud = g.count ? p->baud : g.preRate;   /* 0 = inconnu */
+    pocsag_cur_load();
+    const page_t *p = &g_cur_page;
+
+    printFreq(f, g_hdr.count ? p->freq : g.current_freq);
+    unsigned baud = g_hdr.count ? (PAGE_GET_BAUD(p) ? BAUD_512 : BAUD_1200)
+                                : g.preRate;
     unsigned x = TITLE_X;
-
     if (baud) {
-        sprintf(s1, "%u", (unsigned)baud);
+        sprintf(s1, "%u", baud);
         unsigned n1 = (unsigned)strlen(s1);
         GUI_DisplaySmallestInverse(s1, (uint8_t)x, 0, true, true,
                                    (uint8_t)(x + 4u * n1));
-        x += 4u * n1;
-        /* Fréquence décalée de 4 caractères (16 px) vers la droite */
-        x += 4u * 4u;
+        x += 4u * n1 + 4u * 4u;
     }
-    /* Sinon : x reste à TITLE_X, la fréquence est collée au bord */
-
     sprintf(s2, "%s", f);
     GUI_DisplaySmallestInverse(s2, (uint8_t)x, 0, true, true,
                                (uint8_t)(x + 4u * (unsigned)strlen(s2)));
 
     {
-        /* Batterie : l'ADC repasse sur sa voie le temps de la mesure. La
-         * première conversion après le changement de voie est jetée (elle
-         * peut encore porter l'audio de PA4), puis le calcul est celui de
-         * la barre d'état (BATTERY_GetReadings). Une mesure toutes les 5 s. */
         if (g.refresh == 0 || !g.battOk) {
             bool yielded = pocsag_afc_yield_adc();
             uint16_t v, cur;
@@ -787,12 +963,12 @@ static void draw(void){
         GUI_DisplaySmallest(s1, 128, 0, true, true);
     }
 
-    if (g.count) {
+    if (g_hdr.count) {
         sprintf(s2, "%lu", (unsigned long)p->ric);
         UI_PrintStringSmallBold(s2, 0, 0, 0);
 
         unsigned capsEnd = CAPS_END;
-        char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g.count);
+        char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g_hdr.count);
         capsEnd -= 4u * (unsigned)(o - s2);
         GUI_DisplaySmallestInverse(s2, (uint8_t)capsEnd, 0, false, true, CAPS_END);
 
@@ -800,16 +976,26 @@ static void draw(void){
         for (unsigned i = 0; i < p->len; i += w, rows++) {
             unsigned n = p->len - i, r = rows - g.top;
             if (n > w) n = w;
-            for (unsigned j = 0; j < n; j++) {
-                char ch = g_pool[(p->offset + i + j) % POOL_SIZE];
-                s2[j] = (uint8_t)ch == GAP ? '?' : ch;
+            unsigned rd = 0;
+            while (rd < n) {
+                uint16_t off = (uint16_t)((p->offset + i + rd) % POCSAG_POOL_SIZE);
+                unsigned chunk = n - rd;
+                if ((uint32_t)off + chunk > POCSAG_POOL_SIZE)
+                    chunk = (unsigned)(POCSAG_POOL_SIZE - off);
+                pocsag_pool_read(off, s2 + rd, chunk);
+                rd += chunk;
             }
+            for (unsigned j = 0; j < n; j++)
+                if ((uint8_t)s2[j] == GAP) s2[j] = '?';
             s2[n] = '\0';
             if (g.cw) { if (r < 8u) GUI_DisplaySmallest(s2, 0, (uint8_t)(8u + r * 6u), false, true); }
             else if (r < ROWS) UI_PrintStringSmallBold(s2, 0, 0, (uint8_t)(1u + r));
         }
-        if (!p->len)
-            UI_PrintStringSmallBold(g_pool[p->offset % POOL_SIZE] ? LOST_STR : TONE_STR, NOTEXT_X, 0, 2);
+        if (!p->len) {
+            char c;
+            pocsag_pool_read((uint16_t)(p->offset % POCSAG_POOL_SIZE), &c, 1);
+            UI_PrintStringSmallBold(c ? LOST_STR : TONE_STR, NOTEXT_X, 0, 2);
+        }
         if (!g.cw && rows > ROWS) lim = rows - ROWS;
     } else {
         sprintf(s2, "SCAN %u CH", g.nCh);
@@ -818,39 +1004,67 @@ static void draw(void){
     g.lim = (uint8_t)lim;
 }
 
-static void handleKeys(void){
+/* handleKeys avec répétition automatique UP/DOWN. */
+static void handleKeys(void)
+{
     uint8_t key = KEYBOARD_GetKey();
-    if (key == KEY_INVALID || key == g.prevKey) { g.prevKey = key; return; }
+
+    if (key == KEY_INVALID) {
+        g.prevKey = key;
+        g.repKey  = 0;
+        return;
+    }
+
+    const bool newPress = (key != g.prevKey);
     g.prevKey = key;
-    if (!BACKLIGHT_IsOn() && gEeprom.BACKLIGHT_TIME) { /* 1re touche : rallume seulement */
+
+    if (newPress) {
+        g.repKey   = key;
+        g.repCount = 0;
+    }
+
+    bool fire = newPress;
+    if (!fire && g.repKey == key && (key == KEY_UP || key == KEY_DOWN)) {
+        if (++g.repCount >= KEY_REPEAT_DELAY) {
+            g.repCount = KEY_REPEAT_DELAY - KEY_REPEAT_PERIOD;
+            fire = true;
+        }
+    }
+    if (!fire) return;
+
+    if (!BACKLIGHT_IsOn() && gEeprom.BACKLIGHT_TIME) {
         BACKLIGHT_TurnOn();
         return;
     }
     BACKLIGHT_TurnOn();
     g.redraw |= REDRAW_ON;
+
     int d = (key == KEY_DOWN) - (key == KEY_UP);
     if (d) {
         unsigned top = (unsigned)(g.top + d);
         if (top <= g.lim) g.top = (uint8_t)top;
-        else if ((unsigned)(g.cur + d) < g.count) { g.cur = (uint8_t)(g.cur + d); g.top = 0; }
+        else {
+            int nc = (int)g.cur + d;
+            if (nc >= 0 && (unsigned)nc < g_hdr.count) {
+                g.cur = (uint16_t)nc;
+                g.top = 0;
+                g_cur_valid = false;
+            }
+        }
     }
     else if (key == KEY_EXIT) {
         g.running = false;
         g_pocsagScanStop = true;
     }
     else if (key == KEY_2) {
-        g.count = g.cur = 0; g.nOk = 0; g.top = 0;
-        *g_pool_head = 0;
-        pocsag_memset(g_pool, 0, POOL_SIZE);
-        pocsag_memset(g_pages, 0, sizeof(page_t) * MAX_MSGS);
+        g.cur = 0; g.nOk = 0; g.top = 0;
         g.nSync = 0; g.nHits = 0; g.nWords = 0;
-        for (unsigned k = 0; k < NSL; k++) g.sl[k].ok = 0;
+        for (unsigned k = 0; k < NSL; k++) g_sl[k].ok = 0;
+        pocsag_flash_wipe();
     }
     else if (key == KEY_STAR) { g.cw ^= CW_COMPACT; g.top = 0; }
 }
 
-/* Rétroéclairage : extinction après la durée réglée (BACKLIGHT_TIME), comme
- * le spectre de Sonic ; BACKLIGHT_Update fait le fondu. */
 static void backlightTick(void){
     BACKLIGHT_Update();
     if (gNextTimeslice_500ms) {
@@ -860,10 +1074,6 @@ static void backlightTick(void){
     }
 }
 
-/* Pendant une réception : touches et rétroéclairage seulement. Le dessin
- * de l'écran (polices en flash externe, envoi à l'écran) prendrait des
- * dizaines de millisecondes, donc des bits perdus : il attend la fin de
- * l'émission. */
 static void houseLight(void){
     handleKeys();
     backlightTick();
@@ -874,7 +1084,7 @@ static void house(void){
     if (g_pocsagScanStop) return;
     if (g.redraw & REDRAW_FRAME) BACKLIGHT_TurnOn();
     backlightTick();
-    if (++g.refresh >= REFRESH_SLOTS ) g.redraw |= REDRAW_ON; /* diagnostic : en direct */
+    if (++g.refresh >= REFRESH_SLOTS) g.redraw |= REDRAW_ON;
     if (!g.redraw) return;
     g.redraw = 0;
     g.refresh = 0;
@@ -885,16 +1095,6 @@ static void house(void){
 
 /* ============================================================
  * Écoute d'un canal
- *
- * Phase 1 (POCSAG_DWELL_MS) : signal à 1200 ou 512 bauds, ou mot de
- *   synchro ? Le débit est détecté par rateFind() (méthode de l'app
- *   POCSAG RX) et appliqué aux slicers tant qu'aucun sync n'a été trouvé.
- *   Non : retour tout de suite, canal suivant.
- * Phase 2 : décodage. L'écoute dure tant que des lots arrivent ; elle
- *   s'arrête POCSAG_END_MS après le dernier lot (fin d'émission), ou si le
- *   premier mot de synchro ne vient pas dans POCSAG_SYNC_WAIT_MS.
- * Les échantillons sautés pendant le service touches/écran sont rattrapés
- * par les horloges des slicers (alignement des mots gardé), comme l'app.
  * ============================================================ */
 static void listen(void){
     sl_t *sl = g_sl;
@@ -914,12 +1114,11 @@ static void listen(void){
 
     const uint32_t start = g.n;
     const uint16_t sync0 = g.nSync;
-    uint32_t lastBatch = 0;        /* dernier échantillon vu dans un lot  */
-    bool active = false;           /* préambule ou synchro trouvé          */
+    uint32_t lastBatch = 0;
+    bool active = false;
     uint32_t next = pocsag_cycles_48mhz();
     uint16_t cnt = 0;
 
-    /* Détection de baudrate : réinitialisée à chaque canal. */
     g.rfCls = 0; g.rfRun = 0; g.rfStreak = 0; g.preRate = 0;
     g.baudLocked = 0;
     g.busyFor = 0;
@@ -938,11 +1137,6 @@ static void listen(void){
         for (unsigned k = 0; k < NSL; k++) slice(&sl[k], sum4);
         pocsag_rate_find(sl[0].rprev != before);
 
-        /* Baudrate auto : tant qu'aucun sync n'a été trouvé, on suit
-         * g.preRate (mesuré sur le préambule). Le préambule est assez
-         * long (480 ms à 1200, 1.125 s à 512) pour absorber une ou deux
-         * réinitialisations. Dès qu'un sync est vu, baudLocked=1 et le
-         * débit ne bouge plus jusqu'à la fin de l'écoute du canal. */
         if (!g.baudLocked && g.preRate && g.preRate != g.baud &&
             (g.preRate == BAUD_512 || g.preRate == BAUD_1200)) {
             g.baud = g.preRate;
@@ -976,14 +1170,14 @@ static void listen(void){
                 lastBatch = g.n;
             } else if (elapsed >= MS_SAMPLES(POCSAG_DWELL_MS)) {
                 g.lastGood = good; g.lastBad = bad; g.lastQ = q;
-                return;                                   /* canal vide */
+                return;
             }
-            continue;                                     /* pas de service : 50 ms */
+            continue;
         }
-        if (g.nSync == sync0) {                           /* pas encore de synchro */
+        if (g.nSync == sync0) {
             if (elapsed >= MS_SAMPLES(POCSAG_SYNC_WAIT_MS)) break;
         } else if (!inBatch && g.n - lastBatch >= MS_SAMPLES(POCSAG_END_MS)) {
-            break;                                        /* fin d'émission */
+            break;
         }
         if (elapsed >= MS_SAMPLES(POCSAG_MAX_RX_MS)) break;
 
@@ -1008,18 +1202,13 @@ static void listen(void){
         }
     }
     for (unsigned k = 0; k < NSL; k++) {
-        closePage(&sl[k]);                                 /* page en cours */
+        closePage(&sl[k]);
         g.nWords += sl[k].ok;
     }
 }
 
 /* ============================================================
- * Accord rapide (comme SetF du spectre) : fréquence, filtre, relance
- * du synthé par REG_30.
- * La valeur de réception de REG_30 est lue une fois, après
- * BK4819_RX_TurnOn. Attention : BK4819_WriteRegister met reg_30_cache à
- * jour et ignore une écriture égale au cache. Écrire 0x200 puis
- * reg_30_cache réécrirait 0x200 (ignoré) et laisserait la réception coupée.
+ * Accord rapide
  * ============================================================ */
 static uint16_t g_rx30;
 
@@ -1031,19 +1220,8 @@ static void pocsag_tune(uint32_t f)
     BK4819_WriteRegister(BK4819_REG_30, g_rx30);
 }
 
-static uint16_t pocsag_load_channels(int8_t listIdx)
-{
-    uint16_t n = 0;
-    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST && n < POCSAG_MAX_CH; ch++) {
-        uint32_t freq = pocsag_channel_freq(ch);
-        if (freq && pocsag_channel_in_list(ch, listIdx))
-            g_chFreq[n++] = freq;
-    }
-    return n;
-}
-
 /* ============================================================
- * APP_RunPocsagScan : tourne jusqu'à EXIT (g_pocsagScanStop).
+ * APP_RunPocsagScan
  * ============================================================ */
 void APP_RunPocsagScan(void)
 {
@@ -1058,18 +1236,22 @@ void APP_RunPocsagScan(void)
         return;
     }
 
+    pocsag_hdr_load();
+
     const uint16_t r2b = BK4819_ReadRegister((BK4819_REGISTER_t)REG_2B);
     const uint16_t r73 = BK4819_ReadRegister((BK4819_REGISTER_t)REG_73);
     const uint16_t r48 = BK4819_ReadRegister((BK4819_REGISTER_t)REG_48);
 
-    GPIO_DisableAudioPath();                       /* HP muet, AF intact */
+    GPIO_DisableAudioPath();
     pocsag_af_capture_open();
+
+    uint32_t first_freq = pocsag_channel_freq_at(listIdx, 0);
     BK4819_ToggleGpioOut(BK4819_GPIO0_PIN28_RX_ENABLE, true);
-    BK4819_SetFrequency(g_chFreq[0]);
-    BK4819_PickRXFilterPathBasedOnFrequency(g_chFreq[0]);
+    BK4819_SetFrequency(first_freq);
+    BK4819_PickRXFilterPathBasedOnFrequency(first_freq);
     BK4819_SetFilterBandwidth(BK4819_FILTER_BW_WIDE, false);
     BK4819_RX_TurnOn();
-    g_rx30 = BK4819_ReadRegister(BK4819_REG_30);  /* réception complète */
+    g_rx30 = BK4819_ReadRegister(BK4819_REG_30);
     BK4819_WriteRegister((BK4819_REGISTER_t)REG_2B, (uint16_t)((r2b | 0x0700u) & ~0x0007u));
     BK4819_WriteRegister((BK4819_REGISTER_t)REG_73, (uint16_t)(r73 | 0x0010u));
     BK4819_SetAF(BK4819_AF_FM);
@@ -1077,15 +1259,16 @@ void APP_RunPocsagScan(void)
     g_cyc_base = APP_CYC_DIAGNOSTIC_START - pocsag_cycles_raw();
     g.redraw = REDRAW_ON;
 
-    /* Débit par défaut : 1200 bauds, ajusté par la détection au préambule. */
     g.baud = BAUD_1200;
     g.baudLocked = 0;
 
-    uint32_t tuned = g_chFreq[0];
+    uint32_t tuned = first_freq;
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);
     for (uint16_t i = 0; !g_pocsagScanStop; i = (uint16_t)((i + 1u) % g.nCh)) {
-        g.current_freq = g_chFreq[i];
-        if (g.current_freq != tuned) {             /* un seul canal, ou tenu : pas de réaccord */
+        uint32_t freq = pocsag_channel_freq_at(listIdx, i);
+        if (!freq) continue;
+        g.current_freq = freq;
+        if (g.current_freq != tuned) {
             tuned = g.current_freq;
             pocsag_tune(tuned);
             SYSTEM_DelayMs(POCSAG_SETTLE_MS);
@@ -1093,12 +1276,13 @@ void APP_RunPocsagScan(void)
 
         const uint16_t before = g.nOk;
         listen();
-        if (g.nOk != before) {                     /* nouvelle(s) page(s) */
+        if (g.nOk != before) {
             g.cur = 0; g.top = 0;
+            g_cur_valid = false;
             g.led = LED_STEPS;
             g.redraw |= REDRAW_FRAME;
         }
-        house();                                   /* touches, écran, rétroéclairage */
+        house();
     }
 
     GPIO_DisableAudioPath();

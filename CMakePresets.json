@@ -73,10 +73,8 @@
       "inherits": "default",
       "cacheVariables": {
         "ENABLE_1024": true,
+        "ENABLE_USB": true,
         "ENABLE_POCSAG": true,
-        "ENABLE_RSSI_BAR": false,
-        "ENABLE_AUDIO_BAR": false,
-        "ENABLE_FEAT_F4HWN_AUDIO_SCOPE": false,
         "EDITION_STRING": "Pocsag"
       }
     },
