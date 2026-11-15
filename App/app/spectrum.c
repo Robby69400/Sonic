@@ -2031,7 +2031,7 @@ static void DrawF(uint32_t f) {
     char line1[19] = "";
     char line2[19] = "";
     sprintf(line1, "%s", freqStr);
-    RemoveTrailZeros(line1);
+    //RemoveTrailZeros(line1);
     
     if(f < 100000000) {
           UI_PrintStringSmallBold(line1 + 7, 86, 0, 1);
@@ -4450,7 +4450,7 @@ static void GetHistoryRow(uint16_t index, ListRow *row) {
     char freqStr[10];
     char timeStr[16];
     snprintf(freqStr, sizeof(freqStr), "%u.%05u", f / 100000, f % 100000);
-    RemoveTrailZeros(freqStr);
+    //RemoveTrailZeros(freqStr);
     char Name[12] = "";
     
     

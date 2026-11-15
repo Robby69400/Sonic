@@ -252,6 +252,7 @@ void UI_DisplayAudioScope(void)
  * @brief Display RSSI bar
  * @param now Force immediate screen update
  */
+#if defined ENABLE_RSSI_BAR
 void DisplayRSSIBar(const bool now)
 {
     const unsigned int txt_width    = 7 * 8;                 // 8 text chars
@@ -298,9 +299,12 @@ void DisplayRSSIBar(const bool now)
     gSmeterLevel = (int8_t)(s_level + overS9Bars);
     sprintf(str, "%3d", -rssi_dBm);
     UI_PrintStringSmallBold(str, LCD_WIDTH + 8, 0, line - 1);
+#if defined ENABLE_AUDIO_BAR || defined ENABLE_RSSI_BAR
     DrawLevelBar(bar_x, line, s_level + overS9Bars, 13);
+#endif
     ST7565_BlitLine(line);
 }
+#endif
 
 #ifdef ENABLE_AGC_SHOW_DATA
 /**
@@ -378,11 +382,13 @@ void UI_MAIN_TimeSlice500ms(void)
         UI_MAIN_PrintAGC(true);
         return;
 #endif
-
-        // Update RSSI bar during reception
         if(FUNCTION_IsRx()) {
+#if defined ENABLE_RSSI_BAR
+        // Update RSSI bar during reception
             DisplayRSSIBar(true);
-        }
+#endif
+            }
+
 #ifdef ENABLE_FEAT_F4HWN // Blink Green Led for white...
         else if(gSetting_set_eot > 0 && RxBlinkLed == 2)
         {
@@ -536,7 +542,7 @@ void UI_DisplayMain(void)
         else
         {   
             sprintf(String, "%3u.%05u", frequency / 100000, frequency % 100000);
-            RemoveTrailZeros(String);
+            //RemoveTrailZeros(String);
             UI_DisplayFrequency(String, 64, 3, true);
         }
 

@@ -65,7 +65,7 @@
         "ENABLE_UART_RW_BK_REGS": false,
         "ENABLE_SWD": false,
         "ENABLE_LARGE_HISTORY": false,
-        "ENABLE_CLOSE_CALL":true
+        "ENABLE_CLOSE_CALL":false
       }
     },
     {
@@ -73,9 +73,10 @@
       "inherits": "default",
       "cacheVariables": {
         "ENABLE_1024": true,
-        "ENABLE_USB": true,
         "ENABLE_POCSAG": true,
-        "ENABLE_CLOSE_CALL":false,
+        "ENABLE_RSSI_BAR": false,
+        "ENABLE_AUDIO_BAR": false,
+        "ENABLE_FEAT_F4HWN_AUDIO_SCOPE": false,
         "EDITION_STRING": "Pocsag"
       }
     },
@@ -86,6 +87,7 @@
         "ENABLE_1024": true,
         "ENABLE_UART": true,
         "ENABLE_USB": true,
+        "ENABLE_CLOSE_CALL":true,
         "EDITION_STRING": "Sonic 1K"
       }
     },
@@ -96,6 +98,7 @@
         "ENABLE_USB": true,
         "ENABLE_UART": true,
         "ENABLE_4096": true,
+        "ENABLE_CLOSE_CALL":true,
         "EDITION_STRING": "Sonic 4K"
       }
     },

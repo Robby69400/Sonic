@@ -99,8 +99,8 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
-#define POOL_SIZE   1586u
-#define MAX_MSGS    10u
+#define POOL_SIZE   4200u
+#define MAX_MSGS    40u
 
 /* Layout texte */
 #define TONE_STR        "TONE ONLY"
@@ -195,7 +195,6 @@ static struct {
     uint8_t  refresh;
     uint8_t  top, lim;
     uint16_t nOk;
-    uint8_t  dbg;
     uint8_t  led;
     uint16_t ledCnt;
     uint16_t nSync;
@@ -205,10 +204,9 @@ static struct {
     uint16_t nCh, nHits;
     uint16_t lastGood, lastBad, lastQ; /* flips au pas d'un bit / autres / au demi-bit, dernière fenêtre */
     uint16_t nWords;                   /* mots BCH bons, cumulés (le compteur des slicers repart à chaque canal) */
-    uint8_t  hold;                     /* touche 1 : reste sur le canal en cours */
     uint8_t  battOk;                   /* une mesure de batterie faite */
     sl_t     *sl;
-} g;
+} g  = { .cw = 1 };;
 
 volatile bool g_pocsagScanStop = false;
 
@@ -704,23 +702,6 @@ static void draw(void){
         sprintf(s, "SCAN %u CH", g.nCh);
         UI_PrintStringSmallBold(s, 0, 0, 2);
     }
-
-    if (g.dbg) {
-        /* Touche 3, diagnostic :
-         *  A  niveau audio vu par le décodeur (crête, codes ADC filtrés) :
-         *     ~0 = aucun signal sur PA4 (réception ou AF coupée)
-         *  R  RSSI du canal (dBm)   P signaux détectés   S synchros
-         *  puis mots BCH bons par slicer. */
-        sprintf(s, "A%ld R%d P%u S%u W%u", (long)g.sl[0].amp, pocsag_rssi_dbm(),
-                g.nHits, g.nSync, g.nWords);
-        GUI_DisplaySmallest(s, 0, 50, false, true);
-        /* G/B : flips au pas d'un bit / autres sur la dernière fenêtre de
-         * 50 ms (détection : G >= 24 et B * 4 <= G). Q : flips au pas d'un
-         * demi-bit (4, 12, 20 échantillons) : élevé = émission à 2400 bauds,
-         * non décodée. H : canal tenu. */
-        sprintf(s, "G%u B%u Q%u%s", g.lastGood, g.lastBad, g.lastQ, g.hold ? " H" : "");
-        GUI_DisplaySmallest(s, 0, 43, false, true);
-    }
     g.lim = (uint8_t)lim;
 }
 
@@ -752,8 +733,6 @@ static void handleKeys(void){
         g.nSync = 0; g.nHits = 0; g.nWords = 0;
         for (unsigned k = 0; k < NSL; k++) g.sl[k].ok = 0;
     }
-    else if (key == KEY_3) g.dbg ^= 1u;
-    else if (key == KEY_1) g.hold ^= 1u;
     else if (key == KEY_STAR) { g.cw ^= CW_COMPACT; g.top = 0; }
 }
 
@@ -782,7 +761,7 @@ static void house(void){
     if (g_pocsagScanStop) return;
     if (g.redraw & REDRAW_FRAME) BACKLIGHT_TurnOn();
     backlightTick();
-    if (++g.refresh >= REFRESH_SLOTS || g.dbg) g.redraw |= REDRAW_ON; /* diagnostic : en direct */
+    if (++g.refresh >= REFRESH_SLOTS ) g.redraw |= REDRAW_ON; /* diagnostic : en direct */
     if (!g.redraw) return;
     g.redraw = 0;
     g.refresh = 0;
@@ -967,7 +946,7 @@ void APP_RunPocsagScan(void)
 
     uint32_t tuned = g_chFreq[0];
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);
-    for (uint16_t i = 0; !g_pocsagScanStop; i = g.hold ? i : (uint16_t)((i + 1u) % g.nCh)) {
+    for (uint16_t i = 0; !g_pocsagScanStop; i = (uint16_t)((i + 1u) % g.nCh)) {
         g.current_freq = g_chFreq[i];
         if (g.current_freq != tuned) {             /* un seul canal, ou tenu : pas de réaccord */
             tuned = g.current_freq;

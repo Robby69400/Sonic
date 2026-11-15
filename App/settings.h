@@ -160,8 +160,9 @@ typedef struct {
 #ifdef ENABLE_RSSI_BAR
     uint8_t               S0_LEVEL;
     uint8_t               S9_LEVEL;
-    uint8_t               SCRAMBLING_TYPE;
 #endif
+    uint8_t               SCRAMBLING_TYPE;
+
 } EEPROM_Config_t;
 
 extern EEPROM_Config_t gEeprom;
