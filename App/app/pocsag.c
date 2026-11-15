@@ -1,14 +1,26 @@
-/* pocsag.c — scan POCSAG résident (scanlist « POCSAG »), décodage 1200 bauds
+/* pocsag.c — scan POCSAG résident (scanlist « POCSAG »), décodage 1200/512 bauds
  *
  * Le décodeur (filtre, 3 slicers à hystérésis, DPLL, mot de synchro dans
  * les deux polarités, BCH avec correction d'un bit, assemblage des pages) est
- * celui de l'app POCSAG RX, inchangé.
+ * celui de l'app POCSAG RX, inchangé, étendu au 512 bauds.
+ *
+ * BAUD
+ *  - Détection automatique comme dans l'app POCSAG RX : le préambule
+ *    (1 0 1 0 ...) est classé par la durée entre deux flips du slicer 0.
+ *    1200 bauds → 8 échantillons par bit, 512 bauds → 18.75 (18 ou 19).
+ *    La classe 2400 est reconnue mais pas décodée (comme l'app).
+ *  - Pendant la phase de dwell (avant tout sync), un changement de
+ *    classe de baudrate réinitialise les slicers avec le bon step/dup.
+ *    Dès qu'un mot de synchro est trouvé, le baudrate est verrouillé
+ *    pour la réception en cours.
+ *  - Le baudrate mesuré (B512, B1200, B2400, ou B-- avant tout
+ *    préambule) est affiché en haut, avant la fréquence.
  *
  * SCAN
  *  - Les canaux de la scanlist « POCSAG » sont lus une fois au lancement.
  *  - Sur chaque canal : accord, POCSAG_SETTLE_MS de stabilisation, puis
- *    POCSAG_DWELL_MS d'écoute : signal à 1200 bauds (préambule ou lots,
- *    même pris en cours d'émission) ou mot de synchro ?
+ *    POCSAG_DWELL_MS d'écoute : signal à 1200 ou 512 bauds (préambule ou
+ *    lots, même pris en cours d'émission) ou mot de synchro ?
  *  - Rien : canal suivant. Trouvé : on décode jusqu'à la fin de l'émission
  *    (plus aucun lot pendant POCSAG_END_MS), puis on affiche la ou les pages
  *    reçues avec la fréquence en en-tête, et le scan reprend.
@@ -80,10 +92,22 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define REG_48      0x48   /* gain AF : le laisser, le décodeur en dépend          */
 
 #define NSL         3
-#define STEP_1200   8192u
+#define STEP_1200   8192u  /* 8 échantillons par bit à 1200 bauds    */
 #define DUP_1200    128u
+/* 512 bauds : 9600/512 = 18.75 éch/bit.
+ * STEP = 65536 * 512 / 9600 = 3495.25  ->  3495
+ * DUP  = moitié d'un mot (32 bits) : 16 * 18.75 = 300 */
+#define STEP_512    3495u
+#define DUP_512     300u
 #define PLL_SHIFT   3
 #define DIRTY_WORDS 8u
+
+/* Débits (valeurs stockées dans g.baud / g.preRate, en valeur POCSAG). */
+#define BAUD_1200   1200u
+#define BAUD_512    512u
+
+/* rateFind : PRE_RUNS flips consécutifs dans la même classe valident le débit. */
+#define PRE_RUNS    32u
 
 #define SYNC        0x7CD215D8u
 #define IDLE        0x7A89C197u
@@ -118,16 +142,19 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_LIST_NAME    "POCSAG"
 #define POCSAG_MAX_CH       64u     /* canaux de la scanlist gardés          */
 #define POCSAG_SETTLE_MS    40u     /* après l'accord, avant d'écouter       */
-#define POCSAG_DWELL_MS     50u     /* recherche du préambule par canal      */
-/* Signal à 1200 bauds : les changements du slicer tombent sur des multiples
- * de la durée d'un bit (8 échantillons), au préambule (1 0 1 0) comme dans
- * les lots. Le bruit les place n'importe où. On compte les écarts à +/-1
- * échantillon d'un multiple (good) et les autres (bad). Détecte aussi une
- * émission prise en cours, après son préambule. */
+#define POCSAG_DWELL_MS     100u    /* recherche du préambule par canal :
+                                       assez pour 512 bauds (préambule plus
+                                       long, lock plus lent à obtenir)       */
+/* Signal à 1200 ou 512 bauds : les changements du slicer tombent sur des
+ * multiples de la durée d'un bit (8 éch à 1200, 18/19 à 512), au préambule
+ * (1 0 1 0) comme dans les lots. Le bruit les place n'importe où. On compte
+ * les écarts à +/-1 échantillon d'un multiple (good) et les autres (bad).
+ * Détecte aussi une émission prise en cours, après son préambule. */
 #define POCSAG_LOCK_GOOD    24u
 #define POCSAG_LOCK_RATIO   4u      /* bad * 4 <= good                       */
 /* Après le préambule, le premier mot de synchro arrive au plus tard à la
- * fin du préambule (480 ms normalisés, plus long sur certains réseaux). */
+ * fin du préambule (480 ms normalisés à 1200, 1.125 s à 512, plus long sur
+ * certains réseaux). */
 #define POCSAG_SYNC_WAIT_MS 1500u
 /* Fin d'émission : plus aucun slicer dans un lot depuis ce temps. */
 #define POCSAG_END_MS       600u
@@ -147,6 +174,7 @@ typedef struct {
     uint16_t offset;
     uint16_t len;
     uint8_t  func, alpha;
+    uint16_t baud;     /* débit de réception de cette page (1200 ou 512) */
 } page_t;
 
 typedef struct {
@@ -205,8 +233,15 @@ static struct {
     uint16_t lastGood, lastBad, lastQ; /* flips au pas d'un bit / autres / au demi-bit, dernière fenêtre */
     uint16_t nWords;                   /* mots BCH bons, cumulés (le compteur des slicers repart à chaque canal) */
     uint8_t  battOk;                   /* une mesure de batterie faite */
+    uint16_t baud;                     /* débit effectif des slicers : 1200 ou 512 */
+    uint8_t  baudLocked;               /* 1 : débit validé par un sync, plus de réinit */
+    /* Détection du baudrate (rateFind de l'app POCSAG RX) */
+    uint16_t preRate;                  /* dernier débit mesuré sur le préambule (0 = aucun) */
+    uint16_t rfCls;                    /* classe de débit des flips en cours */
+    uint8_t  rfRun;                    /* échantillons depuis le dernier flip */
+    uint8_t  rfStreak;                 /* flips consécutifs dans rfCls */
     sl_t     *sl;
-} g  = { .cw = 1 };;
+} g  = { .cw = 1, .baud = BAUD_1200 };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -475,6 +510,7 @@ static void closePage(sl_t *m){
     p->freq = g.current_freq;
     p->offset = current_offset;
     p->len = (uint16_t)n;
+    p->baud = g.baud;          /* débit de cette réception (1200 ou 512) */
 
     g.nOk++;
     g.cur = 0;
@@ -601,6 +637,7 @@ static void seqBit(sl_t *m, uint32_t b){
             m->word = 0;
             m->nb = 0;
             g.nSync++;
+            g.baudLocked = 1u;   /* sync trouvé : le débit est validé */
         }
         return;
     }
@@ -635,6 +672,61 @@ static void slice(sl_t *m, int32_t y){
 }
 
 /* ============================================================
+ * Détection du baudrate (méthode de l'app POCSAG RX : rateFind)
+ *
+ * La durée entre deux flips du slicer 0 est classée :
+ *   3 ou 4 éch  → 2400 bauds (reconnu, pas décodé)
+ *   6 à 10 éch  → 1200 bauds
+ *   16 à 20 éch → 512 bauds
+ * PRE_RUNS flips consécutifs dans la même classe valident le débit.
+ * ============================================================ */
+static void pocsag_rate_find(bool flipped)
+{
+    if (g.rfRun < 255u) g.rfRun++;
+    if (!flipped) return;
+    unsigned r = g.rfRun, c = 0;
+    if (r - 3u <= 2u)       c = 2400u;
+    else if (r - 6u <= 4u)  c = 1200u;
+    else if (r - 18u <= 2u) c = 512u;
+    g.rfRun = 0;
+    if (c && c == g.rfCls) {
+        if (g.rfStreak < PRE_RUNS && ++g.rfStreak == PRE_RUNS)
+            g.preRate = (uint16_t)c;
+    } else {
+        g.rfCls = (uint16_t)c;
+        g.rfStreak = 1;
+    }
+}
+
+/* Réinitialise l'état de décodage d'un slicer (sans toucher à num/step/dup). */
+static void pocsag_reset_slicer(sl_t *m)
+{
+    m->amp = 0; m->rprev = 0; m->phase = 0;
+    m->sr = 0; m->inv = 0;
+    m->nb = 0; m->word = HUNT;
+    m->has = 0;
+    m->acc = m->na = m->len = 0;
+    m->taint = m->badrun = 0;
+    m->live = 0; m->excuse = 0;
+    m->alen = m->aacc = m->ana = m->ataint = m->actrl = 0;
+    m->alpha = 0; m->dirty = 0;
+    m->ric = 0; m->at = 0;
+    m->func = 0;
+    m->ok = 0;
+}
+
+/* Applique g.baud aux 3 slicers (step et dup) et réinitialise leur état. */
+static void pocsag_apply_baud(void)
+{
+    for (unsigned k = 0; k < NSL; k++) {
+        sl_t *m = &g_sl[k];
+        m->step = (g.baud == BAUD_512) ? STEP_512 : STEP_1200;
+        m->dup  = (g.baud == BAUD_512) ? DUP_512  : DUP_1200;
+        pocsag_reset_slicer(m);
+    }
+}
+
+/* ============================================================
  * Affichage
  * ============================================================ */
 static void printFreq(char *s, uint32_t f)
@@ -644,17 +736,38 @@ static void printFreq(char *s, uint32_t f)
 
 __attribute__((noinline))
 static void draw(void){
-    char s[64] __attribute__((aligned(4)));
+    char s1[6] __attribute__((aligned(4)));
+    char s2[64] __attribute__((aligned(4)));
+    char f[16];
     const page_t *p = &g_pages[g.cur];
     unsigned lim = 0;
 
     UI_DisplayClear();
     UI_StatusClear();
+    /* En-tête : baudrate de la page affichée (B1200, B512...), puis la
+     * fréquence décalée de 4 caractères (16 px) vers la droite.
+     * Sans page : on garde le dernier préambule mesuré (g.preRate).
+     * Si aucun baudrate n'est connu : rien n'est affiché à gauche, et la
+     * fréquence reprend sa position d'origine (pas de décalage). */
+    printFreq(f, g.count ? p->freq : g.current_freq);
 
-    /* En-tête : fréquence de la page affichée, sinon celle du scan. */
-    printFreq(s, g.count ? p->freq : g.current_freq);
-    GUI_DisplaySmallestInverse(s, TITLE_X, 0, true, true,
-                               (uint8_t)(TITLE_X + 4u * (unsigned)strlen(s)));
+    unsigned baud = g.count ? p->baud : g.preRate;   /* 0 = inconnu */
+    unsigned x = TITLE_X;
+
+    if (baud) {
+        sprintf(s1, "%u", (unsigned)baud);
+        unsigned n1 = (unsigned)strlen(s1);
+        GUI_DisplaySmallestInverse(s1, (uint8_t)x, 0, true, true,
+                                   (uint8_t)(x + 4u * n1));
+        x += 4u * n1;
+        /* Fréquence décalée de 4 caractères (16 px) vers la droite */
+        x += 4u * 4u;
+    }
+    /* Sinon : x reste à TITLE_X, la fréquence est collée au bord */
+
+    sprintf(s2, "%s", f);
+    GUI_DisplaySmallestInverse(s2, (uint8_t)x, 0, true, true,
+                               (uint8_t)(x + 4u * (unsigned)strlen(s2)));
 
     {
         /* Batterie : l'ADC repasse sur sa voie le temps de la mesure. La
@@ -670,18 +783,18 @@ static void draw(void){
             BATTERY_GetReadings(false);
             g.battOk = 1;
         }
-        sprintf(s, "%u%%", (unsigned)BATTERY_VoltsToPercent(gBatteryVoltageAverage));
-        GUI_DisplaySmallest(s, 128, 0, true, true);
+        sprintf(s1, "%u%%", (unsigned)BATTERY_VoltsToPercent(gBatteryVoltageAverage));
+        GUI_DisplaySmallest(s1, 128, 0, true, true);
     }
 
     if (g.count) {
-        sprintf(s, "%lu", (unsigned long)p->ric);
-        UI_PrintStringSmallBold(s, 0, 0, 0);
+        sprintf(s2, "%lu", (unsigned long)p->ric);
+        UI_PrintStringSmallBold(s2, 0, 0, 0);
 
         unsigned capsEnd = CAPS_END;
-        char *o = s + sprintf(s, "%u/%u", g.cur + 1u, g.count);
-        capsEnd -= 4u * (unsigned)(o - s);
-        GUI_DisplaySmallestInverse(s, (uint8_t)capsEnd, 0, false, true, CAPS_END);
+        char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g.count);
+        capsEnd -= 4u * (unsigned)(o - s2);
+        GUI_DisplaySmallestInverse(s2, (uint8_t)capsEnd, 0, false, true, CAPS_END);
 
         unsigned w = ROW_CHARS + g.cw, rows = 0;
         for (unsigned i = 0; i < p->len; i += w, rows++) {
@@ -689,18 +802,18 @@ static void draw(void){
             if (n > w) n = w;
             for (unsigned j = 0; j < n; j++) {
                 char ch = g_pool[(p->offset + i + j) % POOL_SIZE];
-                s[j] = (uint8_t)ch == GAP ? '?' : ch;
+                s2[j] = (uint8_t)ch == GAP ? '?' : ch;
             }
-            s[n] = '\0';
-            if (g.cw) { if (r < 8u) GUI_DisplaySmallest(s, 0, (uint8_t)(8u + r * 6u), false, true); }
-            else if (r < ROWS) UI_PrintStringSmallBold(s, 0, 0, (uint8_t)(1u + r));
+            s2[n] = '\0';
+            if (g.cw) { if (r < 8u) GUI_DisplaySmallest(s2, 0, (uint8_t)(8u + r * 6u), false, true); }
+            else if (r < ROWS) UI_PrintStringSmallBold(s2, 0, 0, (uint8_t)(1u + r));
         }
         if (!p->len)
             UI_PrintStringSmallBold(g_pool[p->offset % POOL_SIZE] ? LOST_STR : TONE_STR, NOTEXT_X, 0, 2);
         if (!g.cw && rows > ROWS) lim = rows - ROWS;
     } else {
-        sprintf(s, "SCAN %u CH", g.nCh);
-        UI_PrintStringSmallBold(s, 0, 0, 2);
+        sprintf(s2, "SCAN %u CH", g.nCh);
+        UI_PrintStringSmallBold(s2, 0, 0, 2);
     }
     g.lim = (uint8_t)lim;
 }
@@ -773,7 +886,9 @@ static void house(void){
 /* ============================================================
  * Écoute d'un canal
  *
- * Phase 1 (POCSAG_DWELL_MS) : signal à 1200 bauds ou mot de synchro ?
+ * Phase 1 (POCSAG_DWELL_MS) : signal à 1200 ou 512 bauds, ou mot de
+ *   synchro ? Le débit est détecté par rateFind() (méthode de l'app
+ *   POCSAG RX) et appliqué aux slicers tant qu'aucun sync n'a été trouvé.
  *   Non : retour tout de suite, canal suivant.
  * Phase 2 : décodage. L'écoute dure tant que des lots arrivent ; elle
  *   s'arrête POCSAG_END_MS après le dernier lot (fin d'émission), ou si le
@@ -790,8 +905,8 @@ static void listen(void){
         sl_t *m = &sl[k];
         m->num = (uint8_t)(2u + k);
         m->word = HUNT;
-        m->step = STEP_1200;
-        m->dup = DUP_1200;
+        m->step = (g.baud == BAUD_512) ? STEP_512 : STEP_1200;
+        m->dup  = (g.baud == BAUD_512) ? DUP_512  : DUP_1200;
     }
     g.sl = sl;
     uint16_t good = 0, bad = 0, q = 0;
@@ -803,6 +918,11 @@ static void listen(void){
     bool active = false;           /* préambule ou synchro trouvé          */
     uint32_t next = pocsag_cycles_48mhz();
     uint16_t cnt = 0;
+
+    /* Détection de baudrate : réinitialisée à chaque canal. */
+    g.rfCls = 0; g.rfRun = 0; g.rfStreak = 0; g.preRate = 0;
+    g.baudLocked = 0;
+    g.busyFor = 0;
 
     while (!g_pocsagScanStop) {
         while ((int32_t)(pocsag_cycles_48mhz() - next) < 0) {}
@@ -816,6 +936,19 @@ static void listen(void){
         bi = (bi + 1u) & 3u;
         int32_t before = sl[0].rprev;
         for (unsigned k = 0; k < NSL; k++) slice(&sl[k], sum4);
+        pocsag_rate_find(sl[0].rprev != before);
+
+        /* Baudrate auto : tant qu'aucun sync n'a été trouvé, on suit
+         * g.preRate (mesuré sur le préambule). Le préambule est assez
+         * long (480 ms à 1200, 1.125 s à 512) pour absorber une ou deux
+         * réinitialisations. Dès qu'un sync est vu, baudLocked=1 et le
+         * débit ne bouge plus jusqu'à la fin de l'écoute du canal. */
+        if (!g.baudLocked && g.preRate && g.preRate != g.baud &&
+            (g.preRate == BAUD_512 || g.preRate == BAUD_1200)) {
+            g.baud = g.preRate;
+            pocsag_apply_baud();
+        }
+
         if (run < 255u) run++;
         if (sl[0].rprev != before) {
             const unsigned m = run & 7u, err = m <= 4u ? m : 8u - m;
@@ -943,6 +1076,10 @@ void APP_RunPocsagScan(void)
     BACKLIGHT_TurnOn();
     g_cyc_base = APP_CYC_DIAGNOSTIC_START - pocsag_cycles_raw();
     g.redraw = REDRAW_ON;
+
+    /* Débit par défaut : 1200 bauds, ajusté par la détection au préambule. */
+    g.baud = BAUD_1200;
+    g.baudLocked = 0;
 
     uint32_t tuned = g_chFreq[0];
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);
