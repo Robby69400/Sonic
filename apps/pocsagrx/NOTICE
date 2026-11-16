@@ -1,0 +1,7 @@
+POCSAG Scan (Falcon app)
+========================
+
+Derived from POCSAG RX by Armel F4HWN (armel/uv-k1-k5v3-firmware-custom),
+Apache License 2.0: pocsagrx_app.c, gen_assets.py, app.ld, README.md,
+app_api.h, app_assets.py and pack_app.py. Falcon changes: the scan of the
+memory list named POCSAG (see the note at the top of pocsagrx_app.c).

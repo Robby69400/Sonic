@@ -1,0 +1,8 @@
+POCSAG TX (Falcon app)
+======================
+
+The POCSAG format code (codewords, batches, numeric and alphanumeric
+encoding) follows test/pocsag.py of POCSAG RX, and the test messages are
+those of its test files: armel/uv-k1-k5v3-firmware-custom (F4HWN),
+Apache License 2.0. The FSK modem setup follows the BEAM app of the same
+repository. app_api.h, app_assets.py and pack_app.py come from it too.

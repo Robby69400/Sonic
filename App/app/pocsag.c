@@ -59,9 +59,18 @@
  *    g_pool_ram[MSG_MAX] puis on écrit en flash en UN SEUL appel
  *    PY25Q16_WriteBuffer (au plus 2 si le message traverse la fin du pool).
  *
+ * AFFICHAGE
+ *  - Deux polices : grande (par défaut) et petite (compacte).
+ *  - Touche '*' bascule entre les deux (flag g.cw = 0/1).
+ *  - Grande police : ROW_CHARS (18) colonnes × ROWS (6) lignes,
+ *    ligne 0 = RIC, lignes 1..6 = texte.
+ *  - Petite police  : ROW_CHARS + CW_COMPACT (32) colonnes × 8 lignes,
+ *    zone sous le RIC (y = 8 .. 8 + 8*6), interligne 6 px.
+ *
  * Touches : EXIT quitte · UP/DOWN pages (puis défilement, avec répétition
- *            quand on maintient la touche) · * vue compacte · 1 tient le
- *            canal en cours (H) · 2 efface les pages · 3 diagnostic.
+ *            quand on maintient la touche) · * bascule grande/petite
+ *            police · 1 tient le canal en cours (H) · 2 efface les pages
+ *            · 3 diagnostic.
  */
 
 #ifdef ENABLE_POCSAG
@@ -288,7 +297,7 @@ struct {
     uint16_t repCount;
     bool     running;
     uint16_t cur;
-    uint8_t  cw;
+    uint8_t  cw;          /* 0 = grande police, 1 = petite police */
     uint8_t  refresh;
     uint8_t  top, lim;
     uint16_t nOk;
@@ -309,7 +318,7 @@ struct {
     uint8_t  rfRun;
     uint8_t  rfStreak;
     sl_t     *sl;
-} g = { .cw = 1, .baud = BAUD_1200 };
+} g = { .cw = 0, .baud = BAUD_1200 };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -922,8 +931,9 @@ static void printFreq(char *s, uint32_t f)
 }
 
 __attribute__((noinline))
-static void draw(void){
-    char s1[6] __attribute__((aligned(4)));
+static void draw(void)
+{
+    char s1[6]  __attribute__((aligned(4)));
     char s2[64] __attribute__((aligned(4)));
     char f[16];
     unsigned lim = 0;
@@ -934,6 +944,7 @@ static void draw(void){
     pocsag_cur_load();
     const page_t *p = &g_cur_page;
 
+    /* ---- Ligne de titre : baud + fréquence ---- */
     printFreq(f, g_hdr.count ? p->freq : g.current_freq);
     unsigned baud = g_hdr.count ? (PAGE_GET_BAUD(p) ? BAUD_512 : BAUD_1200)
                                 : g.preRate;
@@ -949,33 +960,47 @@ static void draw(void){
     GUI_DisplaySmallestInverse(s2, (uint8_t)x, 0, true, true,
                                (uint8_t)(x + 4u * (unsigned)strlen(s2)));
 
-    {
-        if (g.refresh == 0 || !g.battOk) {
-            bool yielded = pocsag_afc_yield_adc();
-            uint16_t v, cur;
-            BOARD_ADC_GetBatteryInfo(&v, &cur);
-            BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[gBatteryCheckCounter++ % 4], &gBatteryCurrent);
-            if (yielded) pocsag_afc_resume_adc();
-            BATTERY_GetReadings(false);
-            g.battOk = 1;
-        }
-        sprintf(s1, "%u%%", (unsigned)BATTERY_VoltsToPercent(gBatteryVoltageAverage));
-        GUI_DisplaySmallest(s1, 128, 0, true, true);
+    /* ---- Batterie ---- */
+    if (g.refresh == 0 || !g.battOk) {
+        bool yielded = pocsag_afc_yield_adc();
+        uint16_t v, cur;
+        BOARD_ADC_GetBatteryInfo(&v, &cur);
+        BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[gBatteryCheckCounter++ % 4],
+                                 &gBatteryCurrent);
+        if (yielded) pocsag_afc_resume_adc();
+        BATTERY_GetReadings(false);
+        g.battOk = 1;
     }
+    sprintf(s1, "%u%%", (unsigned)BATTERY_VoltsToPercent(gBatteryVoltageAverage));
+    GUI_DisplaySmallest(s1, 128, 0, true, true);
 
+    /* ---- Corps : page courante ou mode scan ---- */
     if (g_hdr.count) {
+        /* RIC (grande police, ligne 0) */
         sprintf(s2, "%lu", (unsigned long)p->ric);
         UI_PrintStringSmallBold(s2, 0, 0, 0);
 
+        /* Indicateur page courante / total, aligné à droite */
         unsigned capsEnd = CAPS_END;
         char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g_hdr.count);
         capsEnd -= 4u * (unsigned)(o - s2);
         GUI_DisplaySmallestInverse(s2, (uint8_t)capsEnd, 0, false, true, CAPS_END);
 
-        unsigned w = ROW_CHARS + g.cw, rows = 0;
+        /* Largeur de ligne selon le mode :
+         *   cw == 0 : grands caractères, ROW_CHARS colonnes, lignes 1..ROWS
+         *   cw != 0 : petits caractères, ROW_CHARS + CW_COMPACT colonnes,
+         *             zone sous le RIC (y = 8 .. 8 + 8*6) */
+        const unsigned w       = g.cw ? (ROW_CHARS + CW_COMPACT) : ROW_CHARS;
+        const unsigned maxRows = g.cw ? 8u : ROWS;
+        const unsigned y0      = g.cw ? 8u : 0u;   /* petite police : sous le RIC */
+        unsigned rows = 0;
+
         for (unsigned i = 0; i < p->len; i += w, rows++) {
-            unsigned n = p->len - i, r = rows - g.top;
+            unsigned n = p->len - i;
+            unsigned r = rows - g.top;
             if (n > w) n = w;
+
+            /* Lecture circulaire depuis le pool */
             unsigned rd = 0;
             while (rd < n) {
                 uint16_t off = (uint16_t)((p->offset + i + rd) % POCSAG_POOL_SIZE);
@@ -985,22 +1010,38 @@ static void draw(void){
                 pocsag_pool_read(off, s2 + rd, chunk);
                 rd += chunk;
             }
+
+            /* Remplacement des GAP + terminaison */
             for (unsigned j = 0; j < n; j++)
                 if ((uint8_t)s2[j] == GAP) s2[j] = '?';
             s2[n] = '\0';
-            if (g.cw) { if (r < 8u) GUI_DisplaySmallest(s2, 0, (uint8_t)(8u + r * 6u), false, true); }
-            else if (r < ROWS) UI_PrintStringSmallBold(s2, 0, 0, (uint8_t)(1u + r));
+
+            if (r >= maxRows) continue;
+
+            if (g.cw) {
+                /* Petite police : interligne 6 px, sous le RIC (y0 = 8) */
+                GUI_DisplaySmallest(s2, 0, (uint8_t)(y0 + r * 6u), false, true);
+            } else {
+                /* Grande police : lignes 1..ROWS (ligne 0 = RIC) */
+                UI_PrintStringSmallBold(s2, 0, 0, (uint8_t)(1u + r));
+            }
         }
+
+        /* Page vide : message LOST / TONE */
         if (!p->len) {
             char c;
             pocsag_pool_read((uint16_t)(p->offset % POCSAG_POOL_SIZE), &c, 1);
             UI_PrintStringSmallBold(c ? LOST_STR : TONE_STR, NOTEXT_X, 0, 2);
         }
-        if (!g.cw && rows > ROWS) lim = rows - ROWS;
+
+        /* Limite de défilement (uniquement en grande police) */
+        if (!g.cw && rows > ROWS)
+            lim = rows - ROWS;
     } else {
         sprintf(s2, "SCAN %u CH", g.nCh);
         UI_PrintStringSmallBold(s2, 0, 0, 2);
     }
+
     g.lim = (uint8_t)lim;
 }
 
@@ -1062,7 +1103,12 @@ static void handleKeys(void)
         for (unsigned k = 0; k < NSL; k++) g_sl[k].ok = 0;
         pocsag_flash_wipe();
     }
-    else if (key == KEY_STAR) { g.cw ^= CW_COMPACT; g.top = 0; }
+    else if (key == KEY_STAR) {
+        g.cw ^= 1u;                 /* 0 = grande police, 1 = petite police */
+        g.top = 0;
+        g_cur_valid = false;
+        g.redraw |= REDRAW_ON;
+    }
 }
 
 static void backlightTick(void){
