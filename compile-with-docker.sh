@@ -72,7 +72,7 @@ build_preset() {
   case "$preset" in
     S1K) target="f4hwn.sonic1k.${VERSION_NO}" ;;
     S10K) target="f4hwn.sonic10k.${VERSION_NO}" ;;
-    SPOC) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
+    SPOC) target="f4hwn.spoc1k.${VERSION_NO}" ;;
     S4K)     target="f4hwn.sonic4k.${VERSION_NO}" ;; # Default value
   esac
   echo -e "\n 🚀 Building: ${preset}"
@@ -103,7 +103,7 @@ flash_preset() {
   case "$preset" in
     S1K) target="f4hwn.sonic1k.${VERSION_NO}" ;;
     S10K) target="f4hwn.sonic10k.${VERSION_NO}" ;;
-    SPOC) target="f4hwn.nochirpsonic4k.${VERSION_NO}" ;;
+    SPOC) target="f4hwn.spoc1k.${VERSION_NO}" ;;
     S4K)     target="f4hwn.sonic4k.${VERSION_NO}" ;; # Default value
   esac
   local ifile="./build/${preset}/${target}.bin"

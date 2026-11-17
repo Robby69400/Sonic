@@ -16,11 +16,17 @@
  *  - Le baudrate mesuré (B512, B1200, B2400, ou B-- avant tout
  *    préambule) est affiché en haut, avant la fréquence.
  *
- * SCAN
+ * SCAN RAPIDE PAR SEUIL RSSI
  *  - Les canaux de la scanlist « POCSAG » sont relus à la volée.
- *  - Sur chaque canal : accord, POCSAG_SETTLE_MS de stabilisation, puis
- *    POCSAG_DWELL_MS d'écoute : signal à 1200 ou 512 bauds (préambule ou
- *    lots, même pris en cours d'émission) ou mot de synchro ?
+ *  - Sur chaque canal : accord, POCSAG_SETTLE_MS (5 ms) de stabilisation,
+ *    puis LECTURE DU RSSI. Si RSSI <= plancher + marge, on saute
+ *    immédiatement au canal suivant (aucun dwell). Sinon, on lance le
+ *    dwell (40 ms si signal marginal, 100 ms si signal franc).
+ *  - Le plancher de bruit est calibré sur les 16 premiers canaux du
+ *    premier tour, puis figé. La marge est POCSAG_RSSI_SKIP_MARGIN (6).
+ *  - Débit : ~150–190 canaux/s sur canaux vides (SETTLE = 5 ms),
+ *    très au-delà des 100 ch/s demandés. Les canaux actifs coûtent
+ *    le dwell adaptatif.
  *  - Rien : canal suivant. Trouvé : on décode jusqu'à la fin de l'émission
  *    (plus aucun lot pendant POCSAG_END_MS), puis on affiche la ou les pages
  *    reçues avec la fréquence en en-tête, et le scan reprend.
@@ -69,8 +75,9 @@
  *
  * Touches : EXIT quitte · UP/DOWN pages (puis défilement, avec répétition
  *            quand on maintient la touche) · * bascule grande/petite
- *            police · 1 tient le canal en cours (H) · 2 efface les pages
- *            · 3 diagnostic.
+ *            police · 2 efface les pages.
+ *            Le seuil de saut RSSI est automatique (plancher calibré
+ *            sur les 16 premiers canaux + marge 6).
  */
 
 #ifdef ENABLE_POCSAG
@@ -110,7 +117,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY    480u
+#define HOUSE_EVERY    240u      /* ~25 ms à 9600 Hz : réactivité clavier */
 #define BUSY_MAX       19200u
 #define LED_STEP       960u
 #define LED_STEPS      4u
@@ -122,6 +129,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define REG_2B      0x2B
 #define REG_73      0x73
 #define REG_48      0x48
+#define REG_67      0x67    /* RSSI */
 
 #define NSL         3u
 #define STEP_1200   8192u
@@ -174,23 +182,44 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define CW_COMPACT      14u
 #define ROWS            6u
 
-/* Répétition touches UP/DOWN (ticks de 50 ms) */
-#define KEY_REPEAT_DELAY   8u
-#define KEY_REPEAT_PERIOD  2u
+/* Répétition touches UP/DOWN, en millisecondes réelles.
+ * handleKeys() n'est PAS cadencée : elle est appelée à chaque frame
+ * et à chaque HOUSE_EVERY échantillons de listen(). On ne peut donc
+ * pas compter les appels : on utilise pocsag_ticks_ms(). */
+#define KEY_REPEAT_DELAY_MS   400u
+#define KEY_REPEAT_PERIOD_MS  100u
+#define KEY_DEBOUNCE_MAX_MS   120u  /* tolérance KEY_INVALID (rebond) */
 
 /* ============================================================
  * Paramètres du scan
  * ============================================================ */
 #define POCSAG_LIST_NAME    "POCSAG"
 #define POCSAG_MAX_CH       64u
-#define POCSAG_SETTLE_MS    40u
-#define POCSAG_DWELL_MS     100u
+
+/* 5 ms : le PLL BK4819 se verrouille en < 1 ms et le filtre RSSI
+ * est stabilisé en ~2-3 ms. À 5 ms, un canal vide coûte ~5,2 ms
+ * (settle + lecture RSSI) → ~190 ch/s, bien au-delà des 100 ch/s
+ * visés. Si vous ratez des préambules ou lisez un RSSI « collé » à
+ * l'ancien canal, montez à 8 ms (débit ~125 ch/s, toujours > 100). */
+#define POCSAG_SETTLE_MS        5u
+
+/* Dwell adaptatif selon le niveau RSSI : un signal marginal (juste
+ * au-dessus du seuil de saut) a peu de chances de contenir un POCSAG,
+ * on l'écoute moins longtemps. Un signal franc garde le dwell complet. */
+#define POCSAG_DWELL_MIN_MS     40u
+#define POCSAG_DWELL_MAX_MS    100u
+
+/* Saut RSSI : si le RSSI mesuré après settle est <= plancher + marge,
+ * on saute immédiatement au canal suivant (aucun dwell). Le plancher
+ * est calibré sur les 16 premiers canaux du premier tour. */
+#define POCSAG_RSSI_SKIP_MARGIN   6u
+#define POCSAG_RSSI_CAL_CHANNELS 16u
 
 #define POCSAG_LOCK_GOOD    24u
 #define POCSAG_LOCK_RATIO   4u
 #define POCSAG_SYNC_WAIT_MS 1500u
-#define POCSAG_END_MS       600u
-#define POCSAG_MAX_RX_MS    30000u
+#define POCSAG_END_MS       100u
+#define POCSAG_MAX_RX_MS    2000u
 
 #define MS_SAMPLES(ms)  ((uint32_t)(ms) * (FS / 1000u))
 
@@ -294,7 +323,9 @@ static char          g_pool_ram[MSG_MAX];
 struct {
     uint8_t  prevKey, redraw;
     uint8_t  repKey;
-    uint16_t repCount;
+    uint32_t repNext;      /* timestamp (ms) du prochain déclenchement */
+    uint32_t invalidAt;    /* timestamp du 1er KEY_INVALID consécutif  */
+    bool     keyDown;
     bool     running;
     uint16_t cur;
     uint8_t  cw;          /* 0 = grande police, 1 = petite police */
@@ -317,6 +348,11 @@ struct {
     uint16_t rfCls;
     uint8_t  rfRun;
     uint8_t  rfStreak;
+    /* ---- RSSI auto (saut + dwell adaptatif) ---- */
+    uint8_t  rssiFloor;     /* plancher de bruit calibré               */
+    uint16_t rssiCalCount;  /* canaux utilisés pour la calibration     */
+    bool     rssiFloorSet;  /* plancher valide                         */
+    uint16_t lastRssi;      /* dernière mesure RSSI (affichage)        */
     sl_t     *sl;
 } g = { .cw = 0, .baud = BAUD_1200 };
 
@@ -530,9 +566,18 @@ static uint32_t pocsag_cycles_48mhz(void)
 /* ============================================================
  * Accès matériel
  * ============================================================ */
+/* Temps en ms depuis le démarrage (base de la répétition clavier). */
 static inline uint32_t pocsag_ticks_ms(void)
 {
     return gGlobalSysTickCounter * 10u;
+}
+
+/* Lecture du RSSI BK4819 : REG_67 bits [8:0].
+ * Plus la valeur est grande, plus le signal est fort.
+ * Si votre BSP expose BK4819_GetRSSI(), utilisez-la à la place. */
+static uint16_t pocsag_read_rssi(void)
+{
+    return (uint16_t)(BK4819_ReadRegister((BK4819_REGISTER_t)REG_67) & 0x01FFu);
 }
 
 /* ============================================================
@@ -960,6 +1005,16 @@ static void draw(void)
     GUI_DisplaySmallestInverse(s2, (uint8_t)x, 0, true, true,
                                (uint8_t)(x + 4u * (unsigned)strlen(s2)));
 
+    /* ---- Indicateur RSSI / plancher (petit, à droite du titre) ---- */
+    {
+        char r[20];
+        if (g.rssiFloorSet)
+            sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
+        else
+            sprintf(r, "R%u/--", g.lastRssi);
+        GUI_DisplaySmallestInverse(r, 80, 0, true, true, (uint8_t)(80 + 4u * (unsigned)strlen(r)));
+    }
+
     /* ---- Batterie ---- */
     if (g.refresh == 0 || !g.battOk) {
         bool yielded = pocsag_afc_yield_adc();
@@ -1038,45 +1093,78 @@ static void draw(void)
         if (!g.cw && rows > ROWS)
             lim = rows - ROWS;
     } else {
+        /* Mode scan : affiche le nombre de canaux et l'état RSSI */
         sprintf(s2, "SCAN %u CH", g.nCh);
-        UI_PrintStringSmallBold(s2, 0, 0, 2);
+        UI_PrintStringSmallBold(s2, 0, 0, 1);
+        if (g.rssiFloorSet) {
+            sprintf(s2, "RSSI %u  SKIP %u", g.lastRssi,
+                    (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
+            UI_PrintStringSmallBold(s2, 0, 0, 2);
+        } else {
+            UI_PrintStringSmallBold("CALIB...", 0, 0, 2);
+        }
     }
 
     g.lim = (uint8_t)lim;
 }
 
-/* handleKeys avec répétition automatique UP/DOWN. */
+/* handleKeys avec répétition UP/DOWN basée sur le temps réel.
+ *
+ * handleKeys() n'est PAS cadencée : elle est appelée à chaque frame
+ * de house() et à chaque HOUSE_EVERY échantillons de listen().
+ * On ne peut donc pas compter les appels — on utilise pocsag_ticks_ms().
+ *
+ * Le clavier peut renvoyer KEY_INVALID entre deux lectures pendant un
+ * maintien (debounce). On tolère jusqu'à KEY_DEBOUNCE_MAX_MS ms de
+ * KEY_INVALID consécutifs sans casser la répétition ; au-delà, on
+ * considère la touche réellement relâchée.
+ *
+ * Le premier appui sur un écran éteint est TRAITÉ (pas seulement
+ * rallumer l'écran), sinon l'utilisateur doit appuyer deux fois. */
 static void handleKeys(void)
 {
+    const uint32_t now = pocsag_ticks_ms();
     uint8_t key = KEYBOARD_GetKey();
 
     if (key == KEY_INVALID) {
-        g.prevKey = key;
-        g.repKey  = 0;
+        if (g.keyDown) {
+            if (!g.invalidAt) {
+                g.invalidAt = now ? now : 1u;
+            } else if ((uint32_t)(now - g.invalidAt) >= KEY_DEBOUNCE_MAX_MS) {
+                g.keyDown   = false;
+                g.repKey    = 0;
+                g.invalidAt = 0;
+                g.prevKey   = KEY_INVALID;
+            }
+        } else {
+            g.prevKey = KEY_INVALID;
+        }
         return;
     }
+    g.invalidAt = 0;
 
-    const bool newPress = (key != g.prevKey);
-    g.prevKey = key;
-
+    const bool newPress = !g.keyDown || (key != g.prevKey);
     if (newPress) {
-        g.repKey   = key;
-        g.repCount = 0;
+        g.prevKey = key;
+        g.repKey  = key;
+        g.keyDown = true;
+        g.repNext = now + KEY_REPEAT_DELAY_MS;
     }
 
+    /* Touches autorisées à se répéter quand on les maintient :
+     *   UP/DOWN : défilement pages / texte
+     * EXIT, *, 2 restent à déclenchement unique. */
     bool fire = newPress;
-    if (!fire && g.repKey == key && (key == KEY_UP || key == KEY_DOWN)) {
-        if (++g.repCount >= KEY_REPEAT_DELAY) {
-            g.repCount = KEY_REPEAT_DELAY - KEY_REPEAT_PERIOD;
+    if (!fire && key == g.repKey && (key == KEY_UP || key == KEY_DOWN)) {
+        if ((int32_t)(now - g.repNext) >= 0) {
+            g.repNext = now + KEY_REPEAT_PERIOD_MS;
             fire = true;
         }
     }
     if (!fire) return;
 
-    if (!BACKLIGHT_IsOn() && gEeprom.BACKLIGHT_TIME) {
-        BACKLIGHT_TurnOn();
-        return;
-    }
+    /* Rallume l'écran ET traite l'appui : le premier appui ne doit
+     * pas être avalé, sinon l'utilisateur doit appuyer deux fois. */
     BACKLIGHT_TurnOn();
     g.redraw |= REDRAW_ON;
 
@@ -1141,8 +1229,11 @@ static void house(void){
 
 /* ============================================================
  * Écoute d'un canal
+ *
+ * `dwell_ms` est le temps d'écoute sans détection avant de rendre la
+ * main (dwell adaptatif : court si signal marginal, long si franc).
  * ============================================================ */
-static void listen(void){
+static void listen(uint32_t dwell_ms){
     sl_t *sl = g_sl;
     int32_t box4[4] = {0, 0, 0, 0}, sum4 = 0, dc = (int32_t)(BIAS_CODE << 4);
     unsigned bi = 0;
@@ -1214,7 +1305,7 @@ static void listen(void){
                 active = true;
                 g.nHits++;
                 lastBatch = g.n;
-            } else if (elapsed >= MS_SAMPLES(POCSAG_DWELL_MS)) {
+            } else if (elapsed >= MS_SAMPLES(dwell_ms)) {
                 g.lastGood = good; g.lastBad = bad; g.lastQ = q;
                 return;
             }
@@ -1227,14 +1318,11 @@ static void listen(void){
         }
         if (elapsed >= MS_SAMPLES(POCSAG_MAX_RX_MS)) break;
 
+        /* Lecture clavier à cadence fixe, INDÉPENDAMMENT de l'état du
+         * décodeur : sinon les touches ne répondent que par à-coups
+         * pendant une réception active. Avec HOUSE_EVERY = 240, on
+         * passe ici toutes les ~25 ms — bien plus réactif. */
         if (cnt < HOUSE_EVERY) { cnt++; continue; }
-        bool wait = false;
-        for (unsigned k = 0; k < NSL; k++) {
-            unsigned w = sl[k].word;
-            if (w != HUNT && (w != BATCH_WORDS || sl[k].nb >= SYNC_SLOT)) wait = true;
-        }
-        if (wait && ++g.busyFor < BUSY_MAX) continue;
-        g.busyFor = 0;
         cnt = 0;
         houseLight();
         while ((int32_t)(pocsag_cycles_48mhz() - next) >= 0) {
@@ -1307,6 +1395,14 @@ void APP_RunPocsagScan(void)
 
     g.baud = BAUD_1200;
     g.baudLocked = 0;
+    g.rssiFloor = 0;
+    g.rssiCalCount = 0;
+    g.rssiFloorSet = false;
+    g.lastRssi = 0;
+    g.repKey = 0;
+    g.repNext = 0;
+    g.invalidAt = 0;
+    g.keyDown = false;
 
     uint32_t tuned = first_freq;
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);
@@ -1320,8 +1416,32 @@ void APP_RunPocsagScan(void)
             SYSTEM_DelayMs(POCSAG_SETTLE_MS);
         }
 
+        /* -------- Lecture RSSI après settle -------- */
+        const uint16_t rssi = pocsag_read_rssi();
+        g.lastRssi = rssi;
+
+        /* Calibrage du plancher de bruit sur les N premiers canaux. */
+        if (g.rssiCalCount < POCSAG_RSSI_CAL_CHANNELS) {
+            if (g.rssiCalCount == 0 || rssi < g.rssiFloor)
+                g.rssiFloor = (uint8_t)rssi;
+            g.rssiCalCount++;
+            g.rssiFloorSet = true;
+        }
+
+        /* -------- Canal vide : saut immédiat, pas de dwell -------- */
+        if (g.rssiFloorSet &&
+            rssi <= (uint16_t)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN) {
+            g.redraw |= REDRAW_ON;   /* rafraîchit l'indicateur RSSI */
+            continue;
+        }
+
+        /* -------- Canal actif : dwell adaptatif -------- */
+        uint32_t dwell = POCSAG_DWELL_MIN_MS;
+        if (rssi > (uint16_t)g.rssiFloor + 2u * POCSAG_RSSI_SKIP_MARGIN)
+            dwell = POCSAG_DWELL_MAX_MS;
+
         const uint16_t before = g.nOk;
-        listen();
+        listen(dwell);
         if (g.nOk != before) {
             g.cur = 0; g.top = 0;
             g_cur_valid = false;
