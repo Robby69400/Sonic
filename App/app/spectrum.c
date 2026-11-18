@@ -1,4 +1,4 @@
-#ifdef ENABLE_POCSAG
+#if defined(ENABLE_POCSAG) || defined(ENABLE_FLEX)
 #include <stdbool.h>
 #include <string.h>
 #include "app/pocsag.h"
@@ -9,7 +9,12 @@ void APP_RunSpectrum(void)
 {
     g_pocsagScanStop = false;
     while (!g_pocsagScanStop) {
+#ifdef ENABLE_POCSAG
         APP_RunPocsagScan();
+#endif
+#ifdef ENABLE_FLEX
+        APP_RunFlexScan();
+#endif
     }
 }
 

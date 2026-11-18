@@ -79,6 +79,16 @@
       }
     },
     {
+      "name": "SFLEX",
+      "inherits": "default",
+      "cacheVariables": {
+        "ENABLE_1024": true,
+        "ENABLE_USB": true,
+        "ENABLE_FLEX": true,
+        "EDITION_STRING": "Flex"
+      }
+    },
+    {
       "name": "S1K",
       "inherits": "default",
       "cacheVariables": {
@@ -115,6 +125,10 @@
     {
       "name": "SPOC",
       "configurePreset": "SPOC"
+    },
+    {
+      "name": "SFLEX",
+      "configurePreset": "SFLEX"
     },
     {
       "name": "S1K",
