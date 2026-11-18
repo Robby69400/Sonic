@@ -430,7 +430,7 @@ void SETTINGS_FactoryReset(bool bIsAll)
     gScheduleVfoSave = true;
     
     SETTINGS_SaveVfoIndicesFlush();
-#ifndef ENABLE_POCSAG
+#if !defined(ENABLE_POCSAG) && !defined(ENABLE_FLEX)
     ClearSettings();
 #endif
 }

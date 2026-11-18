@@ -67,7 +67,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define STEP_1600   8192u   /* identique à STEP_1200 POCSAG, adapté au 1600 bps */
 #define DUP_1600    128u
 
-#define MSG_MAX     512u
+#define MSG_MAX     254u
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
@@ -587,13 +587,6 @@ static int flex_bch_decode(uint32_t cw, uint32_t *info) {
  * ============================================================ */
 static const char NUMERIC[16] = {'0','1','2','3','4','5','6','7','8','9','*','U',' ','-',')','('};
 
-static void addc(sl_t *m, unsigned ch){
-    if(m->len < MSG_MAX) m->text[m->len++] = (char)ch;
-}
-static void adda(sl_t *m, unsigned ch){
-    if(m->alen < MSG_MAX) m->atext[m->alen++] = (char)ch;
-}
-
 /* preferAlpha : adapté POCSAG, simplifié pour FLEX (pas de func) */
 static bool preferAlpha(const sl_t *m, unsigned nn){
     if(m->alen < 6u) return false;
@@ -721,7 +714,7 @@ static void flex_process_phase(sl_t *m, const uint32_t *wireWords)
 
     /* BCH sur chaque mot */
     for (unsigned i = 0; i < FLEX_PHASE_WORDS; i++) {
-        uint32_t info;
+        uint32_t info = 0;
         int e = flex_bch_decode(words[i], &info);
         corr[i] = e;
         words[i] = info;

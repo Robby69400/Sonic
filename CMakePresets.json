@@ -79,7 +79,7 @@
       }
     },
     {
-      "name": "SFLEX",
+      "name": "FLEX",
       "inherits": "default",
       "cacheVariables": {
         "ENABLE_1024": true,
@@ -127,8 +127,8 @@
       "configurePreset": "SPOC"
     },
     {
-      "name": "SFLEX",
-      "configurePreset": "SFLEX"
+      "name": "FLEX",
+      "configurePreset": "FLEX"
     },
     {
       "name": "S1K",

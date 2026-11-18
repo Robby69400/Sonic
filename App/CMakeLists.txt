@@ -131,23 +131,42 @@ enable_feature(ENABLE_CLOSE_CALL
 
 # ---- CUSTOM MODS ----
 
-# POCSAG replaces the large spectrum implementation at compile time.
+# POCSAG / FLEX replace the large spectrum implementation at compile time.
 option(ENABLE_POCSAG "Build the POCSAG scan mode instead of the full spectrum scanner" OFF)
+option(ENABLE_FLEX   "Build the FLEX scan mode instead of the full spectrum scanner"   OFF)
+
 enable_feature(ENABLE_SPECTRUM
     app/spectrum.c
     app/mem_stats.c
 )
-if(ENABLE_POCSAG)
+
+# POCSAG et FLEX définissent tous deux APP_RunSpectrum() dans app/spectrum.c :
+# ils ne peuvent pas être activés ensemble.
+if(ENABLE_POCSAG AND ENABLE_FLEX)
+    message(FATAL_ERROR "ENABLE_POCSAG and ENABLE_FLEX are mutually exclusive.")
+endif()
+
+if(ENABLE_POCSAG OR ENABLE_FLEX)
     if(NOT ENABLE_SPECTRUM)
-        message(FATAL_ERROR "ENABLE_POCSAG requires ENABLE_SPECTRUM.")
+        message(FATAL_ERROR "ENABLE_POCSAG/ENABLE_FLEX requires ENABLE_SPECTRUM.")
     endif()
     if(NOT ENABLE_FEAT_F4HWN)
-        message(FATAL_ERROR "ENABLE_POCSAG requires ENABLE_FEAT_F4HWN for the smallest-font display.")
+        message(FATAL_ERROR "ENABLE_POCSAG/ENABLE_FLEX requires ENABLE_FEAT_F4HWN for the smallest-font display.")
     endif()
+endif()
+
+if(ENABLE_POCSAG)
     enable_feature(ENABLE_POCSAG
         app/pocsag.c
     )
 endif()
+
+if(ENABLE_FLEX)
+    enable_feature(ENABLE_FLEX
+        app/flex.c
+    )
+endif()
+
 enable_feature(ENABLE_BIG_FREQ)
 enable_feature(ENABLE_SMALL_BOLD)
 enable_feature(ENABLE_CUSTOM_MENU_LAYOUT)

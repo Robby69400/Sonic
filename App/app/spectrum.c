@@ -2,20 +2,21 @@
 #include <stdbool.h>
 #include <string.h>
 #include "app/pocsag.h"
+#include "app/flex.h"
 #include "app/spectrum.h"
 Mode Spectrum_state;
 
 void APP_RunSpectrum(void)
 {
-    g_pocsagScanStop = false;
-    while (!g_pocsagScanStop) {
 #ifdef ENABLE_POCSAG
-        APP_RunPocsagScan();
+    g_pocsagScanStop = false;
+    while (!g_pocsagScanStop) {APP_RunPocsagScan();}
 #endif
+
 #ifdef ENABLE_FLEX
-        APP_RunFlexScan();
+    g_flexScanStop = false;
+    while (!g_flexScanStop) {APP_RunFlexScan();}
 #endif
-    }
 }
 
 void RemoveTrailZeros(char *s)
