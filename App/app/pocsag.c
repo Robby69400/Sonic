@@ -33,6 +33,27 @@
  *  - Les pages restent affichées (200 dernières, toutes fréquences) pendant
  *    que le scan continue ; une nouvelle page rallume l'écran.
  *
+ * FILTRAGE DES MESSAGES
+ *  - Seuil de longueur : les messages de moins de POCSAG_MIN_MSG_LEN (10)
+ *    caractères sont ignorés après le calcul alpha (les tone-only ont
+ *    len == 0 et sont donc aussi ignorés — plus d'affichage TONE/LOST).
+ *  - Numérique (Option B) : preferAlpha() est conservée pour rattraper
+ *    les messages alpha émis par erreur sur func=0. Un message est
+ *    rejeté s'il reste numérique pur après l'heuristique :
+ *        func == FUNC_NUMERIC && len > 0 && !alpha
+ *    Les tone-only (len == 0) sont rejetés par le seuil de longueur,
+ *    ce qui simplifie la logique (plus de TONE_STR / LOST_STR).
+ *
+ * TAILLE DES MESSAGES
+ *  - MSG_MAX = 512 caractères. Un message POCSAG natif ne dépasse pas
+ *    254 caractères utiles ; 512 n'est atteint qu'après fusion de
+ *    parties multiples. page_t.len est uint16_t (struct 16 o).
+ *  - sl_t.len et sl_t.alen sont uint16_t (sinon troncature à 255
+ *    avant d'arriver à MSG_MAX).
+ *  - Les buffers temporaires de fusion (merged/old) sont statiques :
+ *    closePage() n'est pas réentrante et la pile PY32F0 est limitée
+ *    (évite ~1 Ko de stack dans une fonction déjà profonde).
+ *
  * AUDIO
  *  - Le décodeur lit la sortie audio du BK4829 (broche AF, vue par l'ADC sur
  *    PA4). Cette sortie doit donc rester active : AF en FM et gain AF
@@ -45,10 +66,10 @@
  * STOCKAGE (flash externe, 0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
  *   [0x012000, 0x012010) : en-tête (16 o)
  *                          magic + crc + pool_head + count + head
- *   [0x012010, 0x012970) : anneau pages (200 × 12 o = 2 400 o)
- *                          page_t = { ric, freq, offset, len, flags }
+ *   [0x012010, 0x012970) : anneau pages (200 × 16 o = 3 200 o)
+ *                          page_t = { ric, freq, offset, len, flags, pad }
  *                          flags = func(2) | alpha(1) | baud(1)
- *   [0x012970, 0x018000) : pool froid (22 160 o, circulaire)
+ *   [0x012CD0, 0x018000) : pool froid (~21 360 o, circulaire)
  *                          texte des pages, écrit en blocs contigus
  *
  *  - Les pages forment un anneau circulaire de MAX_MSGS cases physiques.
@@ -58,8 +79,9 @@
  *  - Le pool froid est circulaire : à chaque page, on écrit le texte à
  *    `pool_head` puis pool_head avance de len. Quand le pool est plein,
  *    les nouveaux messages écrasent les plus anciens caractères (compor-
- *    tement anneau assumé). Avec 22 160 o et ~80 o/message, on couvre
- *    ~277 pages : 200 pages tiennent en moyenne sans débordement.
+ *    tement anneau assumé). Avec 21 360 o et ~80 o/message, on couvre
+ *    ~267 pages courtes ; avec des messages de 512 o, ~41 pages. 200
+ *    pages tiennent sans débordement pour des messages < 100 o.
  *  - Pendant la réception, aucun accès flash : le texte s'accumule dans
  *    sl_t.text (RAM). À la fin du message (closePage), on copie dans
  *    g_pool_ram[MSG_MAX] puis on écrit en flash en UN SEUL appel
@@ -154,15 +176,20 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define AUTO_MIN_ALPHA 6u
 #define AUTO_MIN_LETTERS 4u
 #define AUTO_MARGIN    9
-#define MSG_MAX     254u       /* limite POCSAG, tient dans uint8_t (254 ≤ 255) */
+#define MSG_MAX     512u       /* plafond stockage/affichage (fusion incluse) */
 #define GAP         0x7Fu
 #define BAD_RUN     3u
+
+/* Seuil de rejet des messages trop courts. Les tone-only (len == 0)
+ * tombent aussi sous ce seuil et sont donc ignorés : plus de TONE_STR
+ * ni de LOST_STR dans cette version. */
+#define POCSAG_MIN_MSG_LEN  10u
 
 /* ============================================================
  * Stockage flash (0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
  *   [0x012000, 0x012010) : en-tête (16 o)
- *   [0x012010, 0x012970) : anneau pages (200 × 12 o = 2 400 o)
- *   [0x012970, 0x018000) : pool froid (22 160 o, circulaire)
+ *   [0x012010, 0x012CD0) : anneau pages (200 × 16 o = 3 200 o)
+ *   [0x012CD0, 0x018000) : pool froid (21 360 o, circulaire)
  * ============================================================ */
 #define POCSAG_FLASH_BASE        0x012000u
 #define POCSAG_FLASH_END         0x018000u
@@ -173,8 +200,6 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_PAGES_FLASH_ADDR  (POCSAG_META_FLASH_ADDR + 16u)            /* 0x012010 */
 
 /* Layout texte */
-#define TONE_STR        "TONE ONLY"
-#define LOST_STR        "TEXT LOST"
 #define NOTEXT_X        28
 #define TITLE_X         2u
 #define CAPS_END        127u
@@ -227,14 +252,16 @@ extern char gListName[MR_CHANNELS_LIST][10];
  * Structures
  * ============================================================ */
 
-/* page_t compacte : 12 octets.
- * Le champ flags regroupe func(2 bits), alpha(1 bit) et baud(1 bit). */
+/* page_t : 16 octets (alignement 4). len est uint16_t pour autoriser
+ * MSG_MAX > 255. Les 3 octets de pad gardent l'alignement 4 et
+ * laissent de la place pour une future version. */
 typedef struct {
     uint32_t ric;      /* identifiant destinataire                */
     uint32_t freq;     /* fréquence en Hz                         */
     uint16_t offset;   /* offset du texte dans le pool froid      */
-    uint8_t  len;      /* longueur du texte (0..254)              */
+    uint16_t len;      /* longueur du texte (0..MSG_MAX)          */
     uint8_t  flags;    /* bits 1:0 func | 2 alpha | 3 baud        */
+    uint8_t  _pad[3];  /* réservé / alignement                    */
 } page_t;
 
 /* Accès aux champs binaires de page_t.flags. */
@@ -263,13 +290,16 @@ typedef struct {
     uint32_t inv;
     uint32_t ric;
     uint32_t at;
+    uint16_t len;      /* uint16_t : MSG_MAX > 255 */
     uint8_t  num;
     uint8_t  dirty;
     uint8_t  nb;
     uint8_t  word;
     uint8_t  has;
-    uint8_t  func, len, alpha;
-    uint8_t  alen, aacc, ana, ataint, actrl;
+    uint8_t  func;
+    uint8_t  alpha;
+    uint16_t alen;     /* uint16_t : MSG_MAX > 255 */
+    uint8_t  aacc, ana, ataint, actrl;
     uint8_t  acc, na;
     uint8_t  taint;
     uint8_t  badrun;
@@ -284,7 +314,7 @@ typedef struct {
 
 /* En-tête persistant en flash (16 octets). */
 typedef struct {
-    uint32_t magic;      /* POCSAG_META_MAGIC = "POCS"             */
+    uint32_t magic;      /* POCSAG_META_MAGIC = "POCT"             */
     uint32_t crc;        /* XOR/rotations sur pool_head,count,head */
     uint16_t pool_head;  /* curseur d'allocation dans le pool      */
     uint16_t count;      /* nombre de pages valides (0..MAX_MSGS)  */
@@ -292,9 +322,11 @@ typedef struct {
     uint16_t _pad;
 } pocsag_hdr_t;
 
-#define POCSAG_META_MAGIC  0x504F4353u     /* "POCS" */
+/* Magic bumpé : le layout page_t a changé (12 → 16 o, len uint16).
+ * Les anciennes données "POCS" sont invalidées au premier boot. */
+#define POCSAG_META_MAGIC  0x504F4354u     /* "POCT" (v2, page_t=16o) */
 
-_Static_assert(sizeof(page_t) == 12u, "page_t doit faire 12 octets");
+_Static_assert(sizeof(page_t) == 16u, "page_t doit faire 16 octets");
 _Static_assert(sizeof(pocsag_hdr_t) == 16u, "hdr doit faire 16 octets");
 
 /* Pool froid : de la fin de l'anneau à la fin de la zone. */
@@ -303,6 +335,8 @@ _Static_assert(sizeof(pocsag_hdr_t) == 16u, "hdr doit faire 16 octets");
 
 _Static_assert(POCSAG_POOL_FLASH_ADDR < POCSAG_FLASH_END,
                "le pool froid doit être non vide");
+_Static_assert(POCSAG_POOL_SIZE < 65536u,
+               "offset pool en uint16_t : pool < 64 Ko");
 
 /* ============================================================
  * État global (RAM minimale)
@@ -315,10 +349,15 @@ static bool          g_hdr_dirty;
 static page_t        g_cur_page;
 static bool          g_cur_valid;
 
-/* Buffer de transfert RAM → flash, dimensionné pour UN message (254 o).
+/* Buffer de transfert RAM → flash, dimensionné pour UN message (512 o).
  * Accumule le texte à écrire en bloc dans le pool à la fin de chaque
  * page. Aucune écriture flash pendant la réception. */
 static char          g_pool_ram[MSG_MAX];
+
+/* Buffers de fusion : statiques car closePage() n'est pas réentrante
+ * et la pile PY32F0 est limitée (évite 2 × 512 o de stack). */
+static char          s_merged[MSG_MAX];
+static char          s_old[MSG_MAX];
 
 struct {
     uint8_t  prevKey, redraw;
@@ -672,7 +711,19 @@ static bool preferAlpha(const sl_t *m, unsigned nn){
 
 /* closePage : écrit en flash (pool + anneau pages). Insertion O(1).
  * Pendant la réception, aucune écriture flash n'a eu lieu : le texte
- * est dans sl_t.text. Ici, on le transfère en un seul bloc. */
+ * est dans sl_t.text. Ici, on le transfère en un seul bloc.
+ *
+ * Filtrages appliqués (dans l'ordre) :
+ *   1. preferAlpha() : rattrape les messages alpha émis par erreur
+ *      sur func=0.
+ *   2. Option B : rejet si le message est encore numérique pur
+ *      (func==0 && len>0 && !alpha). Les tone-only (len==0) ne sont
+ *      pas concernés par ce test.
+ *   3. Seuil de longueur : rejet si len < POCSAG_MIN_MSG_LEN (10).
+ *      Cela rejette aussi les tone-only (len==0) : plus de TONE/LOST.
+ *   4. Taux de GAP : rejet si > 50 % de caractères perdus.
+ *   5. Fusion avec une des deux dernières pages (même RIC/fonction).
+ *   6. Sinon : allocation pool + insertion anneau. */
 static void closePage(sl_t *m){
     if(!m->has) return;
     m->has = 0;
@@ -683,15 +734,27 @@ static void closePage(sl_t *m){
         pocsag_memcpy(m->text, m->atext, m->alen);
         m->len = m->alen;
     }
+
+    /* (2) Option B : numérique pur ignoré (les tone-only, len==0, sont
+     *     laissés au seuil de longueur ci-dessous). */
+    if(m->func == FUNC_NUMERIC && m->len > 0u && !m->alpha)
+        return;
+
     const uint8_t *t = (const uint8_t *)m->text;
     unsigned n = m->len, gaps = 0, lost = 0;
     while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' ')))
         lost |= t[--n] == GAP;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
-    if((!n) || 2u * gaps > n) return;
+
+    /* (3) Seuil de longueur : couvre tone-only (n==0) et messages courts. */
+    if(n < POCSAG_MIN_MSG_LEN) return;
+
+    /* (4) Taux de GAP. */
+    if(2u * gaps > n) return;
+
     g.redraw |= REDRAW_FRAME;
 
-    /* Fusion avec une des deux dernières pages (même RIC/fonction).
+    /* (5) Fusion avec une des deux dernières pages (même RIC/fonction).
      * Sans timestamp (supprimé de page_t), on se base sur l'ordre : un
      * message en deux parties arrive toujours dans les dernières pages. */
     for(unsigned j = 0; j < g_hdr.count && j < 2u; j++){
@@ -699,15 +762,14 @@ static void closePage(sl_t *m){
         pocsag_page_load(j, &q);
         if(q.ric != m->ric || PAGE_GET_FUNC(&q) != m->func) continue;
 
-        char merged[MSG_MAX];
         for(unsigned i = 0; i < n; i++)
-            merged[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
+            s_merged[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
 
         if(PAGE_GET_ALPHA(&q) != m->alpha){
             if(!m->alpha) return;
             page_set_alpha(&q, 1);
-            q.len = (uint8_t)n;
-            pocsag_pool_write(q.offset, merged, n);
+            q.len = (uint16_t)n;
+            pocsag_pool_write(q.offset, s_merged, n);
             pocsag_page_store_phys(pocsag_phys(j), &q);
             g_hdr_dirty = true;
             pocsag_hdr_flush();
@@ -716,13 +778,12 @@ static void closePage(sl_t *m){
         }
 
         /* Fusion : relire l'ancien bloc, garder les octets valides, réécrire. */
-        char old[MSG_MAX];
-        pocsag_pool_read(q.offset, old, n);
+        pocsag_pool_read(q.offset, s_old, n);
         for (unsigned i = 0; i < n; i++)
-            if (i < q.len && (uint8_t)old[i] != GAP)
-                merged[i] = old[i];
-        pocsag_pool_write(q.offset, merged, n);
-        if(n > q.len) q.len = (uint8_t)n;
+            if (i < q.len && (uint8_t)s_old[i] != GAP)
+                s_merged[i] = s_old[i];
+        pocsag_pool_write(q.offset, s_merged, n);
+        if(n > q.len) q.len = (uint16_t)n;
         pocsag_page_store_phys(pocsag_phys(j), &q);
         g_hdr_dirty = true;
         pocsag_hdr_flush();
@@ -730,20 +791,15 @@ static void closePage(sl_t *m){
         return;
     }
 
-    /* Nouvelle page : allocation dans le pool circulaire, écriture en bloc. */
-    unsigned msg_len = (n > 0) ? n : 1u;
+    /* (6) Nouvelle page : allocation dans le pool circulaire, écriture en bloc. */
+    unsigned msg_len = n;   /* n >= POCSAG_MIN_MSG_LEN >= 1 */
     if ((uint32_t)g_hdr.pool_head + msg_len > POCSAG_POOL_SIZE)
         g_hdr.pool_head = 0;
     uint16_t current_offset = g_hdr.pool_head;
 
-    if (n > 0) {
-        for(unsigned i = 0; i < n; i++)
-            g_pool_ram[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
-        pocsag_pool_write(current_offset, g_pool_ram, n);
-    } else {
-        char c = (char)lost;
-        pocsag_pool_write(current_offset, &c, 1);
-    }
+    for(unsigned i = 0; i < n; i++)
+        g_pool_ram[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
+    pocsag_pool_write(current_offset, g_pool_ram, n);
     g_hdr.pool_head = (uint16_t)((current_offset + msg_len) % POCSAG_POOL_SIZE);
 
     /* Insertion O(1) dans l'anneau. Si l'anneau est plein, la nouvelle
@@ -755,8 +811,9 @@ static void closePage(sl_t *m){
     p.ric = m->ric;
     p.freq = g.current_freq;
     p.offset = current_offset;
-    p.len = (uint8_t)n;
+    p.len = (uint16_t)n;
     p.flags = 0;
+    p._pad[0] = p._pad[1] = p._pad[2] = 0;
     page_set_func(&p, m->func);
     page_set_alpha(&p, m->alpha);
     page_set_baud(&p, (g.baud == BAUD_512) ? 1u : 0u);
@@ -1080,13 +1137,6 @@ static void draw(void)
                 /* Grande police : lignes 1..ROWS (ligne 0 = RIC) */
                 UI_PrintStringSmallBold(s2, 0, 0, (uint8_t)(1u + r));
             }
-        }
-
-        /* Page vide : message LOST / TONE */
-        if (!p->len) {
-            char c;
-            pocsag_pool_read((uint16_t)(p->offset % POCSAG_POOL_SIZE), &c, 1);
-            UI_PrintStringSmallBold(c ? LOST_STR : TONE_STR, NOTEXT_X, 0, 2);
         }
 
         /* Limite de défilement (uniquement en grande police) */
