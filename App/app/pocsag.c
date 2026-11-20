@@ -45,14 +45,13 @@
  *    ce qui simplifie la logique (plus de TONE_STR / LOST_STR).
  *
  * TAILLE DES MESSAGES
- *  - MSG_MAX = 512 caractères. Un message POCSAG natif ne dépasse pas
- *    254 caractères utiles ; 512 n'est atteint qu'après fusion de
+ *  - MSG_MAX = 320 caractères. Un message POCSAG natif ne dépasse pas
+ *    254 caractères utiles ; 320 n'est atteint qu'après fusion de
  *    parties multiples. page_t.len est uint16_t (struct 16 o).
  *  - sl_t.len et sl_t.alen sont uint16_t (sinon troncature à 255
  *    avant d'arriver à MSG_MAX).
  *  - Les buffers temporaires de fusion (merged/old) sont statiques :
- *    closePage() n'est pas réentrante et la pile PY32F0 est limitée
- *    (évite ~1 Ko de stack dans une fonction déjà profonde).
+ *    closePage() n'est pas réentrante et la pile PY32F0 est limitée.
  *
  * AUDIO
  *  - Le décodeur lit la sortie audio du BK4829 (broche AF, vue par l'ADC sur
@@ -80,7 +79,7 @@
  *    `pool_head` puis pool_head avance de len. Quand le pool est plein,
  *    les nouveaux messages écrasent les plus anciens caractères (compor-
  *    tement anneau assumé). Avec 21 360 o et ~80 o/message, on couvre
- *    ~267 pages courtes ; avec des messages de 512 o, ~41 pages. 200
+ *    ~267 pages courtes ; avec des messages de 320 o, ~66 pages. 200
  *    pages tiennent sans débordement pour des messages < 100 o.
  *  - Pendant la réception, aucun accès flash : le texte s'accumule dans
  *    sl_t.text (RAM). À la fin du message (closePage), on copie dans
@@ -96,8 +95,8 @@
  *    zone sous le RIC (y = 8 .. 8 + 8*6), interligne 6 px.
  *
  * Touches : EXIT quitte · UP/DOWN pages (puis défilement, avec répétition
- *            quand on maintient la touche) · * bascule grande/petite
- *            police · 2 efface les pages.
+ *            quand on maintient la touche, et rebouclage aux extrémités) ·
+ *            * bascule grande/petite police · 2 efface les pages.
  *            Le seuil de saut RSSI est automatique (plancher calibré
  *            sur les 16 premiers canaux + marge 6).
  */
@@ -139,7 +138,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY    240u      /* ~25 ms à 9600 Hz : réactivité clavier */
+#define HOUSE_EVERY    192u      /* ~20 ms à 9600 Hz : réactivité clavier */
 #define BUSY_MAX       19200u
 #define LED_STEP       960u
 #define LED_STEPS      4u
@@ -176,7 +175,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define AUTO_MIN_ALPHA 6u
 #define AUTO_MIN_LETTERS 4u
 #define AUTO_MARGIN    9
-#define MSG_MAX     512u       /* plafond stockage/affichage (fusion incluse) */
+#define MSG_MAX     320u       /* plafond stockage/affichage (fusion incluse) */
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
@@ -211,9 +210,9 @@ extern char gListName[MR_CHANNELS_LIST][10];
  * handleKeys() n'est PAS cadencée : elle est appelée à chaque frame
  * et à chaque HOUSE_EVERY échantillons de listen(). On ne peut donc
  * pas compter les appels : on utilise pocsag_ticks_ms(). */
-#define KEY_REPEAT_DELAY_MS   400u
-#define KEY_REPEAT_PERIOD_MS  100u
-#define KEY_DEBOUNCE_MAX_MS   120u  /* tolérance KEY_INVALID (rebond) */
+#define KEY_REPEAT_DELAY_MS   320u
+#define KEY_REPEAT_PERIOD_MS   85u
+#define KEY_DEBOUNCE_MAX_MS   100u  /* tolérance KEY_INVALID (rebond) */
 
 /* ============================================================
  * Paramètres du scan
@@ -221,22 +220,11 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_LIST_NAME    "POCSAG"
 #define POCSAG_MAX_CH       64u
 
-/* 5 ms : le PLL BK4819 se verrouille en < 1 ms et le filtre RSSI
- * est stabilisé en ~2-3 ms. À 5 ms, un canal vide coûte ~5,2 ms
- * (settle + lecture RSSI) → ~190 ch/s, bien au-delà des 100 ch/s
- * visés. Si vous ratez des préambules ou lisez un RSSI « collé » à
- * l'ancien canal, montez à 8 ms (débit ~125 ch/s, toujours > 100). */
 #define POCSAG_SETTLE_MS        5u
 
-/* Dwell adaptatif selon le niveau RSSI : un signal marginal (juste
- * au-dessus du seuil de saut) a peu de chances de contenir un POCSAG,
- * on l'écoute moins longtemps. Un signal franc garde le dwell complet. */
 #define POCSAG_DWELL_MIN_MS     40u
 #define POCSAG_DWELL_MAX_MS    100u
 
-/* Saut RSSI : si le RSSI mesuré après settle est <= plancher + marge,
- * on saute immédiatement au canal suivant (aucun dwell). Le plancher
- * est calibré sur les 16 premiers canaux du premier tour. */
 #define POCSAG_RSSI_SKIP_MARGIN   6u
 #define POCSAG_RSSI_CAL_CHANNELS 16u
 
@@ -252,9 +240,6 @@ extern char gListName[MR_CHANNELS_LIST][10];
  * Structures
  * ============================================================ */
 
-/* page_t : 16 octets (alignement 4). len est uint16_t pour autoriser
- * MSG_MAX > 255. Les 3 octets de pad gardent l'alignement 4 et
- * laissent de la place pour une future version. */
 typedef struct {
     uint32_t ric;      /* identifiant destinataire                */
     uint32_t freq;     /* fréquence en Hz                         */
@@ -264,7 +249,6 @@ typedef struct {
     uint8_t  _pad[3];  /* réservé / alignement                    */
 } page_t;
 
-/* Accès aux champs binaires de page_t.flags. */
 #define PAGE_FLAG_FUNC(f)    ((uint8_t)((f) & 3u))
 #define PAGE_FLAG_ALPHA(a)   ((uint8_t)(((a) & 1u) << 2))
 #define PAGE_FLAG_BAUD(b)    ((uint8_t)(((b) & 1u) << 3))
@@ -312,7 +296,6 @@ typedef struct {
     char     atext[MSG_MAX];
 } sl_t;
 
-/* En-tête persistant en flash (16 octets). */
 typedef struct {
     uint32_t magic;      /* POCSAG_META_MAGIC = "POCT"             */
     uint32_t crc;        /* XOR/rotations sur pool_head,count,head */
@@ -322,14 +305,11 @@ typedef struct {
     uint16_t _pad;
 } pocsag_hdr_t;
 
-/* Magic bumpé : le layout page_t a changé (12 → 16 o, len uint16).
- * Les anciennes données "POCS" sont invalidées au premier boot. */
 #define POCSAG_META_MAGIC  0x504F4354u     /* "POCT" (v2, page_t=16o) */
 
 _Static_assert(sizeof(page_t) == 16u, "page_t doit faire 16 octets");
 _Static_assert(sizeof(pocsag_hdr_t) == 16u, "hdr doit faire 16 octets");
 
-/* Pool froid : de la fin de l'anneau à la fin de la zone. */
 #define POCSAG_POOL_FLASH_ADDR  (POCSAG_PAGES_FLASH_ADDR + MAX_MSGS * (uint32_t)sizeof(page_t))
 #define POCSAG_POOL_SIZE        (POCSAG_FLASH_END - POCSAG_POOL_FLASH_ADDR)
 
@@ -349,13 +329,7 @@ static bool          g_hdr_dirty;
 static page_t        g_cur_page;
 static bool          g_cur_valid;
 
-/* Buffer de transfert RAM → flash, dimensionné pour UN message (512 o).
- * Accumule le texte à écrire en bloc dans le pool à la fin de chaque
- * page. Aucune écriture flash pendant la réception. */
 static char          g_pool_ram[MSG_MAX];
-
-/* Buffers de fusion : statiques car closePage() n'est pas réentrante
- * et la pile PY32F0 est limitée (évite 2 × 512 o de stack). */
 static char          s_merged[MSG_MAX];
 static char          s_old[MSG_MAX];
 
@@ -387,11 +361,10 @@ struct {
     uint16_t rfCls;
     uint8_t  rfRun;
     uint8_t  rfStreak;
-    /* ---- RSSI auto (saut + dwell adaptatif) ---- */
-    uint8_t  rssiFloor;     /* plancher de bruit calibré               */
-    uint16_t rssiCalCount;  /* canaux utilisés pour la calibration     */
-    bool     rssiFloorSet;  /* plancher valide                         */
-    uint16_t lastRssi;      /* dernière mesure RSSI (affichage)        */
+    uint8_t  rssiFloor;
+    uint16_t rssiCalCount;
+    bool     rssiFloorSet;
+    uint16_t lastRssi;
     sl_t     *sl;
 } g = { .cw = 0, .baud = BAUD_1200 };
 
@@ -443,9 +416,6 @@ static void pocsag_hdr_load(void)
     g_cur_valid = false;
 }
 
-/* Index physique d'une page logique k (0 = plus récente).
- * Modulo MAX_MSGS (PAS count) : l'anneau a toujours MAX_MSGS cases
- * physiques et head pointe sur la case de la page logique 0. */
 static uint16_t pocsag_phys(unsigned k)
 {
     return (uint16_t)((g_hdr.head + k) % MAX_MSGS);
@@ -605,15 +575,11 @@ static uint32_t pocsag_cycles_48mhz(void)
 /* ============================================================
  * Accès matériel
  * ============================================================ */
-/* Temps en ms depuis le démarrage (base de la répétition clavier). */
 static inline uint32_t pocsag_ticks_ms(void)
 {
     return gGlobalSysTickCounter * 10u;
 }
 
-/* Lecture du RSSI BK4819 : REG_67 bits [8:0].
- * Plus la valeur est grande, plus le signal est fort.
- * Si votre BSP expose BK4819_GetRSSI(), utilisez-la à la place. */
 static uint16_t pocsag_read_rssi(void)
 {
     return (uint16_t)(BK4819_ReadRegister((BK4819_REGISTER_t)REG_67) & 0x01FFu);
@@ -709,21 +675,6 @@ static bool preferAlpha(const sl_t *m, unsigned nn){
            (unsigned)letters * 3u >= m->alen * 2u && score >= AUTO_MARGIN;
 }
 
-/* closePage : écrit en flash (pool + anneau pages). Insertion O(1).
- * Pendant la réception, aucune écriture flash n'a eu lieu : le texte
- * est dans sl_t.text. Ici, on le transfère en un seul bloc.
- *
- * Filtrages appliqués (dans l'ordre) :
- *   1. preferAlpha() : rattrape les messages alpha émis par erreur
- *      sur func=0.
- *   2. Option B : rejet si le message est encore numérique pur
- *      (func==0 && len>0 && !alpha). Les tone-only (len==0) ne sont
- *      pas concernés par ce test.
- *   3. Seuil de longueur : rejet si len < POCSAG_MIN_MSG_LEN (10).
- *      Cela rejette aussi les tone-only (len==0) : plus de TONE/LOST.
- *   4. Taux de GAP : rejet si > 50 % de caractères perdus.
- *   5. Fusion avec une des deux dernières pages (même RIC/fonction).
- *   6. Sinon : allocation pool + insertion anneau. */
 static void closePage(sl_t *m){
     if(!m->has) return;
     m->has = 0;
@@ -735,8 +686,6 @@ static void closePage(sl_t *m){
         m->len = m->alen;
     }
 
-    /* (2) Option B : numérique pur ignoré (les tone-only, len==0, sont
-     *     laissés au seuil de longueur ci-dessous). */
     if(m->func == FUNC_NUMERIC && m->len > 0u && !m->alpha)
         return;
 
@@ -746,17 +695,11 @@ static void closePage(sl_t *m){
         lost |= t[--n] == GAP;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
 
-    /* (3) Seuil de longueur : couvre tone-only (n==0) et messages courts. */
     if(n < POCSAG_MIN_MSG_LEN) return;
-
-    /* (4) Taux de GAP. */
     if(2u * gaps > n) return;
 
     g.redraw |= REDRAW_FRAME;
 
-    /* (5) Fusion avec une des deux dernières pages (même RIC/fonction).
-     * Sans timestamp (supprimé de page_t), on se base sur l'ordre : un
-     * message en deux parties arrive toujours dans les dernières pages. */
     for(unsigned j = 0; j < g_hdr.count && j < 2u; j++){
         page_t q;
         pocsag_page_load(j, &q);
@@ -777,7 +720,6 @@ static void closePage(sl_t *m){
             return;
         }
 
-        /* Fusion : relire l'ancien bloc, garder les octets valides, réécrire. */
         pocsag_pool_read(q.offset, s_old, n);
         for (unsigned i = 0; i < n; i++)
             if (i < q.len && (uint8_t)s_old[i] != GAP)
@@ -791,8 +733,7 @@ static void closePage(sl_t *m){
         return;
     }
 
-    /* (6) Nouvelle page : allocation dans le pool circulaire, écriture en bloc. */
-    unsigned msg_len = n;   /* n >= POCSAG_MIN_MSG_LEN >= 1 */
+    unsigned msg_len = n;
     if ((uint32_t)g_hdr.pool_head + msg_len > POCSAG_POOL_SIZE)
         g_hdr.pool_head = 0;
     uint16_t current_offset = g_hdr.pool_head;
@@ -802,8 +743,6 @@ static void closePage(sl_t *m){
     pocsag_pool_write(current_offset, g_pool_ram, n);
     g_hdr.pool_head = (uint16_t)((current_offset + msg_len) % POCSAG_POOL_SIZE);
 
-    /* Insertion O(1) dans l'anneau. Si l'anneau est plein, la nouvelle
-     * page écrase la plus ancienne (déjà la bonne case physique). */
     g_hdr.head = (uint16_t)((g_hdr.head + MAX_MSGS - 1u) % MAX_MSGS);
     if (g_hdr.count < MAX_MSGS) g_hdr.count++;
 
@@ -1062,7 +1001,7 @@ static void draw(void)
     GUI_DisplaySmallestInverse(s2, (uint8_t)x, 0, true, true,
                                (uint8_t)(x + 4u * (unsigned)strlen(s2)));
 
-    /* ---- Indicateur RSSI / plancher (petit, à droite du titre) ---- */
+    /* ---- Indicateur RSSI / plancher ---- */
     {
         char r[20];
         if (g.rssiFloorSet)
@@ -1088,23 +1027,17 @@ static void draw(void)
 
     /* ---- Corps : page courante ou mode scan ---- */
     if (g_hdr.count) {
-        /* RIC (grande police, ligne 0) */
         sprintf(s2, "%lu", (unsigned long)p->ric);
         UI_PrintStringSmallBold(s2, 0, 0, 0);
 
-        /* Indicateur page courante / total, aligné à droite */
         unsigned capsEnd = CAPS_END;
         char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g_hdr.count);
         capsEnd -= 4u * (unsigned)(o - s2);
         GUI_DisplaySmallestInverse(s2, (uint8_t)capsEnd, 0, false, true, CAPS_END);
 
-        /* Largeur de ligne selon le mode :
-         *   cw == 0 : grands caractères, ROW_CHARS colonnes, lignes 1..ROWS
-         *   cw != 0 : petits caractères, ROW_CHARS + CW_COMPACT colonnes,
-         *             zone sous le RIC (y = 8 .. 8 + 8*6) */
         const unsigned w       = g.cw ? (ROW_CHARS + CW_COMPACT) : ROW_CHARS;
         const unsigned maxRows = g.cw ? 8u : ROWS;
-        const unsigned y0      = g.cw ? 8u : 0u;   /* petite police : sous le RIC */
+        const unsigned y0      = g.cw ? 8u : 0u;
         unsigned rows = 0;
 
         for (unsigned i = 0; i < p->len; i += w, rows++) {
@@ -1112,7 +1045,6 @@ static void draw(void)
             unsigned r = rows - g.top;
             if (n > w) n = w;
 
-            /* Lecture circulaire depuis le pool */
             unsigned rd = 0;
             while (rd < n) {
                 uint16_t off = (uint16_t)((p->offset + i + rd) % POCSAG_POOL_SIZE);
@@ -1123,7 +1055,6 @@ static void draw(void)
                 rd += chunk;
             }
 
-            /* Remplacement des GAP + terminaison */
             for (unsigned j = 0; j < n; j++)
                 if ((uint8_t)s2[j] == GAP) s2[j] = '?';
             s2[n] = '\0';
@@ -1131,19 +1062,15 @@ static void draw(void)
             if (r >= maxRows) continue;
 
             if (g.cw) {
-                /* Petite police : interligne 6 px, sous le RIC (y0 = 8) */
                 GUI_DisplaySmallest(s2, 0, (uint8_t)(y0 + r * 6u), false, true);
             } else {
-                /* Grande police : lignes 1..ROWS (ligne 0 = RIC) */
                 UI_PrintStringSmallBold(s2, 0, 0, (uint8_t)(1u + r));
             }
         }
 
-        /* Limite de défilement (uniquement en grande police) */
         if (!g.cw && rows > ROWS)
             lim = rows - ROWS;
     } else {
-        /* Mode scan : affiche le nombre de canaux et l'état RSSI */
         sprintf(s2, "SCAN %u CH", g.nCh);
         UI_PrintStringSmallBold(s2, 0, 0, 1);
         if (g.rssiFloorSet) {
@@ -1158,19 +1085,8 @@ static void draw(void)
     g.lim = (uint8_t)lim;
 }
 
-/* handleKeys avec répétition UP/DOWN basée sur le temps réel.
- *
- * handleKeys() n'est PAS cadencée : elle est appelée à chaque frame
- * de house() et à chaque HOUSE_EVERY échantillons de listen().
- * On ne peut donc pas compter les appels — on utilise pocsag_ticks_ms().
- *
- * Le clavier peut renvoyer KEY_INVALID entre deux lectures pendant un
- * maintien (debounce). On tolère jusqu'à KEY_DEBOUNCE_MAX_MS ms de
- * KEY_INVALID consécutifs sans casser la répétition ; au-delà, on
- * considère la touche réellement relâchée.
- *
- * Le premier appui sur un écran éteint est TRAITÉ (pas seulement
- * rallumer l'écran), sinon l'utilisateur doit appuyer deux fois. */
+/* handleKeys avec répétition UP/DOWN basée sur le temps réel et
+ * rebouclage circulaire des pages aux extrémités. */
 static void handleKeys(void)
 {
     const uint32_t now = pocsag_ticks_ms();
@@ -1201,9 +1117,6 @@ static void handleKeys(void)
         g.repNext = now + KEY_REPEAT_DELAY_MS;
     }
 
-    /* Touches autorisées à se répéter quand on les maintient :
-     *   UP/DOWN : défilement pages / texte
-     * EXIT, *, 2 restent à déclenchement unique. */
     bool fire = newPress;
     if (!fire && key == g.repKey && (key == KEY_UP || key == KEY_DOWN)) {
         if ((int32_t)(now - g.repNext) >= 0) {
@@ -1213,22 +1126,22 @@ static void handleKeys(void)
     }
     if (!fire) return;
 
-    /* Rallume l'écran ET traite l'appui : le premier appui ne doit
-     * pas être avalé, sinon l'utilisateur doit appuyer deux fois. */
     BACKLIGHT_TurnOn();
     g.redraw |= REDRAW_ON;
 
     int d = (key == KEY_DOWN) - (key == KEY_UP);
     if (d) {
-        unsigned top = (unsigned)(g.top + d);
-        if (top <= g.lim) g.top = (uint8_t)top;
-        else {
-            int nc = (int)g.cur + d;
-            if (nc >= 0 && (unsigned)nc < g_hdr.count) {
-                g.cur = (uint16_t)nc;
-                g.top = 0;
-                g_cur_valid = false;
-            }
+        if (!g_hdr.count) return;
+        int nextTop = (int)g.top + d;
+        if (nextTop >= 0 && nextTop <= (int)g.lim) {
+            g.top = (uint8_t)nextTop;
+        } else {
+            int count = (int)g_hdr.count;
+            int nc = ((int)g.cur + d) % count;
+            if (nc < 0) nc += count;
+            g.cur = (uint16_t)nc;
+            g.top = 0;
+            g_cur_valid = false;
         }
     }
     else if (key == KEY_EXIT) {
@@ -1242,7 +1155,7 @@ static void handleKeys(void)
         pocsag_flash_wipe();
     }
     else if (key == KEY_STAR) {
-        g.cw ^= 1u;                 /* 0 = grande police, 1 = petite police */
+        g.cw ^= 1u;
         g.top = 0;
         g_cur_valid = false;
         g.redraw |= REDRAW_ON;
@@ -1279,9 +1192,6 @@ static void house(void){
 
 /* ============================================================
  * Écoute d'un canal
- *
- * `dwell_ms` est le temps d'écoute sans détection avant de rendre la
- * main (dwell adaptatif : court si signal marginal, long si franc).
  * ============================================================ */
 static void listen(uint32_t dwell_ms){
     sl_t *sl = g_sl;
@@ -1343,6 +1253,14 @@ static void listen(uint32_t dwell_ms){
             if (g.led) { g.led--; BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u); }
         }
 
+        if (cnt < HOUSE_EVERY) {
+            cnt++;
+        } else {
+            cnt = 0;
+            houseLight();
+            if (g_pocsagScanStop) break;
+        }
+
         bool inBatch = false;
         for (unsigned k = 0; k < NSL; k++)
             if (sl[k].word != HUNT) inBatch = true;
@@ -1368,20 +1286,15 @@ static void listen(uint32_t dwell_ms){
         }
         if (elapsed >= MS_SAMPLES(POCSAG_MAX_RX_MS)) break;
 
-        /* Lecture clavier à cadence fixe, INDÉPENDAMMENT de l'état du
-         * décodeur : sinon les touches ne répondent que par à-coups
-         * pendant une réception active. Avec HOUSE_EVERY = 240, on
-         * passe ici toutes les ~25 ms — bien plus réactif. */
-        if (cnt < HOUSE_EVERY) { cnt++; continue; }
-        cnt = 0;
-        houseLight();
-        while ((int32_t)(pocsag_cycles_48mhz() - next) >= 0) {
-            next += CYC_PER_SAMPLE;
-            g.n++;
-            for (unsigned k = 0; k < NSL; k++) {
-                if (sl[k].word == BATCH_WORDS) sl[k].excuse = 1;
-                sl[k].phase += sl[k].step;
-                if (sl[k].phase >= 65536) { sl[k].phase -= 65536; seqBit(&sl[k], 0); }
+        if (cnt == 0) {
+            while ((int32_t)(pocsag_cycles_48mhz() - next) >= 0) {
+                next += CYC_PER_SAMPLE;
+                g.n++;
+                for (unsigned k = 0; k < NSL; k++) {
+                    if (sl[k].word == BATCH_WORDS) sl[k].excuse = 1;
+                    sl[k].phase += sl[k].step;
+                    if (sl[k].phase >= 65536) { sl[k].phase -= 65536; seqBit(&sl[k], 0); }
+                }
             }
         }
     }
@@ -1466,11 +1379,9 @@ void APP_RunPocsagScan(void)
             SYSTEM_DelayMs(POCSAG_SETTLE_MS);
         }
 
-        /* -------- Lecture RSSI après settle -------- */
         const uint16_t rssi = pocsag_read_rssi();
         g.lastRssi = rssi;
 
-        /* Calibrage du plancher de bruit sur les N premiers canaux. */
         if (g.rssiCalCount < POCSAG_RSSI_CAL_CHANNELS) {
             if (g.rssiCalCount == 0 || rssi < g.rssiFloor)
                 g.rssiFloor = (uint8_t)rssi;
@@ -1478,14 +1389,12 @@ void APP_RunPocsagScan(void)
             g.rssiFloorSet = true;
         }
 
-        /* -------- Canal vide : saut immédiat, pas de dwell -------- */
         if (g.rssiFloorSet &&
             rssi <= (uint16_t)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN) {
-            g.redraw |= REDRAW_ON;   /* rafraîchit l'indicateur RSSI */
+            g.redraw |= REDRAW_ON;
             continue;
         }
 
-        /* -------- Canal actif : dwell adaptatif -------- */
         uint32_t dwell = POCSAG_DWELL_MIN_MS;
         if (rssi > (uint16_t)g.rssiFloor + 2u * POCSAG_RSSI_SKIP_MARGIN)
             dwell = POCSAG_DWELL_MAX_MS;
