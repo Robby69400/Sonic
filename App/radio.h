@@ -65,8 +65,6 @@ typedef enum {
     MODULATION_FM,
     MODULATION_AM,
     MODULATION_USB,
-
-
     MODULATION_UKNOWN
 } ModulationMode_t;
 
