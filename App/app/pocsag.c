@@ -56,12 +56,11 @@
  *   [0x012C98, 0x018000) : pool froid (~21 384 o, circulaire)
  *
  * AFFICHAGE
- *  - Deux polices : grande (par défaut) et petite (compacte).
- *  - Touche '*' bascule entre les deux (flag g.cw = 0/1).
- *  - Mode SCAN : affiche les fréquences en tout petit sur 3 colonnes.
+ *  - Écran avant messages : touche '*' alterne noms des canaux / fréquences.
+ *  - Messages reçus : fréquence affichée en négatif dans la barre de statut.
  *
  * Touches : EXIT quitte · UP/DOWN pages (répétition, rebouclage) ·
- *            * bascule grande/petite police · 2 efface les pages ·
+ *            * alterne noms/fréquences en scan · 2 efface les pages ·
  *            1 bascule l'audio RX.
  */
 
@@ -301,6 +300,7 @@ struct {
     bool     running;
     uint16_t cur;
     uint8_t  cw;          /* 0 = grande police, 1 = petite police */
+    uint8_t  showNames;   /* 0 = fréquences, 1 = noms des canaux en scan */
     uint8_t  refresh;
     uint8_t  top, lim;
     uint16_t nOk;
@@ -322,7 +322,7 @@ struct {
     uint32_t ledNextMs;      /* prochain toggle LED */
     bool     audioOn;        /* touche 1 : audio HP activé */
     sl_t     *sl;
-} g = { .cw = 0, .baud = BAUD_1200 };
+} g = { .cw = 0, .showNames = 0, .baud = BAUD_1200 };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -591,6 +591,24 @@ static uint32_t pocsag_channel_freq(uint16_t ch)
     if (freq < 1400000u || freq > 116000000u) return 0u;
     return freq;
 }
+
+static void pocsag_channel_name(uint16_t ch, char *dst, size_t maxLen)
+{
+    /* Lecture du nom canal en flash (octets 0..7 de l'entrée 16o ou zone nom) */
+    uint8_t raw[8];
+    PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16u + 8u, raw, sizeof(raw));
+    size_t n = 0;
+    while (n < 4u && n + 1u < maxLen) {
+        uint8_t c = raw[n];
+        if (c == 0xFFu || c == 0u) break;
+        if (c >= 32u && c < 127u)
+            dst[n++] = (char)c;
+        else
+            break;
+    }
+    dst[n] = '\0';
+}
+
 static bool pocsag_name_match(const char *n, const char *name)
 {
     uint8_t k = 0;
@@ -980,6 +998,49 @@ static void ledTick(void)
     BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u);
 }
 
+extern void SETTINGS_FetchChannelName(char *s, const uint16_t channel);
+
+static void pocsag_channel_name_at(int8_t listIdx, uint16_t idx, char *dst, size_t maxLen)
+{
+    uint16_t n = 0;
+    char buf[12];
+    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
+        uint32_t freq = pocsag_channel_freq(ch);
+        if (freq && pocsag_channel_in_list(ch, listIdx)) {
+            if (n == idx) {
+                SETTINGS_FetchChannelName(buf, ch);
+                buf[10] = '\0';
+                strncpy(dst, buf, maxLen - 1u);
+                dst[maxLen - 1u] = '\0';
+                return;
+            }
+            n++;
+        }
+    }
+    if (maxLen) dst[0] = '\0';
+}
+
+static void pocsag_channel_label_at(int8_t listIdx, uint16_t idx, char *dst, size_t maxLen)
+{
+    uint16_t n = 0;
+    for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
+        uint32_t freq = pocsag_channel_freq(ch);
+        if (freq && pocsag_channel_in_list(ch, listIdx)) {
+            if (n == idx) {
+                if (g.showNames) {
+                    pocsag_channel_name_at(listIdx, idx, dst, maxLen);
+                } else {
+                    sprintf(dst, "%u.%05u", (unsigned)(freq / 100000u),
+                            (unsigned)(freq % 100000u));
+                }
+                return;
+            }
+            n++;
+        }
+    }
+    if (maxLen) dst[0] = '\0';
+}
+
 __attribute__((noinline))
 static void draw(void)
 {
@@ -993,8 +1054,14 @@ static void draw(void)
     pocsag_cur_load();
     const page_t *p = &g_cur_page;
 
-    /* ---- Barre de statut : RSSI + batterie uniquement ---- */
-    {
+    /* ---- Barre de statut ---- */
+    if (g_hdr.count) {
+        char freqStr[16];
+        printFreq(freqStr, p->freq);
+        unsigned nFreq = (unsigned)strlen(freqStr);
+        GUI_DisplaySmallestInverse(freqStr, 0, 0, false, true,
+                                 (uint8_t)(4u * nFreq));
+    } else {
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
         GUI_DisplaySmallest(r, 60, 0, true, true);
@@ -1059,21 +1126,21 @@ static void draw(void)
         if (!g.cw && rows > ROWS)
             lim = rows - ROWS;
     } else {
-        sprintf(s2, "SCAN %uCH", g.nCh);
+        sprintf(s2, "SCAN %uCH %s", g.nCh, g.showNames ? "NOM" : "FRQ");
         GUI_DisplaySmallestInverse(s2, 0, 0, true, true, 4u * (unsigned)strlen(s2));
-        
+
         if (g.audioOn) {
             GUI_DisplaySmallest("SPK", 127u, 8u, true, true);
         }
 
-        /* Fréquences en tout petit sur 3 colonnes (x = 0, 43, 86 ; y = 23..58) */
+        /* Noms des canaux ou fréquences sur 3 colonnes (x = 0, 43, 86) */
         int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
         if (listIdx >= 0) {
             static const uint8_t colX[3] = { 0u, 43u, 86u };
             const uint16_t maxCells = 24u; /* 3 colonnes × 8 lignes */
             uint16_t startIdx = 0;
 
-            if (g.nCh > maxCells ) {
+            if (g.nCh > maxCells) {
                 uint16_t curPos = 0;
                 for (uint16_t k = 0; k < g.nCh; k++) {
                     if (pocsag_channel_freq_at(listIdx, k) == g.current_freq) {
@@ -1088,16 +1155,16 @@ static void draw(void)
                 }
             }
 
-            char ff[16];
+            char label[12];
             uint16_t idx = startIdx;
             for (uint16_t cell = 0; cell < maxCells && idx < g.nCh; idx++) {
                 uint32_t fr = pocsag_channel_freq_at(listIdx, idx);
                 if (!fr) continue;
-                printFreq(ff, fr);
+                pocsag_channel_label_at(listIdx, idx, label, sizeof(label));
                 uint8_t col = (uint8_t)(cell / 8u);
                 uint8_t row = (uint8_t)(cell % 8u);
                 uint8_t y   = (uint8_t)(2u + row * 7u);
-                GUI_DisplaySmallest(ff, colX[col], y, false, true);
+                GUI_DisplaySmallest(label, colX[col], y, false, true);
                 cell++;
             }
         }
@@ -1176,9 +1243,13 @@ static void handleKeys(void)
         pocsag_flash_wipe();
     }
     else if (key == KEY_STAR) {
-        g.cw ^= 1u;
-        g.top = 0;
-        g_cur_valid = false;
+        if (!g_hdr.count) {
+            g.showNames ^= 1u;
+        } else {
+            g.cw ^= 1u;
+            g.top = 0;
+            g_cur_valid = false;
+        }
         g.redraw |= REDRAW_ON;
     }
     else if (key == KEY_1) {
