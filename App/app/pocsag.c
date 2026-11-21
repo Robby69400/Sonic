@@ -592,23 +592,6 @@ static uint32_t pocsag_channel_freq(uint16_t ch)
     return freq;
 }
 
-static void pocsag_channel_name(uint16_t ch, char *dst, size_t maxLen)
-{
-    /* Lecture du nom canal en flash (octets 0..7 de l'entrée 16o ou zone nom) */
-    uint8_t raw[8];
-    PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16u + 8u, raw, sizeof(raw));
-    size_t n = 0;
-    while (n < 4u && n + 1u < maxLen) {
-        uint8_t c = raw[n];
-        if (c == 0xFFu || c == 0u) break;
-        if (c >= 32u && c < 127u)
-            dst[n++] = (char)c;
-        else
-            break;
-    }
-    dst[n] = '\0';
-}
-
 static bool pocsag_name_match(const char *n, const char *name)
 {
     uint8_t k = 0;
@@ -1058,9 +1041,7 @@ static void draw(void)
     if (g_hdr.count) {
         char freqStr[16];
         printFreq(freqStr, p->freq);
-        unsigned nFreq = (unsigned)strlen(freqStr);
-        GUI_DisplaySmallestInverse(freqStr, 0, 0, false, true,
-                                 (uint8_t)(4u * nFreq));
+        GUI_DisplaySmallest(freqStr, 0, 0, true, true);
     } else {
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
@@ -1088,7 +1069,7 @@ static void draw(void)
         unsigned capsEnd = CAPS_END;
         char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g_hdr.count);
         capsEnd -= 4u * (unsigned)(o - s2);
-        GUI_DisplaySmallestInverse(s2, (uint8_t)capsEnd, 0, false, true, CAPS_END);
+        GUI_DisplaySmallest(s2, 70, 0, true, true);
 
         const unsigned w       = g.cw ? (ROW_CHARS + CW_COMPACT) : ROW_CHARS;
         const unsigned maxRows = g.cw ? 8u : ROWS;
@@ -1126,12 +1107,8 @@ static void draw(void)
         if (!g.cw && rows > ROWS)
             lim = rows - ROWS;
     } else {
-        sprintf(s2, "SCAN %uCH %s", g.nCh, g.showNames ? "NOM" : "FRQ");
-        GUI_DisplaySmallestInverse(s2, 0, 0, true, true, 4u * (unsigned)strlen(s2));
-
-        if (g.audioOn) {
-            GUI_DisplaySmallest("SPK", 127u, 8u, true, true);
-        }
+        sprintf(s2, "SCAN %uCH", g.nCh);
+        GUI_DisplaySmallest(s2, 0, 0, true, true);
 
         /* Noms des canaux ou fréquences sur 3 colonnes (x = 0, 43, 86) */
         int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);

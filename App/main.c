@@ -189,9 +189,10 @@ void Main(void)
 
     }
 
-    #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
-        
-
+#ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
+#ifdef ENABLE_POCSAG
+        APP_RunSpectrum();
+#else
         switch (gEeprom.CURRENT_STATE) {
             case 1:
                 gEeprom.SCAN_LIST_DEFAULT = gEeprom.CURRENT_LIST;
@@ -207,7 +208,8 @@ void Main(void)
             default:
                 break;
         }
-    #endif
+#endif
+#endif
 	while (true) {
         if (gNextTimeslice) {
             APP_Update();

@@ -405,18 +405,28 @@ void GUI_DisplaySmallest(const char *pString, uint8_t x, uint8_t y,
         }
     }
 
-    void GUI_DisplaySmallestInverse(const char *pString, uint8_t x, uint8_t Line,
-                                    bool statusbar, bool fill, uint8_t end)
-    {
-        GUI_DisplaySmallest(pString, x, (Line * 8) + 1, statusbar, fill);
+void GUI_DisplaySmallestInverse(const char *pString, uint8_t x, uint8_t Line,
+                              bool statusbar, bool fill, uint8_t end)
+{
+    GUI_DisplaySmallest(pString, x, (Line * 8) + 1, statusbar, fill);
 
-        uint8_t start = x - 2;
-        uint8_t *buffer = statusbar ? gStatusLine : gFrameBuffer[Line];
-        buffer[start] ^= 0x3E;
-        for (uint8_t i = start + 1; i < end; i++)
-            buffer[i] ^= 0x7F;
-        buffer[end] ^= 0x3E;
+    uint8_t *buffer = statusbar ? gStatusLine : gFrameBuffer[Line];
+    uint8_t start   = (x >= 2u) ? (uint8_t)(x - 2u) : 0u;
+    uint8_t limit   = (end < 128u) ? end : 127u;
+
+    if (x >= 2u) {
+        buffer[start] ^= 0x3Eu;
+        start++;
     }
+
+    for (uint8_t i = start; i < limit; i++) {
+        buffer[i] ^= 0x7Fu;
+    }
+
+    if (end < 128u) {
+        buffer[limit] ^= 0x3Eu;
+    }
+}
 
     bool IsEmptyName(const char *name, uint8_t len) {
         if (name[0] == '\0' || name[0] == '\xff')
