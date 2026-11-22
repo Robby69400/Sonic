@@ -15,7 +15,7 @@
  *  - Sur chaque canal : accord, POCSAG_SETTLE_MS (5 ms) de stabilisation,
  *    puis LECTURE DU RSSI. Si RSSI <= plancher + marge, on saute
  *    immédiatement au canal suivant (aucun dwell). Sinon, on lance le
- *    dwell (40 ms si signal marginal, 100 ms si signal franc).
+ *    dwell (adapté au baud : 512 bauds nécessite >1 batch).
  *  - Le plancher de bruit est calibré sur les 16 premiers canaux du
  *    premier tour, puis figé. La marge est POCSAG_RSSI_SKIP_MARGIN (6).
  *  - Rien : canal suivant. Trouvé : on décode jusqu'à la fin de l'émission
@@ -42,8 +42,8 @@
  *  - Numérique (Option B) : preferAlpha() est conservée pour rattraper
  *    les messages alpha émis par erreur sur func=0.
  *  - BCH : les mots corrigés (1 bit) sont comptés (nFixed) ainsi que les
- *    mots non corrigeables (nBad). Une page est rejetée si trop de mots
- *    ont été corrigés par rapport au total (risque de fausse page).
+ *    mots non corrigeables (nBad). [FIX 7] Une page n'est rejetée que si
+ *    plus de 2 mots sont non corrigeables (vraie corruption).
  *
  * TAILLE DES MESSAGES
  *  - MSG_MAX = 320 caractères. page_t.len, sl_t.len et sl_t.alen sont
@@ -177,8 +177,12 @@ extern char gListName[MR_CHANNELS_LIST][10];
 
 #define POCSAG_SETTLE_MS        5u
 
-#define POCSAG_DWELL_MIN_MS     40u
-#define POCSAG_DWELL_MAX_MS    100u
+/* [FIX 4] Dwell adapté au baud. À 512 bauds un batch = 1000 ms,
+ * à 1200 bauds = 426 ms. Un dwell trop court ne capte jamais le sync. */
+#define POCSAG_DWELL_MIN_MS     120u    /* était 40 : > sync 32 bits @1200 */
+#define POCSAG_DWELL_MAX_MS     450u    /* était 100 : > 1 batch @1200 */
+#define POCSAG_DWELL_512_MS     1100u   /* > 1 batch @512 */
+#define POCSAG_DWELL_512_MIN_MS 600u    /* > sync + marge @512 */
 
 #define POCSAG_RSSI_SKIP_MARGIN   6u
 #define POCSAG_RSSI_CAL_CHANNELS 16u
@@ -186,8 +190,11 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_LOCK_GOOD    24u
 #define POCSAG_LOCK_RATIO   4u
 #define POCSAG_SYNC_WAIT_MS 1500u
+#define POCSAG_SYNC_WAIT_512_MS 2500u   /* [FIX 5] */
 #define POCSAG_END_MS       100u
-#define POCSAG_MAX_RX_MS    2000u
+/* [FIX 6] MAX_RX rallongé : un message long = plusieurs batches.
+ * À 1200 bauds un batch = 426 ms ; 10 batches = 4,3 s. */
+#define POCSAG_MAX_RX_MS    8000u       /* était 2000 */
 
 #define MS_SAMPLES(ms)  ((uint32_t)(ms) * (FS / 1000u))
 
@@ -322,7 +329,7 @@ struct {
     uint32_t ledNextMs;      /* prochain toggle LED */
     bool     audioOn;        /* touche 1 : audio HP activé */
     sl_t     *sl;
-} g = { .cw = 0, .showNames = 0, .baud = BAUD_1200 };
+} g = { .cw = 0, .showNames = 1, .baud = BAUD_1200 };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -707,16 +714,20 @@ static void closePage(sl_t *m){
     if(n < POCSAG_MIN_MSG_LEN) return;
     if(2u * gaps > n) return;
 
-    /* Rejet si trop de mots BCH corrigés (page douteuse). */
-    if(m->nBad + m->nFixed > 8u && m->nFixed * 2u > m->nBad + m->nFixed)
-        return;
+    /* [FIX 7] Rejet uniquement si vraie corruption (mots non corrigeables).
+     * Un mot corrigé par BCH est fiable : ne plus pénaliser nFixed. */
+    if(m->nBad > 2u) return;
 
     g.redraw |= REDRAW_FRAME;
 
-    for(unsigned j = 0; j < g_hdr.count && j < 2u; j++){
+    /* [FIX 3] Fenêtre de fusion élargie (8 pages) et tolérance alpha :
+     * un long message peut arriver en plusieurs pages séparées dans le
+     * temps et avec un func différent (émetteur qui bascule alpha/num). */
+    for(unsigned j = 0; j < g_hdr.count && j < 8u; j++){
         page_t q;
         pocsag_page_load(j, &q);
-        if(q.ric != m->ric || PAGE_GET_FUNC(&q) != m->func) continue;
+        if(q.ric != m->ric) continue;
+        if(PAGE_GET_FUNC(&q) != m->func && !PAGE_GET_ALPHA(&q)) continue;
 
         for(unsigned i = 0; i < n; i++)
             s_merged[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
@@ -828,10 +839,10 @@ static void codeword(sl_t *m, uint32_t cw){
         m->dirty = DIRTY_WORDS;
     } else {
         if(good == 2u) m->nFixed++;
-        if(m->dirty){
-            m->dirty--;
-            if(good == 2u) good = 0;
-        }
+        /* [FIX 1] Un mot corrigé par BCH (1 bit) est fiable : ne plus le
+         * dégrader en 0 (ce qui insérait un GAP parasite). On se contente
+         * de décrémenter la fenêtre "dirty". */
+        if(m->dirty) m->dirty--;
     }
     unsigned n = m->func == FUNC_NUMERIC ? 4u : 7u;
     if(!good || cw + 1u < 2u){
@@ -920,6 +931,9 @@ static void seqBit(sl_t *m, uint32_t b){
 }
 static void slice(sl_t *m, int32_t y){
     int32_t a = y < 0 ? -y : y;
+    /* [FIX bonus] amorçage rapide de l'AGC : sans ça, sur un burst court
+     * à 512 bauds, m->amp reste trop faible et les 3 seuils sont collés. */
+    if (m->amp == 0 && a > 200) m->amp = a << 1;
     if(a > m->amp) m->amp += (a - m->amp) >> 2;
     else m->amp -= m->amp >> 10;
     int32_t t = (m->amp * m->num) >> 3;
@@ -1070,6 +1084,7 @@ static void draw(void)
         char *o = s2 + sprintf(s2, "%u/%u", g.cur + 1u, g_hdr.count);
         capsEnd -= 4u * (unsigned)(o - s2);
         GUI_DisplaySmallest(s2, 70, 0, true, true);
+        (void)capsEnd;
 
         const unsigned w       = g.cw ? (ROW_CHARS + CW_COMPACT) : ROW_CHARS;
         const unsigned maxRows = g.cw ? 8u : ROWS;
@@ -1300,6 +1315,11 @@ static void listen(uint32_t dwell_ms){
     uint32_t next = pocsag_cycles_48mhz();
     uint16_t cnt = 0;
 
+    /* [FIX 5] Attente sync adaptée au baud. */
+    const uint32_t syncWait = (g.baud == BAUD_512)
+                              ? POCSAG_SYNC_WAIT_512_MS
+                              : POCSAG_SYNC_WAIT_MS;
+
     g.busyFor = 0;
 
     while (!g_pocsagScanStop) {
@@ -1351,7 +1371,7 @@ static void listen(uint32_t dwell_ms){
             continue;
         }
         if (g.nSync == sync0) {
-            if (elapsed >= MS_SAMPLES(POCSAG_SYNC_WAIT_MS)) break;
+            if (elapsed >= MS_SAMPLES(syncWait)) break;
         } else if (!inBatch && g.n - lastBatch >= MS_SAMPLES(POCSAG_END_MS)) {
             break;
         }
@@ -1369,10 +1389,17 @@ static void listen(uint32_t dwell_ms){
             }
         }
     }
-    for (unsigned k = 0; k < NSL; k++) {
-        closePage(&sl[k]);
-        g.nWords += sl[k].ok;
-    }
+
+    /* [FIX 2] Arbitrage des slicers : ne garder que celui qui a le plus
+     * de mots décodés OK. Évite les pages fantômes des slicers mal calés
+     * (bruit, désynchro) qui polluaient la flash et gonflaient nOk.
+     * [FIX 1] s'applique dans codeword() : les mots corrigés ne produisent
+     * plus de GAP, donc le "meilleur" slicer est aussi le plus propre. */
+    unsigned best = 0;
+    for (unsigned k = 1; k < NSL; k++)
+        if (sl[k].ok > sl[best].ok) best = k;
+    closePage(&sl[best]);
+    g.nWords += sl[best].ok;
 }
 
 /* ============================================================
@@ -1487,9 +1514,15 @@ void APP_RunPocsagScan(void)
             continue;
         }
 
-        uint32_t dwell = POCSAG_DWELL_MIN_MS;
-        if (rssi > (uint16_t)g.rssiFloor + 2u * POCSAG_RSSI_SKIP_MARGIN)
-            dwell = POCSAG_DWELL_MAX_MS;
+        /* [FIX 4] Dwell adapté au baud et au niveau du signal.
+         * À 512 bauds, un batch dure 1000 ms : il faut dweller au moins
+         * un batch + marge pour espérer capter un sync et un mot. */
+        uint32_t dwell;
+        const bool strong = rssi > (uint16_t)g.rssiFloor + 2u * POCSAG_RSSI_SKIP_MARGIN;
+        if (g.baud == BAUD_512)
+            dwell = strong ? POCSAG_DWELL_512_MS : POCSAG_DWELL_512_MIN_MS;
+        else
+            dwell = strong ? POCSAG_DWELL_MAX_MS : POCSAG_DWELL_MIN_MS;
 
         const uint16_t before = g.nOk;
         listen(dwell);
