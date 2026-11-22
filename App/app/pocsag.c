@@ -23,9 +23,9 @@
  *    reçues avec la fréquence en en-tête, et le scan reprend.
  *
  * LED
- *  - Clignote toutes les 5 s en scan normal, toutes les 1 s si au moins
- *    un message reçu n'a pas été lu (hasUnread). Le clignotement est
- *    cadencé par pocsag_ticks_ms() et fonctionne aussi pendant listen()
+ *  - 1 s allumée toutes les 5 s en scan normal, flash 250 ms toutes les 1 s
+ *    si au moins un message reçu n'a pas été lu (hasUnread). Le clignotement
+ *    est cadencé par pocsag_ticks_ms() et fonctionne aussi pendant listen()
  *    via houseLight().
  *
  * AUDIO (touche 1)
@@ -57,9 +57,14 @@
  *
  * AFFICHAGE
  *  - Écran avant messages : touche '*' alterne noms des canaux / fréquences.
+ *    ≤14 canaux : 2 colonnes en grande police (UI_PrintStringSmallBold).
+ *    >14 canaux : 3 colonnes en petite police (GUI_DisplaySmallest).
  *  - Messages reçus : fréquence affichée en négatif dans la barre de statut.
+ *  - En affichage message, EXIT revient à l'écran SCAN (messages conservés).
+ *  - En affichage SCAN, UP/DOWN ouvre l'affichage des messages.
+ *  - En affichage SCAN, EXIT quitte POCSAG.
  *
- * Touches : EXIT quitte · UP/DOWN pages (répétition, rebouclage) ·
+ * Touches : EXIT quitte/revient · UP/DOWN pages ou ouvre les messages ·
  *            * alterne noms/fréquences en scan · 2 efface les pages ·
  *            1 bascule l'audio RX.
  */
@@ -101,7 +106,8 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY    192u      /* ~20 ms à 9600 Hz : réactivité clavier */
+#define HOUSE_EVERY      192u    /* ~20 ms à 9600 Hz : réactivité clavier */
+#define HOUSE_EVERY_IDLE 960u    /* ~100 ms en simple scan (économie CPU) */
 #define BUSY_MAX       19200u
 #define SYNC_SLOT      8u
 #define REFRESH_SLOTS  100u
@@ -167,8 +173,10 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define KEY_DEBOUNCE_MAX_MS   100u  /* tolérance KEY_INVALID (rebond) */
 
 /* LED */
-#define LED_BLINK_SCAN_MS     5000u
-#define LED_BLINK_UNREAD_MS   1000u
+#define LED_ON_SCAN_MS        1000u   /* 1 s allumée en scan */
+#define LED_PERIOD_SCAN_MS    5000u   /* toutes les 5 s */
+#define LED_ON_UNREAD_MS       250u   /* flash court si non lu */
+#define LED_PERIOD_UNREAD_MS   500u   /* toutes les 1 s */
 
 /* ============================================================
  * Paramètres du scan
@@ -179,8 +187,8 @@ extern char gListName[MR_CHANNELS_LIST][10];
 
 /* [FIX 4] Dwell adapté au baud. À 512 bauds un batch = 1000 ms,
  * à 1200 bauds = 426 ms. Un dwell trop court ne capte jamais le sync. */
-#define POCSAG_DWELL_MIN_MS     120u    /* était 40 : > sync 32 bits @1200 */
-#define POCSAG_DWELL_MAX_MS     450u    /* était 100 : > 1 batch @1200 */
+#define POCSAG_DWELL_MIN_MS     100u    /* sync 32 bits @1200 ≈ 27 ms + marge */
+#define POCSAG_DWELL_MAX_MS     300u    /* ≈ 0,7 batch : suffit pour un sync */
 #define POCSAG_DWELL_512_MS     1100u   /* > 1 batch @512 */
 #define POCSAG_DWELL_512_MIN_MS 600u    /* > sync + marge @512 */
 
@@ -525,7 +533,7 @@ static void pocsag_af_capture_open(void)
 static uint16_t pocsag_af_capture_sample(void)
 {
     ADC1->CR2 |= ADC_CR2_SWSTART | ADC_CR2_EXTTRIG;
-    for (uint16_t n = 0; !(ADC1->SR & ADC_SR_EOC) && n < 2000u; n++) {}
+    for (uint16_t n = 0; !(ADC1->SR & ADC_SR_EOC) && n < 200u; n++) {}
     return (uint16_t)(ADC1->DR & 0x0FFFu);
 }
 static void pocsag_af_capture_close(void)
@@ -984,15 +992,23 @@ static void printFreq(char *s, uint32_t f)
     sprintf(s, "%u.%05u", (unsigned)(f / 100000u), (unsigned)(f % 100000u));
 }
 
-/* LED : clignote 5 s en scan, 1 s si message non lu. */
+/* LED : 1 s allumée / 5 s en scan, flash 250 ms / 1 s si non lu. */
 static void ledTick(void)
 {
     const uint32_t now = pocsag_ticks_ms();
     if ((int32_t)(now - g.ledNextMs) < 0) return;
-    const uint32_t period = g.hasUnread ? LED_BLINK_UNREAD_MS : LED_BLINK_SCAN_MS;
-    g.ledNextMs = now + period;
-    g.led ^= 1u;
-    BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u);
+
+    if (g.led) {
+        g.led = 0;
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
+        const uint32_t period = g.hasUnread ? LED_PERIOD_UNREAD_MS : LED_PERIOD_SCAN_MS;
+        const uint32_t on     = g.hasUnread ? LED_ON_UNREAD_MS     : LED_ON_SCAN_MS;
+        g.ledNextMs = now + (period - on);
+    } else {
+        g.led = 1;
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, true);
+        g.ledNextMs = now + (g.hasUnread ? LED_ON_UNREAD_MS : LED_ON_SCAN_MS);
+    }
 }
 
 extern void SETTINGS_FetchChannelName(char *s, const uint16_t channel);
@@ -1124,12 +1140,18 @@ static void draw(void)
     } else {
         sprintf(s2, "SCAN %uCH", g.nCh);
         GUI_DisplaySmallest(s2, 0, 0, true, true);
+        //UI_PrintStringSmallBold(s2, 1, 1, 0);
 
-        /* Noms des canaux ou fréquences sur 3 colonnes (x = 0, 43, 86) */
+        /* Noms des canaux ou fréquences.
+         * ≤14 canaux : 2 colonnes en grande police
+         *  >14 canaux : 3 colonnes en petite police*/
         int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
         if (listIdx >= 0) {
-            static const uint8_t colX[3] = { 0u, 43u, 86u };
-            const uint16_t maxCells = 24u; /* 3 colonnes × 8 lignes */
+            const uint8_t nCols = 3u;
+            const uint8_t nRows = 8u;
+            const uint16_t maxCells = (uint16_t)(nCols * nRows);
+            static const uint8_t colX2[2] = { 0u, 64u };
+            static const uint8_t colX3[3] = { 0u, 43u, 86u };
             uint16_t startIdx = 0;
 
             if (g.nCh > maxCells) {
@@ -1146,17 +1168,18 @@ static void draw(void)
                         startIdx = (uint16_t)(g.nCh - maxCells);
                 }
             }
-
             char label[12];
             uint16_t idx = startIdx;
             for (uint16_t cell = 0; cell < maxCells && idx < g.nCh; idx++) {
                 uint32_t fr = pocsag_channel_freq_at(listIdx, idx);
                 if (!fr) continue;
                 pocsag_channel_label_at(listIdx, idx, label, sizeof(label));
+                /* 3 colonnes × 8 lignes, petite police */
                 uint8_t col = (uint8_t)(cell / 8u);
                 uint8_t row = (uint8_t)(cell % 8u);
                 uint8_t y   = (uint8_t)(2u + row * 7u);
-                GUI_DisplaySmallest(label, colX[col], y, false, true);
+                GUI_DisplaySmallest(label, colX3[col], y, false, true);
+                
                 cell++;
             }
         }
@@ -1207,9 +1230,23 @@ static void handleKeys(void)
     BACKLIGHT_TurnOn();
     g.redraw |= REDRAW_ON;
 
+    /* Mode d'affichage courant : "message" si des pages sont chargées. */
+    const bool showingMsg = (g_hdr.count > 0);
+
     int d = (key == KEY_DOWN) - (key == KEY_UP);
     if (d) {
-        if (!g_hdr.count) return;
+        if (!showingMsg) {
+            /* Affichage SCAN : UP/DOWN ouvre l'affichage des messages
+             * s'il y en a en flash. Sinon, sans effet. */
+            pocsag_hdr_load();
+            if (!g_hdr.count) return;
+            g.cur = 0;
+            g.top = 0;
+            g_cur_valid = false;
+            g.hasUnread = false;
+            g.redraw |= REDRAW_FRAME;
+            return;
+        }
         g.hasUnread = false;     /* navigation => messages lus */
         int nextTop = (int)g.top + d;
         if (nextTop >= 0 && nextTop <= (int)g.lim) {
@@ -1224,8 +1261,21 @@ static void handleKeys(void)
         }
     }
     else if (key == KEY_EXIT) {
-        g.running = false;
-        g_pocsagScanStop = true;
+        if (showingMsg) {
+            /* Affichage message : revenir à l'écran SCAN sans effacer.
+             * On remet g_hdr à zéro en RAM uniquement (pas de flush),
+             * la flash est intacte et UP/DOWN rechargera via hdr_load(). */
+            pocsag_memset(&g_hdr, 0, sizeof(g_hdr));
+            g_hdr.magic = POCSAG_META_MAGIC;
+            g_hdr_dirty = false;
+            g_cur_valid = false;
+            g.hasUnread = false;
+            g.redraw |= REDRAW_ON;
+        } else {
+            /* Affichage SCAN : quitter POCSAG. */
+            g.running = false;
+            g_pocsagScanStop = true;
+        }
     }
     else if (key == KEY_2) {
         g.cur = 0; g.nOk = 0; g.top = 0;
@@ -1322,8 +1372,10 @@ static void listen(uint32_t dwell_ms){
 
     g.busyFor = 0;
 
+    uint16_t houseEvery = HOUSE_EVERY;
+
     while (!g_pocsagScanStop) {
-        while ((int32_t)(pocsag_cycles_48mhz() - next) < 0) {}
+        while ((int32_t)(pocsag_cycles_48mhz() - next) < 0) { }
         next += CYC_PER_SAMPLE;
         g.n++;
         int32_t adc = pocsag_af_capture_sample();
@@ -1344,7 +1396,7 @@ static void listen(uint32_t dwell_ms){
             run = 0;
         }
 
-        if (cnt < HOUSE_EVERY) {
+        if (cnt < houseEvery) {
             cnt++;
         } else {
             cnt = 0;
@@ -1358,6 +1410,7 @@ static void listen(uint32_t dwell_ms){
         if (inBatch) lastBatch = g.n;
 
         const uint32_t elapsed = g.n - start;
+        houseEvery = active ? HOUSE_EVERY : HOUSE_EVERY_IDLE;
         if (!active) {
             if (g.nSync != sync0 ||
                 (good >= POCSAG_LOCK_GOOD && bad * POCSAG_LOCK_RATIO <= good)) {
@@ -1370,6 +1423,7 @@ static void listen(uint32_t dwell_ms){
             }
             continue;
         }
+
         if (g.nSync == sync0) {
             if (elapsed >= MS_SAMPLES(syncWait)) break;
         } else if (!inBatch && g.n - lastBatch >= MS_SAMPLES(POCSAG_END_MS)) {
@@ -1474,7 +1528,7 @@ void APP_RunPocsagScan(void)
     g.hasUnread = false;
     g.audioOn = false;
     g.led = 0;
-    g.ledNextMs = pocsag_ticks_ms() + LED_BLINK_SCAN_MS;
+    g.ledNextMs = pocsag_ticks_ms() + LED_ON_SCAN_MS;
 
     uint32_t tuned = first_freq;
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);
