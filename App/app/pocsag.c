@@ -1071,11 +1071,14 @@ static void draw(void)
     if (g_hdr.count) {
         char freqStr[16];
         printFreq(freqStr, p->freq);
-        GUI_DisplaySmallest(freqStr, 0, 0, true, true);
+        //GUI_DisplaySmallest(freqStr, 0, 0, true, true);
+        UI_PrintStringSmallBold(freqStr, 64, 0, 0);
     } else {
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
-        GUI_DisplaySmallest(r, 60, 0, true, true);
+        //GUI_DisplaySmallest(r, 60, 0, true, true);
+        UI_PrintStringSmallBold(r, 75, 0, 0);
+
     }
 
     if (g.refresh == 0 || !g.battOk) {
@@ -1138,9 +1141,9 @@ static void draw(void)
         if (!g.cw && rows > ROWS)
             lim = rows - ROWS;
     } else {
-        sprintf(s2, "SCAN %uCH", g.nCh);
-        GUI_DisplaySmallest(s2, 0, 0, true, true);
-        //UI_PrintStringSmallBold(s2, 1, 1, 0);
+        char scan[13];
+        sprintf(scan, "SCAN %uCH", g.nCh);
+        UI_PrintStringSmallBold(scan, 0, 0, 0);
 
         /* Noms des canaux ou fréquences.
          * ≤14 canaux : 2 colonnes en grande police
@@ -1150,7 +1153,6 @@ static void draw(void)
             const uint8_t nCols = 3u;
             const uint8_t nRows = 8u;
             const uint16_t maxCells = (uint16_t)(nCols * nRows);
-            static const uint8_t colX2[2] = { 0u, 64u };
             static const uint8_t colX3[3] = { 0u, 43u, 86u };
             uint16_t startIdx = 0;
 
@@ -1175,11 +1177,10 @@ static void draw(void)
                 if (!fr) continue;
                 pocsag_channel_label_at(listIdx, idx, label, sizeof(label));
                 /* 3 colonnes × 8 lignes, petite police */
-                uint8_t col = (uint8_t)(cell / 8u);
-                uint8_t row = (uint8_t)(cell % 8u);
-                uint8_t y   = (uint8_t)(2u + row * 7u);
+                uint8_t col = (uint8_t)(cell / 7u);
+                uint8_t row = (uint8_t)(cell % 7u);
+                uint8_t y   = (uint8_t)(8u + row * 7u);
                 GUI_DisplaySmallest(label, colX3[col], y, false, true);
-                
                 cell++;
             }
         }

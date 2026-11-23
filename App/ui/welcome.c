@@ -77,12 +77,16 @@ void UI_DisplayWelcome(void)
         return;
     }
     // CHANNEL_LOCATION
-    #if defined(ENABLE_10K)
-        UI_PrintString("SONIC 10K", 0, 127, 0,10);
-    #elif defined(ENABLE_4096)
-        UI_PrintString("SONIC 4K", 0, 127, 0,10);
-    #elif defined(ENABLE_1024)
-        UI_PrintString("SONIC 1K", 0, 127, 0,10);
+    #ifdef ENABLE_POCSAG
+            UI_PrintString("SONIC POCSAG", 0, 127, 0,10);
+    #else
+        #if defined(ENABLE_10K)
+            UI_PrintString("SONIC 10K", 0, 127, 0,10);
+        #elif defined(ENABLE_4096)
+            UI_PrintString("SONIC 4K", 0, 127, 0,10);
+        #elif defined(ENABLE_1024)
+            UI_PrintString("SONIC 1K", 0, 127, 0,10);
+        #endif
     #endif
 
     UI_PrintString("t.me/SonicFw", 0, 127, 4, 8);

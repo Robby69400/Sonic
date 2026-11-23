@@ -74,6 +74,7 @@
       "cacheVariables": {
         "ENABLE_1024": true,
         "ENABLE_USB": true,
+        "ENABLE_UART": true,
         "ENABLE_POCSAG": true,
         "EDITION_STRING": "Pocsag"
       }
