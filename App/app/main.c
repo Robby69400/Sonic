@@ -162,11 +162,16 @@ static void toggle_chan_scanlist(void)
         att->exclude = false;
         MR_SaveChannelAttributesToFlash(gTxVfo->CHANNEL_SAVE, att);
     } else {
+#ifdef ENABLE_POCSAG
+        /* En mode POCSAG, on inverse simplement la Scanlist entre 0 et 1 */
+        gTxVfo->SCANLIST_PARTICIPATION = (gTxVfo->SCANLIST_PARTICIPATION == 0) ? 1 : 0;
+#else
         uint8_t scanlist = gTxVfo->SCANLIST_PARTICIPATION;
         scanlist++;
         if (scanlist > MR_CHANNELS_LIST + 1)
             scanlist = 0;
         gTxVfo->SCANLIST_PARTICIPATION = scanlist;
+#endif
         SETTINGS_UpdateChannel(gTxVfo->CHANNEL_SAVE, gTxVfo, true);
     }
 

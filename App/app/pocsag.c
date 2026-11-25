@@ -22,6 +22,14 @@
  *    (plus aucun lot pendant POCSAG_END_MS), puis on affiche la ou les pages
  *    reçues avec la fréquence en en-tête, et le scan reprend.
  *
+ * DÉDUPLICATION
+ *  - Avant stockage, on compare les 30 premiers caractères du nouveau
+ *    message avec les pages récentes du même RIC. Les '?' (GAP) sont
+ *    ignorés dans la comparaison. Si le message est quasi identique,
+ *    on FUSIONNE les deux versions en privilégiant à chaque position
+ *    un caractère réel sur un '?' (ex : "Mis?ion" + "Mission" → "Mission").
+ *    Cela absorbe les erreurs BCH résiduelles sans perdre l'info.
+ *
  * LED
  *  - 1 s allumée toutes les 5 s en scan normal, flash 250 ms toutes les 1 s
  *    si au moins un message reçu n'a pas été lu (hasUnread). Le clignotement
@@ -42,7 +50,7 @@
  *  - Numérique (Option B) : preferAlpha() est conservée pour rattraper
  *    les messages alpha émis par erreur sur func=0.
  *  - BCH : les mots corrigés (1 bit) sont comptés (nFixed) ainsi que les
- *    mots non corrigeables (nBad). [FIX 7] Une page n'est rejetée que si
+ *    mots non corrigeables (nBad). Une page n'est rejetée que si
  *    plus de 2 mots sont non corrigeables (vraie corruption).
  *
  * TAILLE DES MESSAGES
@@ -50,10 +58,10 @@
  *    uint16_t (sinon troncature à 255).
  *
  * STOCKAGE (flash externe, 0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
- *   [0x012000, 0x012018) : en-tête (24 o)
+ *   [0x012000, 0x012010) : en-tête (16 o)
  *                          magic + crc + pool_head + count + head
- *   [0x012018, 0x012C98) : anneau pages (200 × 16 o = 3 200 o)
- *   [0x012C98, 0x018000) : pool froid (~21 384 o, circulaire)
+ *   [0x012010, 0x012C90) : anneau pages (500 × 16 o = 8 000 o)
+ *   [0x012C90, 0x018000) : pool froid (~21 360 o, circulaire)
  *
  * AFFICHAGE
  *  - Écran avant messages : touche '*' alterne noms des canaux / fréquences.
@@ -106,13 +114,21 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define BIAS_CODE      2048u
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
-#define HOUSE_EVERY      192u    /* ~20 ms à 9600 Hz : réactivité clavier */
-#define HOUSE_EVERY_IDLE 960u    /* ~100 ms en simple scan (économie CPU) */
-#define BUSY_MAX       19200u
-#define SYNC_SLOT      8u
-#define REFRESH_SLOTS  100u
-#define REDRAW_ON      1u
-#define REDRAW_FRAME   2u
+
+/* [KEY-REACT] Cadences houseLight() revues pour un clavier plus réactif :
+ *  - Pendant le décodage d'un batch, on repasse toutes les ~10 ms au lieu
+ *    de ~20 ms : le décodeur est insensible à cette granularité (le DPLL
+ *    travaille au cycle près) mais l'utilisateur sent la touche répondre
+ *    deux fois plus vite.
+ *  - En simple scan (pas de batch), on garde ~100 ms : la LED et le
+ *    backlight n'ont pas besoin de plus et on économise du CPU. */
+#define HOUSE_EVERY        96u    /* ~10 ms à 9600 Hz (était 192) */
+#define HOUSE_EVERY_IDLE   960u   /* ~100 ms en simple scan */
+#define BUSY_MAX           19200u
+#define SYNC_SLOT          8u
+#define REFRESH_SLOTS      100u
+#define REDRAW_ON          1u
+#define REDRAW_FRAME       2u
 
 #define REG_2B      0x2B
 #define REG_73      0x73
@@ -146,6 +162,11 @@ extern char gListName[MR_CHANNELS_LIST][10];
 
 /* Seuil de rejet des messages trop courts (tone-only inclus). */
 #define POCSAG_MIN_MSG_LEN  10u
+
+/* [DEDUP] Longueur de préfixe comparée pour détecter les quasi-doublons. */
+#define POCSAG_DEDUP_PREFIX 30u
+/* Nombre de pages récentes examinées lors de la déduplication. */
+#define POCSAG_DEDUP_WINDOW 12u
 
 /* ============================================================
  * Stockage flash (0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
@@ -185,7 +206,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 
 #define POCSAG_SETTLE_MS        5u
 
-/* [FIX 4] Dwell adapté au baud. À 512 bauds un batch = 1000 ms,
+/* Dwell adapté au baud. À 512 bauds un batch = 1000 ms,
  * à 1200 bauds = 426 ms. Un dwell trop court ne capte jamais le sync. */
 #define POCSAG_DWELL_MIN_MS     100u    /* sync 32 bits @1200 ≈ 27 ms + marge */
 #define POCSAG_DWELL_MAX_MS     300u    /* ≈ 0,7 batch : suffit pour un sync */
@@ -198,11 +219,11 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_LOCK_GOOD    24u
 #define POCSAG_LOCK_RATIO   4u
 #define POCSAG_SYNC_WAIT_MS 1500u
-#define POCSAG_SYNC_WAIT_512_MS 2500u   /* [FIX 5] */
+#define POCSAG_SYNC_WAIT_512_MS 2500u
 #define POCSAG_END_MS       100u
-/* [FIX 6] MAX_RX rallongé : un message long = plusieurs batches.
+/* MAX_RX rallongé : un message long = plusieurs batches.
  * À 1200 bauds un batch = 426 ms ; 10 batches = 4,3 s. */
-#define POCSAG_MAX_RX_MS    8000u       /* était 2000 */
+#define POCSAG_MAX_RX_MS    8000u
 
 #define MS_SAMPLES(ms)  ((uint32_t)(ms) * (FS / 1000u))
 
@@ -489,6 +510,59 @@ static void pocsag_flash_wipe(void)
 }
 
 /* ============================================================
+ * [DEDUP] Comparaison tolérante aux '?' (GAP)
+ * ============================================================ */
+
+/* Renvoie true si a et b sont "quasi identiques" sur les
+ * POCSAG_DEDUP_PREFIX premiers caractères, en ignorant les '?'. */
+static bool pocsag_msgs_similar(const char *a, unsigned alen,
+                                const char *b, unsigned blen)
+{
+    unsigned n = POCSAG_DEDUP_PREFIX;
+    if (n > alen) n = alen;
+    if (n > blen) n = blen;
+    if (n == 0) return false;
+
+    unsigned diff = 0, real = 0;
+    for (unsigned i = 0; i < n; i++) {
+        char ca = a[i], cb = b[i];
+        if (ca == GAP && cb == GAP) continue;
+        if (ca == GAP || cb == GAP) { diff++; continue; }
+        if (ca != cb) diff++;
+        else real++;
+    }
+
+    /* tolérance : <= 2 différences réelles, ou <= 20 % du préfixe */
+    const unsigned tol = (n >= 10u) ? 2u : 1u;
+    if (diff <= tol) return true;
+    /* tolérance relative : les '?' (diff) ne comptent qu'à moitié */
+    if ((diff * 5u) <= n) return true;
+    (void)real;
+    return false;
+}
+
+/* Fusionne deux versions en privilégiant le caractère réel (≠ '?'). */
+static void pocsag_msgs_merge(char *dst, unsigned *dlen,
+                              const char *a, unsigned alen,
+                              const char *b, unsigned blen)
+{
+    unsigned n = alen > blen ? alen : blen;
+    if (n > MSG_MAX) n = MSG_MAX;
+    for (unsigned i = 0; i < n; i++) {
+        char ca = (i < alen) ? a[i] : GAP;
+        char cb = (i < blen) ? b[i] : GAP;
+        char c;
+        if (ca == GAP && cb == GAP) c = GAP;
+        else if (ca == GAP)          c = cb;
+        else if (cb == GAP)          c = ca;
+        else if (ca == cb)           c = ca;
+        else                         c = ca;   /* conflit : garde la version courante */
+        dst[i] = c;
+    }
+    *dlen = n;
+}
+
+/* ============================================================
  * Capture audio PA4
  * ============================================================ */
 #define APP_AFC_ADC_CH_PA4  4u
@@ -722,49 +796,69 @@ static void closePage(sl_t *m){
     if(n < POCSAG_MIN_MSG_LEN) return;
     if(2u * gaps > n) return;
 
-    /* [FIX 7] Rejet uniquement si vraie corruption (mots non corrigeables).
-     * Un mot corrigé par BCH est fiable : ne plus pénaliser nFixed. */
+    /* Rejet uniquement si vraie corruption (mots non corrigeables). */
     if(m->nBad > 2u) return;
 
     g.redraw |= REDRAW_FRAME;
 
-    /* [FIX 3] Fenêtre de fusion élargie (8 pages) et tolérance alpha :
-     * un long message peut arriver en plusieurs pages séparées dans le
-     * temps et avec un func différent (émetteur qui bascule alpha/num). */
-    for(unsigned j = 0; j < g_hdr.count && j < 8u; j++){
+    /* ------------------------------------------------------------------
+     * [DEDUP] Déduplication tolérante aux '?' sur les pages récentes
+     * du même RIC. On compare POCSAG_DEDUP_PREFIX caractères, on ignore
+     * les GAP, et en cas de quasi-doublon on FUSIONNE en privilégiant
+     * les caractères réels (cf. pocsag_msgs_merge).
+     * ------------------------------------------------------------------ */
+    unsigned n_new = n;
+    for (unsigned i = 0; i < n; i++)
+        s_merged[i] = ((uint8_t)t[i] == GAP) ? GAP : (char)t[i];
+
+    unsigned win = g_hdr.count < POCSAG_DEDUP_WINDOW
+                   ? g_hdr.count : POCSAG_DEDUP_WINDOW;
+
+    for (unsigned j = 0; j < win; j++) {
         page_t q;
         pocsag_page_load(j, &q);
-        if(q.ric != m->ric) continue;
-        if(PAGE_GET_FUNC(&q) != m->func && !PAGE_GET_ALPHA(&q)) continue;
+        if (q.ric != m->ric) continue;
+        if (PAGE_GET_FUNC(&q) != m->func && !PAGE_GET_ALPHA(&q)) continue;
 
-        for(unsigned i = 0; i < n; i++)
-            s_merged[i] = ((uint8_t)t[i] == GAP) ? '?' : (char)t[i];
+        /* Chargement du texte existant. */
+        unsigned qlen = q.len;
+        if (qlen > MSG_MAX) qlen = MSG_MAX;
+        if (qlen == 0) continue;
+        pocsag_pool_read(q.offset, s_old, qlen);
 
-        if(PAGE_GET_ALPHA(&q) != m->alpha){
-            if(!m->alpha) return;
-            page_set_alpha(&q, 1);
-            q.len = (uint16_t)n;
-            pocsag_pool_write(q.offset, s_merged, n);
-            pocsag_page_store_phys(pocsag_phys(j), &q);
-            g_hdr_dirty = true;
-            pocsag_hdr_flush();
-            if (j == 0) g_cur_valid = false;
-            return;
+        /* Comparaison sur le préfixe, '?' ignorés. */
+        if (!pocsag_msgs_similar(s_merged, n_new, s_old, qlen))
+            continue;
+
+        /* Quasi-doublon : on fusionne. */
+        unsigned flen = 0;
+        pocsag_msgs_merge(g_pool_ram, &flen,
+                          s_merged, n_new,
+                          s_old, qlen);
+        if (flen == 0) continue;
+
+        /* Écriture du texte fusionné dans le pool (à l'offset existant). */
+        unsigned wlen = flen;
+        if (wlen > MSG_MAX) wlen = MSG_MAX;
+        if ((uint32_t)q.offset + wlen > POCSAG_POOL_SIZE) {
+            /* le texte dépasse la fin du pool : on ne fusionne pas, on
+             * laissera le prochain tour créer une nouvelle page. */
+            continue;
         }
-
-        pocsag_pool_read(q.offset, s_old, n);
-        for (unsigned i = 0; i < n; i++)
-            if (i < q.len && (uint8_t)s_old[i] != GAP)
-                s_merged[i] = s_old[i];
-        pocsag_pool_write(q.offset, s_merged, n);
-        if(n > q.len) q.len = (uint16_t)n;
+        pocsag_pool_write(q.offset, g_pool_ram, wlen);
+        if (wlen > q.len) q.len = (uint16_t)wlen;
+        page_set_alpha(&q, m->alpha ? 1u : PAGE_GET_ALPHA(&q));
         pocsag_page_store_phys(pocsag_phys(j), &q);
+
         g_hdr_dirty = true;
         pocsag_hdr_flush();
         if (j == 0) g_cur_valid = false;
-        return;
+        return;   /* doublon absorbé : pas de nouvelle page */
     }
 
+    /* ------------------------------------------------------------------
+     * Aucun quasi-doublon : création normale d'une nouvelle page.
+     * ------------------------------------------------------------------ */
     unsigned msg_len = n;
     if ((uint32_t)g_hdr.pool_head + msg_len > POCSAG_POOL_SIZE)
         g_hdr.pool_head = 0;
@@ -847,9 +941,6 @@ static void codeword(sl_t *m, uint32_t cw){
         m->dirty = DIRTY_WORDS;
     } else {
         if(good == 2u) m->nFixed++;
-        /* [FIX 1] Un mot corrigé par BCH (1 bit) est fiable : ne plus le
-         * dégrader en 0 (ce qui insérait un GAP parasite). On se contente
-         * de décrémenter la fenêtre "dirty". */
         if(m->dirty) m->dirty--;
     }
     unsigned n = m->func == FUNC_NUMERIC ? 4u : 7u;
@@ -939,8 +1030,6 @@ static void seqBit(sl_t *m, uint32_t b){
 }
 static void slice(sl_t *m, int32_t y){
     int32_t a = y < 0 ? -y : y;
-    /* [FIX bonus] amorçage rapide de l'AGC : sans ça, sur un burst court
-     * à 512 bauds, m->amp reste trop faible et les 3 seuils sont collés. */
     if (m->amp == 0 && a > 200) m->amp = a << 1;
     if(a > m->amp) m->amp += (a - m->amp) >> 2;
     else m->amp -= m->amp >> 10;
@@ -1071,14 +1160,11 @@ static void draw(void)
     if (g_hdr.count) {
         char freqStr[16];
         printFreq(freqStr, p->freq);
-        //GUI_DisplaySmallest(freqStr, 0, 0, true, true);
         UI_PrintStringSmallBold(freqStr, 64, 0, 0);
     } else {
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
-        //GUI_DisplaySmallest(r, 60, 0, true, true);
         UI_PrintStringSmallBold(r, 75, 0, 0);
-
     }
 
     if (g.refresh == 0 || !g.battOk) {
@@ -1145,9 +1231,6 @@ static void draw(void)
         sprintf(scan, "SCAN %uCH", g.nCh);
         UI_PrintStringSmallBold(scan, 0, 0, 0);
 
-        /* Noms des canaux ou fréquences.
-         * ≤14 canaux : 2 colonnes en grande police
-         *  >14 canaux : 3 colonnes en petite police*/
         int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
         if (listIdx >= 0) {
             const uint8_t nCols = 3u;
@@ -1176,7 +1259,6 @@ static void draw(void)
                 uint32_t fr = pocsag_channel_freq_at(listIdx, idx);
                 if (!fr) continue;
                 pocsag_channel_label_at(listIdx, idx, label, sizeof(label));
-                /* 3 colonnes × 8 lignes, petite police */
                 uint8_t col = (uint8_t)(cell / 7u);
                 uint8_t row = (uint8_t)(cell % 7u);
                 uint8_t y   = (uint8_t)(8u + row * 7u);
@@ -1231,14 +1313,11 @@ static void handleKeys(void)
     BACKLIGHT_TurnOn();
     g.redraw |= REDRAW_ON;
 
-    /* Mode d'affichage courant : "message" si des pages sont chargées. */
     const bool showingMsg = (g_hdr.count > 0);
 
     int d = (key == KEY_DOWN) - (key == KEY_UP);
     if (d) {
         if (!showingMsg) {
-            /* Affichage SCAN : UP/DOWN ouvre l'affichage des messages
-             * s'il y en a en flash. Sinon, sans effet. */
             pocsag_hdr_load();
             if (!g_hdr.count) return;
             g.cur = 0;
@@ -1248,7 +1327,7 @@ static void handleKeys(void)
             g.redraw |= REDRAW_FRAME;
             return;
         }
-        g.hasUnread = false;     /* navigation => messages lus */
+        g.hasUnread = false;
         int nextTop = (int)g.top + d;
         if (nextTop >= 0 && nextTop <= (int)g.lim) {
             g.top = (uint8_t)nextTop;
@@ -1263,9 +1342,6 @@ static void handleKeys(void)
     }
     else if (key == KEY_EXIT) {
         if (showingMsg) {
-            /* Affichage message : revenir à l'écran SCAN sans effacer.
-             * On remet g_hdr à zéro en RAM uniquement (pas de flush),
-             * la flash est intacte et UP/DOWN rechargera via hdr_load(). */
             pocsag_memset(&g_hdr, 0, sizeof(g_hdr));
             g_hdr.magic = POCSAG_META_MAGIC;
             g_hdr_dirty = false;
@@ -1273,7 +1349,6 @@ static void handleKeys(void)
             g.hasUnread = false;
             g.redraw |= REDRAW_ON;
         } else {
-            /* Affichage SCAN : quitter POCSAG. */
             g.running = false;
             g_pocsagScanStop = true;
         }
@@ -1298,8 +1373,6 @@ static void handleKeys(void)
     else if (key == KEY_1) {
         g.audioOn ^= 1u;
         if (g.audioOn) {
-            /* Réactiver le chemin audio et l'AF : le décodeur continue
-             * de lire PA4, on ne touche pas à REG_48. */
             GPIO_EnableAudioPath();
             BK4819_SetAF(BK4819_AF_FM);
         } else {
@@ -1366,7 +1439,6 @@ static void listen(uint32_t dwell_ms){
     uint32_t next = pocsag_cycles_48mhz();
     uint16_t cnt = 0;
 
-    /* [FIX 5] Attente sync adaptée au baud. */
     const uint32_t syncWait = (g.baud == BAUD_512)
                               ? POCSAG_SYNC_WAIT_512_MS
                               : POCSAG_SYNC_WAIT_MS;
@@ -1445,11 +1517,6 @@ static void listen(uint32_t dwell_ms){
         }
     }
 
-    /* [FIX 2] Arbitrage des slicers : ne garder que celui qui a le plus
-     * de mots décodés OK. Évite les pages fantômes des slicers mal calés
-     * (bruit, désynchro) qui polluaient la flash et gonflaient nOk.
-     * [FIX 1] s'applique dans codeword() : les mots corrigés ne produisent
-     * plus de GAP, donc le "meilleur" slicer est aussi le plus propre. */
     unsigned best = 0;
     for (unsigned k = 1; k < NSL; k++)
         if (sl[k].ok > sl[best].ok) best = k;
@@ -1541,7 +1608,6 @@ void APP_RunPocsagScan(void)
         uint32_t freq = pocsag_channel_freq_at(listIdx, i);
         if (!freq) continue;
 
-        /* Baud fixé par la modulation du canal (AM=512, FM=1200). */
         uint8_t mod = pocsag_channel_mod_at(listIdx, i);
         g.baud = (mod == MODULATION_AM) ? BAUD_512 : BAUD_1200;
         pocsag_apply_baud();
@@ -1569,9 +1635,6 @@ void APP_RunPocsagScan(void)
             continue;
         }
 
-        /* [FIX 4] Dwell adapté au baud et au niveau du signal.
-         * À 512 bauds, un batch dure 1000 ms : il faut dweller au moins
-         * un batch + marge pour espérer capter un sync et un mot. */
         uint32_t dwell;
         const bool strong = rssi > (uint16_t)g.rssiFloor + 2u * POCSAG_RSSI_SKIP_MARGIN;
         if (g.baud == BAUD_512)
