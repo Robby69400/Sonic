@@ -20,8 +20,6 @@ This software is a fork of Armel F4HWN firmware with code from NTOIVOLA, EGZUMER
 
 ## MR MAIN SCREEN (CHANNELS) | VFO (FREQUENCY)
 
-![](<Sonic Manual V77_images/image1.png>)
-
 **L0 -** (MR) **–** Transfer the channel frequency to VFO mode.
 
 **L1 –** Increase Squelch level
@@ -117,7 +115,7 @@ In range mode enter START and STOP frequencies
 
 **Smooth Spectrum   Raw Spectrum**
 
-![](<Sonic Manual V77_images/image2.png>)    ![](<Sonic Manual V77_images/image3.png>)
+![](<Sonic Manual_images/image1.png>)    ![](<Sonic Manual_images/image2.png>)
 
 **9** – Change of AM/FM/USB modulation.
 
@@ -143,12 +141,12 @@ Keys are the same as for spectrum.
 
 **UW in Scanlist mode**
 
-| ![](<Sonic Manual V77_images/image4.png>) | Frequency is displayed in big<br>Transmit or received DCS and CTSS codes are displayed in small<br>RX displays last received channel.<br>RX> when receiving<br>in PTT Channel mode:<br>TX to show current selected channel, change with <> keys into the selected scanlists<br>In PTT LastRx mode:<br>TX shows last received channel, ready for TX.<br>TX+ or TX- when an offset is used<br>TX> when transmitting with PTT |
+| ![](<Sonic Manual_images/image3.png>) | Frequency is displayed in big<br>Transmit or received DCS and CTSS codes are displayed in small<br>RX displays last received channel.<br>RX> when receiving<br>in PTT Channel mode:<br>TX to show current selected channel, change with <> keys into the selected scanlists<br>In PTT LastRx mode:<br>TX shows last received channel, ready for TX.<br>TX+ or TX- when an offset is used<br>TX> when transmitting with PTT |
 | --- | --- |
 
 **UW Band mode**
 
-| ![](<Sonic Manual V77_images/image5.png>) | Frequency is displayed in big<br>DCS and CTSS codes are displayed in small<br>Bx shows current band<br>Here we receive so RX> is displayed with an smeter below.<br>TX shows the last received frequency, ready to use for TX. In band mode, no channel setting is used. |
+| ![](<Sonic Manual_images/image4.png>) | Frequency is displayed in big<br>DCS and CTSS codes are displayed in small<br>Bx shows current band<br>Here we receive so RX> is displayed with an smeter below.<br>TX shows the last received frequency, ready to use for TX. In band mode, no channel setting is used. |
 | --- | --- |
 
 ## OPERATION IN EXPERIMENTAL CLOSE CALL MODE
@@ -371,7 +369,7 @@ RS232 version uses the kenwood cable.
 
 USB version uses USB-C cable.
 
-![](<Sonic Manual V77_images/image6.png>) ![Can the UV-K1 only be programmed through the USB-C port?](<Sonic Manual V77_images/image7.jpeg>)
+![](<Sonic Manual_images/image5.png>) ![Can the UV-K1 only be programmed through the USB-C port?](<Sonic Manual_images/image6.jpeg>)
 
 RS232 Kenwood cable USB-C cable
 
@@ -395,21 +393,21 @@ Select start frequency  and offset as stop frequency, step and modulation
 
 - you can give names to the scanlists like so:
 
-![](<Sonic Manual V77_images/image8.png>)
+![](<Sonic Manual_images/image7.png>)
 
 - Memory channels 975 to 1024 store custom band settings for <mark>Sonic 1K.</mark>
 - Memory channels 4047 to 4096 store custom band settings for <mark>Sonic 4K.</mark>
 - For each, define:
 - Band Name.
 - Start and End frequency (via offset).
-- ![](<Sonic Manual V77_images/image9.png>)Modulation & Frequency Step.
-- ![](<Sonic Manual V77_images/image10.png>)Scanlist Monitor setting Select up to 20ch to Monitor scanlist anywhere in the channels.
+- ![](<Sonic Manual_images/image8.png>)Modulation & Frequency Step.
+- ![](<Sonic Manual_images/image9.png>)Scanlist Monitor setting Select up to 20ch to Monitor scanlist anywhere in the channels.
 - FM Broadcast names\
   Enter channels frequencies in first section
 
 Enter frequencies and Names in the second section.
 
-![](<Sonic Manual V77_images/image11.png>)
+![](<Sonic Manual_images/image10.png>)
 
 ## Flash mapping considerations:
 
@@ -425,77 +423,3 @@ LOGO and CALIBRATION in Sonic are not available from UvStudio, please use F4HWN 
 The RESET feature is not available in UvStudio.
 
 The apps are not available in Sonic.
-
-## Sonic POCSAG firmware
-
-1\. Overview
-
-Sonic POCSAG is a standalone POCSAG paging receiver. It decodes POCSAG, displays messages on screen, and keeps the last 200 pages in external flash memory.
-
-The decoder supports 512 and 1200 baud (automatic detection). 2400 baud is recognized but not decoded.
-
-Scanning is fast: "POCSAG" scanlist channels are read on the fly with immediate RSSI-based skipping, reaching about 150–190 channels per second on empty channels.
-
-2\. Power-On and Main Screen
-
-Start Pocsag scan with F+7. The receiver starts scanning the channels programmed in the POCSAG scanlist.
-
-Top of screen:
-
-\- Measured baudrate: \`B512\`, \`B1200\`, \`B2400\` (before any preamble)
-
-\- Frequency of the channel currently being received
-
-When a page is received, it is displayed with the frequency in the header. Scanning resumes automatically after the transmission ends (no new batches for the end-of-transmission delay). Pages remain displayed while scanning continues; a new page turns the screen back on if it was off.
-
-3\. Scanning and RSSI Threshold
-
-Scanning is automatic and silent. The speaker is muted downstream by the audio amplifier, without affecting the decoder signal.
-
-How it works:
-
-- On each channel: tune, 5 ms stabilization, then RSSI read.
-- If RSSI is less than or equal to the noise floor + margin (6), the channel is skipped immediately (no dwell).
-- If a signal is present, the receiver stays on the channel: 40 ms if the signal is marginal, 100 ms if it is clear.
-- The noise floor is calibrated automatically on the first 16 channels of the first pass, then frozen.
-- As soon as a sync word is found, the baudrate is locked for the current reception.
-
-4\. Message Filtering
-
-To avoid cluttering the screen and memory:
-
-- Messages shorter than 10 characters are ignored (including tone-only, which have zero length).
-- Pure numeric messages (after applying the \`preferAlpha\` heuristic, which catches alpha messages erroneously sent on func=0) are rejected.
-
-5\. Message Size and Storage
-
-- Maximum message size: 320 characters.
-- External flash storage (24,576 bytes, 6 sectors of 4 KB):
-- Circular cold pool (\~21,360 o): page text, written in contiguous blocks. When the pool is full, new messages overwrite the oldest characters.
-- No flash access during reception: text accumulates in RAM, then is written in a single call at the end of the message.
-
-6\. Display
-
-Two fonts are available:
-
-Large (default) 18 columns × 6 lines
-
-Small 32 columns × 8 lines
-
-The \`\*\` key toggles between the two fonts.
-
-7\. Controls
-
-EXIT Exits the current mode
-
-UP / DOWN Navigates between pages; holding the key scrolls with repeat; wraps at the end
-
-\`\*\` Toggles large / small font
-
-\`2\` Clears the pages
-
-The RSSI skip threshold is automatic (calibrated floor + margin 6); no manual intervention is needed.
-
-8\. Chirp
-
-Use Sonic 1K driver for POCSAG.

@@ -526,18 +526,23 @@ static bool pocsag_msgs_similar(const char *a, unsigned alen,
     unsigned diff = 0, real = 0;
     for (unsigned i = 0; i < n; i++) {
         char ca = a[i], cb = b[i];
-        if (ca == GAP && cb == GAP) continue;
-        if (ca == GAP || cb == GAP) { diff++; continue; }
-        if (ca != cb) diff++;
-        else real++;
+        /* '?' = joker : ne compte jamais comme différence */
+        if (ca == GAP || cb == GAP) continue;
+        if (ca == cb) { real++; continue; }
+        diff++;
     }
 
-    /* tolérance : <= 2 différences réelles, ou <= 20 % du préfixe */
+    /* Aucun caractère réel comparé → impossible de conclure */
+    if (real == 0) return false;
+
+    /* tolérance stricte : <= 2 différences réelles */
     const unsigned tol = (n >= 10u) ? 2u : 1u;
     if (diff <= tol) return true;
-    /* tolérance relative : les '?' (diff) ne comptent qu'à moitié */
-    if ((diff * 5u) <= n) return true;
-    (void)real;
+
+    /* tolérance relative : <= 10 % de différences réelles
+       (par rapport au nombre de caractères réellement comparés) */
+    if (diff * 10u <= real) return true;
+
     return false;
 }
 
@@ -1164,7 +1169,8 @@ static void draw(void)
     } else {
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
-        UI_PrintStringSmallBold(r, 75, 0, 0);
+        GUI_DisplaySmallest(r, 48, 0, true, true);
+        //UI_PrintStringSmallBold(r, 75, 0, 0);
     }
 
     if (g.refresh == 0 || !g.battOk) {
