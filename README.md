@@ -7,7 +7,9 @@
 
 This software is a fork of Armel F4HWN firmware with code from NTOIVOLA, EGZUMER and DUAL TACHYON.
 
-The Sonic Firmware Documentation is in the DOWNLOAD section
+# [Sonic Manual](Sonic_Manual.md)
+
+# [Sonic POCSAG Manual](Sonic_Pocsag_Manual.md)
 
 ## Multiboot and dynamic profiles
 
