@@ -46,7 +46,7 @@
  *    plus de 2 mots sont non corrigeables (vraie corruption).
  *
  * TAILLE DES MESSAGES
- *  - MSG_MAX = 320 caractères. page_t.len, sl_t.len et sl_t.alen sont
+ *  - MSG_MAX = 254 caractères. page_t.len, sl_t.len et sl_t.alen sont
  *    uint16_t (sinon troncature à 255).
  *
  * STOCKAGE (flash externe, 0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
@@ -140,7 +140,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define AUTO_MIN_ALPHA 6u
 #define AUTO_MIN_LETTERS 4u
 #define AUTO_MARGIN    9
-#define MSG_MAX     320u       /* plafond stockage/affichage (fusion incluse) */
+#define MSG_MAX     254u       /* plafond stockage/affichage (fusion incluse) */
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
@@ -153,7 +153,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_FLASH_BASE        0x012000u
 #define POCSAG_FLASH_END         0x018000u
 
-#define MAX_MSGS                 200u
+#define MAX_MSGS                 500u
 
 #define POCSAG_META_FLASH_ADDR   (POCSAG_FLASH_BASE)                       /* 0x012000 */
 #define POCSAG_META_SIZE         16u
