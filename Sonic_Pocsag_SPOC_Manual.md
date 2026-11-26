@@ -1,13 +1,5 @@
 # Sonic POCSAG (SPOC) Firmware manual
 
-◀️  Join the SonicFw Telegram [https://t.me/SonicFw](https://t.me/SonicFw)
-
-📺 Youtube Channel [https://www.youtube.com/@robby_69400](https://www.youtube.com/@robby_69400)
-
-💾 DOWNLOAD select RAW file [DOWNLOAD_HERE](https://github.com/Robby69400/Sonic/tree/main/.DOWNLOAD_HERE)
-
-This software is a fork of Armel F4HWN firmware with code from NTOIVOLA, EGZUMER and DUAL TACHYON.
-
 # Installation
 
 **USB version only use USB-C cable.**
