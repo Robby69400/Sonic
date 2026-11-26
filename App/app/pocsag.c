@@ -22,13 +22,16 @@
  *    (plus aucun lot pendant POCSAG_END_MS), puis on affiche la ou les pages
  *    reçues avec la fréquence en en-tête, et le scan reprend.
  *
- * DÉDUPLICATION
- *  - Avant stockage, on compare les 30 premiers caractères du nouveau
- *    message avec les pages récentes du même RIC. Les '?' (GAP) sont
- *    ignorés dans la comparaison. Si le message est quasi identique,
- *    on FUSIONNE les deux versions en privilégiant à chaque position
- *    un caractère réel sur un '?' (ex : "Mis?ion" + "Mission" → "Mission").
- *    Cela absorbe les erreurs BCH résiduelles sans perdre l'info.
+ * FILTRE (touche 4)
+ *  - Quand le filtre est ACTIF (F affiché en haut à gauche), on ignore :
+ *      • les messages de moins de POCSAG_MIN_MSG_LEN (10) caractères,
+ *      • les tone-only (len == 0),
+ *      • les messages numériques purs (func == FUNC_NUMERIC sans alpha
+ *        rattrapé).
+ *    Seuls les messages alpha d'une longueur suffisante sont stockés.
+ *  - Quand le filtre est INACTIF, tous les messages d'une longueur
+ *    >= POCSAG_MIN_MSG_LEN sont stockés (comportement précédent, tone-only
+ *    exclus).
  *
  * LED
  *  - 1 s allumée toutes les 5 s en scan normal, flash 250 ms toutes les 1 s
@@ -71,10 +74,11 @@
  *  - En affichage message, EXIT revient à l'écran SCAN (messages conservés).
  *  - En affichage SCAN, UP/DOWN ouvre l'affichage des messages.
  *  - En affichage SCAN, EXIT quitte POCSAG.
+ *  - « F » affiché en haut à gauche quand le filtre (touche 4) est actif.
  *
  * Touches : EXIT quitte/revient · UP/DOWN pages ou ouvre les messages ·
  *            * alterne noms/fréquences en scan · 2 efface les pages ·
- *            1 bascule l'audio RX.
+ *            1 bascule l'audio RX · 4 bascule le filtre messages.
  */
 
 #ifdef ENABLE_POCSAG
@@ -156,17 +160,12 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define AUTO_MIN_ALPHA 6u
 #define AUTO_MIN_LETTERS 4u
 #define AUTO_MARGIN    9
-#define MSG_MAX     254u       /* plafond stockage/affichage (fusion incluse) */
+#define MSG_MAX     254u       /* plafond stockage/affichage */
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
 /* Seuil de rejet des messages trop courts (tone-only inclus). */
 #define POCSAG_MIN_MSG_LEN  10u
-
-/* [DEDUP] Longueur de préfixe comparée pour détecter les quasi-doublons. */
-#define POCSAG_DEDUP_PREFIX 30u
-/* Nombre de pages récentes examinées lors de la déduplication. */
-#define POCSAG_DEDUP_WINDOW 12u
 
 /* ============================================================
  * Stockage flash (0x012000–0x017FFF, 24 576 o, 6 secteurs de 4 Ko)
@@ -324,8 +323,6 @@ static page_t        g_cur_page;
 static bool          g_cur_valid;
 
 static char          g_pool_ram[MSG_MAX];
-static char          s_merged[MSG_MAX];
-static char          s_old[MSG_MAX];
 
 struct {
     uint8_t  prevKey, redraw;
@@ -357,8 +354,9 @@ struct {
     bool     hasUnread;      /* au moins un message non lu */
     uint32_t ledNextMs;      /* prochain toggle LED */
     bool     audioOn;        /* touche 1 : audio HP activé */
+    bool     filterOn;       /* touche 4 : filtre messages court/num/tone */
     sl_t     *sl;
-} g = { .cw = 0, .showNames = 1, .baud = BAUD_1200 };
+} g = { .cw = 0, .showNames = 1, .baud = BAUD_1200, .filterOn = true };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -507,64 +505,6 @@ static void pocsag_flash_wipe(void)
     pocsag_hdr_flush();
     g.cur = 0;
     g_cur_valid = false;
-}
-
-/* ============================================================
- * [DEDUP] Comparaison tolérante aux '?' (GAP)
- * ============================================================ */
-
-/* Renvoie true si a et b sont "quasi identiques" sur les
- * POCSAG_DEDUP_PREFIX premiers caractères, en ignorant les '?'. */
-static bool pocsag_msgs_similar(const char *a, unsigned alen,
-                                const char *b, unsigned blen)
-{
-    unsigned n = POCSAG_DEDUP_PREFIX;
-    if (n > alen) n = alen;
-    if (n > blen) n = blen;
-    if (n == 0) return false;
-
-    unsigned diff = 0, real = 0;
-    for (unsigned i = 0; i < n; i++) {
-        char ca = a[i], cb = b[i];
-        /* '?' = joker : ne compte jamais comme différence */
-        if (ca == GAP || cb == GAP) continue;
-        if (ca == cb) { real++; continue; }
-        diff++;
-    }
-
-    /* Aucun caractère réel comparé → impossible de conclure */
-    if (real == 0) return false;
-
-    /* tolérance stricte : <= 2 différences réelles */
-    const unsigned tol = (n >= 10u) ? 2u : 1u;
-    if (diff <= tol) return true;
-
-    /* tolérance relative : <= 10 % de différences réelles
-       (par rapport au nombre de caractères réellement comparés) */
-    if (diff * 10u <= real) return true;
-
-    return false;
-}
-
-/* Fusionne deux versions en privilégiant le caractère réel (≠ '?'). */
-static void pocsag_msgs_merge(char *dst, unsigned *dlen,
-                              const char *a, unsigned alen,
-                              const char *b, unsigned blen)
-{
-    unsigned n = alen > blen ? alen : blen;
-    if (n > MSG_MAX) n = MSG_MAX;
-    for (unsigned i = 0; i < n; i++) {
-        char ca = (i < alen) ? a[i] : GAP;
-        char cb = (i < blen) ? b[i] : GAP;
-        char c;
-        if (ca == GAP && cb == GAP) c = GAP;
-        else if (ca == GAP)          c = cb;
-        else if (cb == GAP)          c = ca;
-        else if (ca == cb)           c = ca;
-        else                         c = ca;   /* conflit : garde la version courante */
-        dst[i] = c;
-    }
-    *dlen = n;
 }
 
 /* ============================================================
@@ -793,9 +733,9 @@ static void closePage(sl_t *m){
         return;
 
     const uint8_t *t = (const uint8_t *)m->text;
-    unsigned n = m->len, gaps = 0, lost = 0;
+    unsigned n = m->len, gaps = 0;
     while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' ')))
-        lost |= t[--n] == GAP;
+        n--;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
 
     if(n < POCSAG_MIN_MSG_LEN) return;
@@ -804,66 +744,17 @@ static void closePage(sl_t *m){
     /* Rejet uniquement si vraie corruption (mots non corrigeables). */
     if(m->nBad > 2u) return;
 
+    /* ------------------------------------------------------------------
+     * [FILTRE] Si le filtre est actif (touche 4), on rejette les messages
+     * non-alpha (numériques purs, tone-only) une fois le seuil de
+     * longueur passé. Les tone-only ont déjà été éliminés par n==0.
+     * ------------------------------------------------------------------ */
+    if (g.filterOn && !m->alpha)
+        return;
+
     g.redraw |= REDRAW_FRAME;
 
-    /* ------------------------------------------------------------------
-     * [DEDUP] Déduplication tolérante aux '?' sur les pages récentes
-     * du même RIC. On compare POCSAG_DEDUP_PREFIX caractères, on ignore
-     * les GAP, et en cas de quasi-doublon on FUSIONNE en privilégiant
-     * les caractères réels (cf. pocsag_msgs_merge).
-     * ------------------------------------------------------------------ */
-    unsigned n_new = n;
-    for (unsigned i = 0; i < n; i++)
-        s_merged[i] = ((uint8_t)t[i] == GAP) ? GAP : (char)t[i];
-
-    unsigned win = g_hdr.count < POCSAG_DEDUP_WINDOW
-                   ? g_hdr.count : POCSAG_DEDUP_WINDOW;
-
-    for (unsigned j = 0; j < win; j++) {
-        page_t q;
-        pocsag_page_load(j, &q);
-        if (q.ric != m->ric) continue;
-        if (PAGE_GET_FUNC(&q) != m->func && !PAGE_GET_ALPHA(&q)) continue;
-
-        /* Chargement du texte existant. */
-        unsigned qlen = q.len;
-        if (qlen > MSG_MAX) qlen = MSG_MAX;
-        if (qlen == 0) continue;
-        pocsag_pool_read(q.offset, s_old, qlen);
-
-        /* Comparaison sur le préfixe, '?' ignorés. */
-        if (!pocsag_msgs_similar(s_merged, n_new, s_old, qlen))
-            continue;
-
-        /* Quasi-doublon : on fusionne. */
-        unsigned flen = 0;
-        pocsag_msgs_merge(g_pool_ram, &flen,
-                          s_merged, n_new,
-                          s_old, qlen);
-        if (flen == 0) continue;
-
-        /* Écriture du texte fusionné dans le pool (à l'offset existant). */
-        unsigned wlen = flen;
-        if (wlen > MSG_MAX) wlen = MSG_MAX;
-        if ((uint32_t)q.offset + wlen > POCSAG_POOL_SIZE) {
-            /* le texte dépasse la fin du pool : on ne fusionne pas, on
-             * laissera le prochain tour créer une nouvelle page. */
-            continue;
-        }
-        pocsag_pool_write(q.offset, g_pool_ram, wlen);
-        if (wlen > q.len) q.len = (uint16_t)wlen;
-        page_set_alpha(&q, m->alpha ? 1u : PAGE_GET_ALPHA(&q));
-        pocsag_page_store_phys(pocsag_phys(j), &q);
-
-        g_hdr_dirty = true;
-        pocsag_hdr_flush();
-        if (j == 0) g_cur_valid = false;
-        return;   /* doublon absorbé : pas de nouvelle page */
-    }
-
-    /* ------------------------------------------------------------------
-     * Aucun quasi-doublon : création normale d'une nouvelle page.
-     * ------------------------------------------------------------------ */
+    /* Création normale d'une nouvelle page. */
     unsigned msg_len = n;
     if ((uint32_t)g_hdr.pool_head + msg_len > POCSAG_POOL_SIZE)
         g_hdr.pool_head = 0;
@@ -1161,6 +1052,11 @@ static void draw(void)
     pocsag_cur_load();
     const page_t *p = &g_cur_page;
 
+    /* ---- Indicateur filtre (F) en haut à gauche ---- */
+    if (g.filterOn) {
+        GUI_DisplaySmallest("F", 0, 0, true, true);
+    }
+
     /* ---- Barre de statut ---- */
     if (g_hdr.count) {
         char freqStr[16];
@@ -1170,7 +1066,6 @@ static void draw(void)
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
         GUI_DisplaySmallest(r, 48, 0, true, true);
-        //UI_PrintStringSmallBold(r, 75, 0, 0);
     }
 
     if (g.refresh == 0 || !g.battOk) {
@@ -1387,6 +1282,10 @@ static void handleKeys(void)
         }
         g.redraw |= REDRAW_ON;
     }
+    else if (key == KEY_4) {
+        g.filterOn ^= 1u;
+        g.redraw |= REDRAW_ON;
+    }
 }
 
 static void backlightTick(void){
@@ -1601,6 +1500,7 @@ void APP_RunPocsagScan(void)
     g.keyDown = false;
     g.hasUnread = false;
     g.audioOn = false;
+    g.filterOn = false;
     g.led = 0;
     g.ledNextMs = pocsag_ticks_ms() + LED_ON_SCAN_MS;
 
