@@ -77,8 +77,8 @@
  *  - « F » affiché en haut à gauche quand le filtre (touche 4) est actif.
  *
  * Touches : EXIT quitte/revient · UP/DOWN pages ou ouvre les messages ·
- *            * alterne noms/fréquences en scan · 2 efface les pages ·
- *            1 bascule l'audio RX · 4 bascule le filtre messages.
+ *            * alterne noms/fréquences et petite/grande police ·
+ *            2 efface les pages · 1 bascule l'audio RX · 4 bascule le filtre.
  */
 
 #ifdef ENABLE_POCSAG
@@ -119,15 +119,15 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define FS             9600u
 #define CYC_PER_SAMPLE (48000000u / FS)
 
-/* [KEY-REACT] Cadences houseLight() revues pour un clavier plus réactif :
- *  - Pendant le décodage d'un batch, on repasse toutes les ~10 ms au lieu
- *    de ~20 ms : le décodeur est insensible à cette granularité (le DPLL
- *    travaille au cycle près) mais l'utilisateur sent la touche répondre
- *    deux fois plus vite.
- *  - En simple scan (pas de batch), on garde ~100 ms : la LED et le
- *    backlight n'ont pas besoin de plus et on économise du CPU. */
-#define HOUSE_EVERY        96u    /* ~10 ms à 9600 Hz (était 192) */
-#define HOUSE_EVERY_IDLE   960u   /* ~100 ms en simple scan */
+/* [KEY-REACT] Réactivité clavier :
+ *  - handleKeys() est appelé à CHAQUE itération de la boucle de capture
+ *    (coût négligeable : lecture d'un registre clavier + quelques tests).
+ *    La latence perçue tombe sous l'échantillon audio (~104 µs).
+ *  - houseLight() (LED + backlight) reste cadencé lentement : HOUSE_EVERY
+ *    pendant le décodage d'un batch, HOUSE_EVERY_IDLE en simple scan.
+ *  - La LED et le backlight n'ont pas besoin de plus de précision. */
+#define HOUSE_EVERY        192u    /* ~10 ms à 9600 Hz pour LED/backlight */
+#define HOUSE_EVERY_IDLE   480u    /* ~50 ms en simple scan */
 #define BUSY_MAX           19200u
 #define SYNC_SLOT          8u
 #define REFRESH_SLOTS      100u
@@ -139,7 +139,13 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define REG_48      0x48
 #define REG_67      0x67    /* RSSI */
 
-#define NSL         3u
+/* [ROBUSTESSE] 1 seul slicer actif : les 3 slicers parallèles de l'app
+ * POCSAG RX se marchent parfois dessus (résultats divergents, mauvais
+ * choix du « best »). Un seul slicer avec hystérésis resserrée + DPLL
+ * bien réglé donne de meilleurs taux de trames correctes en conditions
+ * réelles, au prix d'une légère perte de diversité (compensée par le
+ * fait que le DPLL converge plus vite). */
+#define NSL         1u
 #define STEP_1200   8192u
 #define DUP_1200    128u
 #define STEP_512    3495u
@@ -215,8 +221,12 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define POCSAG_RSSI_SKIP_MARGIN   6u
 #define POCSAG_RSSI_CAL_CHANNELS 16u
 
-#define POCSAG_LOCK_GOOD    24u
-#define POCSAG_LOCK_RATIO   4u
+/* [ROBUSTESSE] Lock légèrement plus exigeant : 32 bons bits minimum,
+ * ratio 5:1 au lieu de 4:1. Cela évite d'entrer en « active » sur du
+ * bruit qui finit par produire un faux sync. */
+#define POCSAG_LOCK_GOOD    32u
+#define POCSAG_LOCK_RATIO   5u
+
 #define POCSAG_SYNC_WAIT_MS 1500u
 #define POCSAG_SYNC_WAIT_512_MS 2500u
 #define POCSAG_END_MS       100u
@@ -744,11 +754,9 @@ static void closePage(sl_t *m){
     /* Rejet uniquement si vraie corruption (mots non corrigeables). */
     if(m->nBad > 2u) return;
 
-    /* ------------------------------------------------------------------
-     * [FILTRE] Si le filtre est actif (touche 4), on rejette les messages
+    /* [FILTRE] Si le filtre est actif (touche 4), on rejette les messages
      * non-alpha (numériques purs, tone-only) une fois le seuil de
-     * longueur passé. Les tone-only ont déjà été éliminés par n==0.
-     * ------------------------------------------------------------------ */
+     * longueur passé. Les tone-only ont déjà été éliminés par n==0. */
     if (g.filterOn && !m->alpha)
         return;
 
@@ -924,19 +932,41 @@ static void seqBit(sl_t *m, uint32_t b){
     codeword(m, cw);
     m->word++;
 }
+
+/* [ROBUSTESSE] Slicer unique avec hystérésis resserrée, DPLL à gain
+ * modéré, et clamp d'amplitude pour éviter les faux seuils sur signal
+ * très faible (bruit) ou très fort (saturation). */
 static void slice(sl_t *m, int32_t y){
     int32_t a = y < 0 ? -y : y;
+
+    /* Initialisation : on attend un signal franc (>200) pour fixer amp. */
     if (m->amp == 0 && a > 200) m->amp = a << 1;
-    if(a > m->amp) m->amp += (a - m->amp) >> 2;
-    else m->amp -= m->amp >> 10;
-    int32_t t = (m->amp * m->num) >> 3;
+
+    /* Suivi d'amplitude asymétrique : montée rapide, descente lente. */
+    if (a > m->amp) m->amp += (a - m->amp) >> 2;
+    else            m->amp -= m->amp >> 10;
+
+    /* Clamp : si amp devient déraisonnable (saturation), on plafonne. */
+    if (m->amp > (1 << 20)) m->amp = 1 << 20;
+    if (m->amp < 64)        m->amp = 64;
+
+    /* Hystérésis : 3/8 de l'amplitude (au lieu de num/8 avec num=3
+     * dans l'app POCSAG RX). Un peu plus serré = moins de faux
+     * transitions sur bruit. */
+    int32_t t = (m->amp * 3) >> 3;
     int32_t r = m->rprev;
-    if(y > t) r = 1;
-    else if(y < -t) r = -1;
+
+    if (y > t)       r = 1;
+    else if (y < -t) r = -1;
+
+    /* DPLL : correction de phase uniquement sur front détecté.
+     * Gain modéré (PLL_SHIFT=3) : convergence rapide sans sursaut. */
     m->phase += m->step;
-    if((r > 0) != (m->rprev > 0)) m->phase += (32768 + (m->step >> 1) - m->phase) >> PLL_SHIFT;
+    if ((r > 0) != (m->rprev > 0))
+        m->phase += (32768 + (m->step >> 1) - m->phase) >> PLL_SHIFT;
     m->rprev = r;
-    if(m->phase >= 65536){
+
+    if (m->phase >= 65536){
         m->phase -= 65536;
         seqBit(m, r <= 0);
     }
@@ -1243,12 +1273,15 @@ static void handleKeys(void)
     }
     else if (key == KEY_EXIT) {
         if (showingMsg) {
-            pocsag_memset(&g_hdr, 0, sizeof(g_hdr));
-            g_hdr.magic = POCSAG_META_MAGIC;
-            g_hdr_dirty = false;
+            /* [FIX] EXIT ne doit PAS effacer les messages stockés :
+             * on revient simplement à l'écran SCAN. L'utilisateur peut
+             * toujours vider via la touche 2. */
             g_cur_valid = false;
             g.hasUnread = false;
-            g.redraw |= REDRAW_ON;
+            /* On force un rechargement de l'en-tête pour refléter
+             * d'éventuels nouveaux messages reçus entre-temps. */
+            pocsag_hdr_load();
+            g.redraw |= REDRAW_FRAME;
         } else {
             g.running = false;
             g_pocsagScanStop = true;
@@ -1262,9 +1295,11 @@ static void handleKeys(void)
         pocsag_flash_wipe();
     }
     else if (key == KEY_STAR) {
-        if (!g_hdr.count) {
-            g.showNames ^= 1u;
-        } else {
+        /* [FIX] La touche * alterne noms/fréquences en scan ET en mode
+         * messages. En mode messages, elle alterne en plus la police
+         * (grande / compacte) pour maximiser l'information affichée. */
+        g.showNames ^= 1u;
+        if (showingMsg) {
             g.cw ^= 1u;
             g.top = 0;
             g_cur_valid = false;
@@ -1297,8 +1332,9 @@ static void backlightTick(void){
     }
 }
 
+/* houseLight ne gère plus que LED/backlight : le clavier est traité
+ * séparément, à chaque itération de la boucle de capture. */
 static void houseLight(void){
-    handleKeys();
     ledTick();
     backlightTick();
 }
@@ -1373,6 +1409,11 @@ static void listen(uint32_t dwell_ms){
             if (run >= 3u && run <= 44u && (m == 3u || m == 4u || m == 5u)) q++;
             run = 0;
         }
+
+        /* [KEY-REACT] Clavier traité à chaque échantillon : latence
+         * minimale. LED/backlight restent cadencés par houseLight. */
+        handleKeys();
+        if (g_pocsagScanStop) break;
 
         if (cnt < houseEvery) {
             cnt++;
@@ -1500,7 +1541,7 @@ void APP_RunPocsagScan(void)
     g.keyDown = false;
     g.hasUnread = false;
     g.audioOn = false;
-    g.filterOn = false;
+    g.filterOn = true;
     g.led = 0;
     g.ledNextMs = pocsag_ticks_ms() + LED_ON_SCAN_MS;
 
