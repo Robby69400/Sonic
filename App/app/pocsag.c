@@ -35,15 +35,23 @@
  *    aussi le décodeur. On garde donc AF en FM tant que audioOn est vrai ;
  *    sinon AF_MUTE et GPIO_DisableAudioPath().
  *
- * FILTRAGE DES MESSAGES
- *  - Seuil de longueur : les messages de moins de POCSAG_MIN_MSG_LEN (10)
- *    caractères sont ignorés après le calcul alpha (les tone-only ont
- *    len == 0 et sont donc aussi ignorés).
+ * FILTRAGE DES MESSAGES (touche 4, actif par défaut)
+ *  - Quand le filtre est actif :
+ *      · rejet des messages de moins de POCSAG_MIN_MSG_LEN (10) caractères
+ *        (les tone-only ont len == 0 et sont donc aussi ignorés) ;
+ *      · rejet des messages numériques purs (func=0 sans alpha) ;
+ *      · rejet des messages dont plus de la moitié des caractères sont des
+ *        GAP (2*gaps > n) ;
+ *      · rejet des pages dont trop de mots BCH ont été corrigés
+ *        (nBad + nFixed > 8 et nFixed*2 > nBad+nFixed) ;
+ *      · rejet des messages sans aucune lettre (bruit, fausses pages).
+ *  - Quand le filtre est désactivé (indicateur "RAW" en scan) :
+ *      · TOUT passe, y compris les numériques purs, les messages courts,
+ *        les pages bruitées et les pages sans lettres.
  *  - Numérique (Option B) : preferAlpha() est conservée pour rattraper
  *    les messages alpha émis par erreur sur func=0.
  *  - BCH : les mots corrigés (1 bit) sont comptés (nFixed) ainsi que les
- *    mots non corrigeables (nBad). Une page est rejetée si trop de mots
- *    ont été corrigés par rapport au total (risque de fausse page).
+ *    mots non corrigeables (nBad).
  *
  * TAILLE DES MESSAGES
  *  - MSG_MAX = 320 caractères. page_t.len, sl_t.len et sl_t.alen sont
@@ -57,15 +65,15 @@
  *
  * AFFICHAGE
  *  - Écran avant messages : touche '*' alterne noms des canaux / fréquences.
- *  - Messages reçus : nom du canal (ou fréquence) affiché en négatif dans
- *    la barre de statut.
+ *  - Messages reçus : nom du canal (ou fréquence) affiché en en-tête,
+ *    fréquence affichée en négatif dans la barre de statut.
  *  - En affichage message, EXIT revient à l'écran SCAN (messages conservés).
  *  - En affichage SCAN, UP/DOWN ouvre l'affichage des messages.
  *  - En affichage SCAN, EXIT quitte POCSAG.
  *
  * Touches : EXIT quitte/revient · UP/DOWN pages ou ouvre les messages ·
  *            * alterne noms/fréquences en scan · 2 efface les pages ·
- *            1 bascule l'audio RX.
+ *            1 bascule l'audio RX · 4 active/désactive le filtrage.
  */
 
 #ifdef ENABLE_POCSAG
@@ -171,8 +179,10 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define KEY_DEBOUNCE_MAX_MS   100u  /* tolérance KEY_INVALID (rebond) */
 
 /* LED */
-#define LED_BLINK_SCAN_MS     5000u
-#define LED_BLINK_UNREAD_MS   1000u
+#define LED_ON_SCAN_MS        400u   /* 1 s allumée en scan */
+#define LED_PERIOD_SCAN_MS    2000u   /* toutes les 5 s */
+#define LED_ON_UNREAD_MS       100u   /* flash court si non lu */
+#define LED_PERIOD_UNREAD_MS   300u   /* toutes les 1 s */
 
 /* ============================================================
  * Paramètres du scan
@@ -326,8 +336,9 @@ struct {
     uint32_t ledNextMs;      /* prochain toggle LED */
     bool     audioOn;        /* touche 1 : audio HP activé */
     bool     showScan;       /* true = écran SCAN, false = écran messages */
+    bool     filterOn;       /* touche 4 : filtrage des messages actif */
     sl_t     *sl;
-} g = { .cw = 0, .showNames = 1, .baud = BAUD_1200, .showScan = true };
+} g = { .cw = 0, .showNames = 1, .baud = BAUD_1200, .showScan = true, .filterOn = true };
 
 volatile bool g_pocsagScanStop = false;
 
@@ -597,23 +608,6 @@ static uint32_t pocsag_channel_freq(uint16_t ch)
     return freq;
 }
 
-static void pocsag_channel_name(uint16_t ch, char *dst, size_t maxLen)
-{
-    /* Lecture du nom canal en flash (octets 0..7 de l'entrée 16o ou zone nom) */
-    uint8_t raw[8];
-    PY25Q16_ReadBuffer(ADRESS_CHANNELS + (uint32_t)ch * 16u + 8u, raw, sizeof(raw));
-    size_t n = 0;
-    while (n < 4u && n + 1u < maxLen) {
-        uint8_t c = raw[n];
-        if (c == 0xFFu || c == 0u) break;
-        if (c >= 32u && c < 127u)
-            dst[n++] = (char)c;
-        else
-            break;
-    }
-    dst[n] = '\0';
-}
-
 static bool pocsag_name_match(const char *n, const char *name)
 {
     uint8_t k = 0;
@@ -717,21 +711,35 @@ static void closePage(sl_t *m){
         m->len = m->alen;
     }
 
-    if(m->func == FUNC_NUMERIC && m->len > 0u && !m->alpha)
-        return;
-
     const uint8_t *t = (const uint8_t *)m->text;
     unsigned n = m->len, gaps = 0, lost = 0;
     while(n && (t[n - 1u] == GAP || (m->func == FUNC_NUMERIC && t[n - 1u] == ' ')))
         lost |= t[--n] == GAP;
     for(unsigned i = 0; i < n; i++) gaps += t[i] == GAP;
 
-    if(n < POCSAG_MIN_MSG_LEN) return;
-    if(2u * gaps > n) return;
+    if (g.filterOn) {
+        /* Numérique pur sans alpha : rejeté (uniquement si filtre actif). */
+        if(m->func == FUNC_NUMERIC && n > 0u && !m->alpha)
+            return;
 
-    /* Rejet si trop de mots BCH corrigés (page douteuse). */
-    if(m->nBad + m->nFixed > 8u && m->nFixed * 2u > m->nBad + m->nFixed)
-        return;
+        if(n < POCSAG_MIN_MSG_LEN) return;
+        if(2u * gaps > n) return;
+
+        /* Rejet si trop de mots BCH corrigés (page douteuse). */
+        if(m->nBad + m->nFixed > 8u && m->nFixed * 2u > m->nBad + m->nFixed)
+            return;
+
+        /* Rejet des messages sans aucune lettre (bruit, fausses pages). */
+        {
+            unsigned letters = 0;
+            for (unsigned i = 0; i < n; i++) {
+                unsigned ch = (uint8_t)t[i];
+                if (ch == GAP) continue;
+                if ((ch | 32u) - 'a' < 26u) letters++;
+            }
+            if (letters == 0u) return;
+        }
+    }
 
     g.redraw |= REDRAW_FRAME;
 
@@ -992,15 +1000,23 @@ static void printFreq(char *s, uint32_t f)
     sprintf(s, "%u.%05u", (unsigned)(f / 100000u), (unsigned)(f % 100000u));
 }
 
-/* LED : clignote 5 s en scan, 1 s si message non lu. */
+/* LED : 1 s allumée / 5 s en scan, flash 250 ms / 1 s si non lu. */
 static void ledTick(void)
 {
     const uint32_t now = pocsag_ticks_ms();
     if ((int32_t)(now - g.ledNextMs) < 0) return;
-    const uint32_t period = g.hasUnread ? LED_BLINK_UNREAD_MS : LED_BLINK_SCAN_MS;
-    g.ledNextMs = now + period;
-    g.led ^= 1u;
-    BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, g.led & 1u);
+
+    if (g.led) {
+        g.led = 0;
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
+        const uint32_t period = g.hasUnread ? LED_PERIOD_UNREAD_MS : LED_PERIOD_SCAN_MS;
+        const uint32_t on     = g.hasUnread ? LED_ON_UNREAD_MS     : LED_ON_SCAN_MS;
+        g.ledNextMs = now + (period - on);
+    } else {
+        g.led = 1;
+        BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, true);
+        g.ledNextMs = now + (g.hasUnread ? LED_ON_UNREAD_MS : LED_ON_SCAN_MS);
+    }
 }
 
 extern void SETTINGS_FetchChannelName(char *s, const uint16_t channel);
@@ -1051,7 +1067,6 @@ static void pocsag_get_channel_label_for_freq(uint32_t freq, char *dst, size_t m
 {
     int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
     if (listIdx >= 0) {
-        uint16_t n = 0;
         for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
             uint32_t f = pocsag_channel_freq(ch);
             if (f && pocsag_channel_in_list(ch, listIdx)) {
@@ -1059,11 +1074,13 @@ static void pocsag_get_channel_label_for_freq(uint32_t freq, char *dst, size_t m
                     char buf[12];
                     SETTINGS_FetchChannelName(buf, ch);
                     buf[10] = '\0';
-                    strncpy(dst, buf, maxLen - 1u);
-                    dst[maxLen - 1u] = '\0';
-                    return;
+                    if (buf[0] != '\0') {
+                        strncpy(dst, buf, maxLen - 1u);
+                        dst[maxLen - 1u] = '\0';
+                        return;
+                    }
+                    break;
                 }
-                n++;
             }
         }
     }
@@ -1090,14 +1107,13 @@ static void draw(void)
         char freqStr[16];
         printFreq(freqStr, p->freq);
         unsigned nFreq = (unsigned)strlen(freqStr);
-        GUI_DisplaySmallestInverse(freqStr, 0, 0, true, true,
-                                 (uint8_t)(4u * nFreq));
+        //GUI_DisplaySmallestInverse(freqStr, 0, 0, true, true,(uint8_t)(4u * nFreq));
+        UI_PrintStringSmallBold(freqStr,0,0,0xFF);
     } else if (!g.showScan) {
         char r[20];
         sprintf(r, "R%u/%u", g.lastRssi, (unsigned)g.rssiFloor + POCSAG_RSSI_SKIP_MARGIN);
         GUI_DisplaySmallest(r, 60, 0, true, true);
-    }
-
+    } 
     if (g.refresh == 0 || !g.battOk) {
         bool yielded = pocsag_afc_yield_adc();
         uint16_t v, cur;
@@ -1109,11 +1125,14 @@ static void draw(void)
         g.battOk = 1;
     }
     sprintf(s1, "%u%%", (unsigned)BATTERY_VoltsToPercent(gBatteryVoltageAverage));
-    GUI_DisplaySmallest(s1, 128, 0, true, true);
+    
+    //GUI_DisplaySmallestInverse(s1, 112, 0, true, true, nBatt);
+    UI_PrintStringSmallBoldRight(s1, 127, 0xFF);
+
 
     /* ---- Corps : page courante ou mode scan ---- */
     if (!g.showScan && g_hdr.count) {
-        /* En-tête : nom du canal (ou fréquence) au lieu du RIC */
+        /* En-tête : nom du canal (ou fréquence si nom absent) au lieu du RIC */
         char label[16];
         pocsag_get_channel_label_for_freq(p->freq, label, sizeof(label));
         UI_PrintStringSmallBold(label, 0, 0, 0);
@@ -1160,9 +1179,10 @@ static void draw(void)
             lim = rows - ROWS;
     } else if (g.showScan) {
         /* Écran SCAN */
-        sprintf(s2, "SCAN %uCH", g.nCh);
-        GUI_DisplaySmallestInverse(s2, 0, 0, true, true, 4u * (unsigned)strlen(s2));
-
+        sprintf(s2, "SCAN %uCH %s", g.nCh, g.filterOn ? "FIL" : "RAW");
+        //GUI_DisplaySmallestInverse(s2, 0, 0, true, true, 4u * (unsigned)strlen(s2));
+        UI_PrintStringSmallBold(s2, 0, 0, 0xFF);
+        
 
         /* Noms des canaux ou fréquences sur 3 colonnes (x = 0, 43, 86) */
         int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
@@ -1202,7 +1222,6 @@ static void draw(void)
     } else {
         /* g_hdr.count == 0 : pas de messages, on force l'écran SCAN */
         g.showScan = true;
-        /* Réafficher le scan au prochain rafraîchissement */
         g.redraw |= REDRAW_ON;
     }
 
@@ -1331,6 +1350,14 @@ static void handleKeys(void)
             BK4819_SetAF(BK4819_AF_MUTE);
         }
         g.redraw |= REDRAW_ON;
+        return;
+    }
+
+    /* ---- Touche 4 : filtrage des messages ---- */
+    if (key == KEY_4) {
+        g.filterOn ^= 1u;
+        g.redraw |= REDRAW_ON;
+        return;
     }
 }
 
@@ -1536,9 +1563,10 @@ void APP_RunPocsagScan(void)
     g.keyDown = false;
     g.hasUnread = false;
     g.audioOn = false;
+    g.filterOn = true;   /* filtrage actif par défaut */
     g.led = 0;
-    g.ledNextMs = pocsag_ticks_ms() + LED_BLINK_SCAN_MS;
-    g.showScan = true;  /* démarrer sur l'écran SCAN */
+    g.ledNextMs = pocsag_ticks_ms() + LED_ON_SCAN_MS;
+    g.showScan = true;   /* démarrer sur l'écran SCAN */
 
     uint32_t tuned = first_freq;
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);

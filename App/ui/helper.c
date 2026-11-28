@@ -91,8 +91,20 @@ void UI_PrintStringRight(const char *pString, uint8_t Right, uint8_t Line)
     UI_PrintString(pString, Start, Start, Line, 8);
 }
 
+#define STATUS_LINE 0xFF
+
 void UI_PrintStringSmall(const char *pString, uint8_t Start, uint8_t End, uint8_t Line, uint8_t char_width, const uint8_t *font)
 {
+    uint8_t *line_buf;
+
+    if (Line == STATUS_LINE) {
+        line_buf = gStatusLine;
+    } else {
+        if (Line >= ARRAY_SIZE(gFrameBuffer))
+            return;
+        line_buf = gFrameBuffer[Line];
+    }
+
     const size_t Length = strlen(pString);
     const unsigned int char_spacing = char_width + 1;
 
@@ -100,7 +112,9 @@ void UI_PrintStringSmall(const char *pString, uint8_t Start, uint8_t End, uint8_
         Start += (((End - Start) - Length * char_spacing) + 1) / 2;
     }
 
-    UI_PrintStringBuffer(pString, gFrameBuffer[Line] + Start, char_width, font);
+    if (Start < 128) {
+        UI_PrintStringBuffer(pString, line_buf + Start, char_width, font);
+    }
 }
 
 void UI_PrintStringSmallbackground(const char *pString, uint8_t Start, uint8_t End, uint8_t Line, uint8_t background)
@@ -235,7 +249,7 @@ void UI_PrintStringSmallBold(const char *pString, uint8_t Start, uint8_t End, ui
 void UI_PrintStringSmallBoldRight(const char *pString, uint8_t End, uint8_t Line)
 {
     const uint8_t  char_width = ARRAY_SIZE(gFontSmallBold[0]);
-    const uint16_t width     = (uint16_t)strlen(pString) * (char_width + 1);
+    const uint16_t width      = (uint16_t)strlen(pString) * (char_width + 1);
     uint8_t Start = (width < End) ? (uint8_t)(End - width) : 0;
     UI_PrintStringSmallBold(pString, Start, Start, Line);
 }
