@@ -19,15 +19,6 @@ void APP_RunSpectrum(void)
 #endif
 }
 
-void RemoveTrailZeros(char *s)
-{
-    char *decimal = strchr(s, '.');
-    if (decimal == NULL) return;
-    char *end = s + strlen(s);
-    while (end > decimal + 1 && end[-1] == '0') *--end = '\0';
-    if (end > decimal && end[-1] == '.') *--end = '\0';
-}
-
 #else
 
 //K1 Spectrum Sonic

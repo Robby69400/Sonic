@@ -74,6 +74,9 @@
  * Touches : EXIT quitte/revient · UP/DOWN pages ou ouvre les messages ·
  *            * alterne noms/fréquences en scan · 2 efface les pages ·
  *            1 bascule l'audio RX · 4 active/désactive le filtrage.
+ *  - La scanlist « POCSAG » est plafonnée à POCSAG_MAX_CHANNELS (30).
+ *    Si elle en contient davantage, un popup « MAX 30 LOADED » s'affiche
+ *    au démarrage et le scan continue avec les 30 premiers canaux.
  */
 
 #ifdef ENABLE_POCSAG
@@ -146,7 +149,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
 #define AUTO_MIN_ALPHA 6u
 #define AUTO_MIN_LETTERS 4u
 #define AUTO_MARGIN    9
-#define MSG_MAX     320u       /* plafond stockage/affichage (fusion incluse) */
+#define MSG_MAX     254u       /* plafond stockage/affichage (fusion incluse) */
 #define GAP         0x7Fu
 #define BAD_RUN     3u
 
@@ -188,6 +191,7 @@ extern char gListName[MR_CHANNELS_LIST][10];
  * Paramètres du scan
  * ============================================================ */
 #define POCSAG_LIST_NAME    "POCSAG"
+#define POCSAG_MAX_CHANNELS 30u
 
 #define POCSAG_SETTLE_MS        5u
 
@@ -635,12 +639,16 @@ static bool pocsag_channel_in_list(uint16_t ch, int8_t listIdx)
     return (int8_t)(att.scanlist - 1) == listIdx;
 }
 
-static uint16_t pocsag_load_channels(int8_t listIdx)
+static uint16_t pocsag_load_channels(int8_t listIdx, bool *truncated)
 {
     uint16_t n = 0;
+    if (truncated) *truncated = false;
     for (uint16_t ch = MR_CHANNEL_FIRST; ch <= MR_CHANNEL_LAST; ch++) {
         uint32_t freq = pocsag_channel_freq(ch);
-        if (freq && pocsag_channel_in_list(ch, listIdx)) n++;
+        if (freq && pocsag_channel_in_list(ch, listIdx)) {
+            if (n >= POCSAG_MAX_CHANNELS) { if (truncated) *truncated = true; break; }
+            n++;
+        }
     }
     return n;
 }
@@ -1041,6 +1049,15 @@ static void pocsag_channel_name_at(int8_t listIdx, uint16_t idx, char *dst, size
     if (maxLen) dst[0] = '\0';
 }
 
+void RemoveTrailZeros(char *s)
+{
+    char *decimal = strchr(s, '.');
+    if (decimal == NULL) return;
+    char *end = s + strlen(s);
+    while (end > decimal + 1 && end[-1] == '0') *--end = '\0';
+    if (end > decimal && end[-1] == '.') *--end = '\0';
+}
+
 static void pocsag_channel_label_at(int8_t listIdx, uint16_t idx, char *dst, size_t maxLen)
 {
     uint16_t n = 0;
@@ -1053,6 +1070,7 @@ static void pocsag_channel_label_at(int8_t listIdx, uint16_t idx, char *dst, siz
                 } else {
                     sprintf(dst, "%u.%05u", (unsigned)(freq / 100000u),
                             (unsigned)(freq % 100000u));
+                    RemoveTrailZeros(dst);
                 }
                 return;
             }
@@ -1106,8 +1124,6 @@ static void draw(void)
         /* Fréquence affichée en négatif dans la barre de statut */
         char freqStr[16];
         printFreq(freqStr, p->freq);
-        unsigned nFreq = (unsigned)strlen(freqStr);
-        //GUI_DisplaySmallestInverse(freqStr, 0, 0, true, true,(uint8_t)(4u * nFreq));
         UI_PrintStringSmallBold(freqStr,0,0,0xFF);
     } else if (!g.showScan) {
         char r[20];
@@ -1180,15 +1196,13 @@ static void draw(void)
     } else if (g.showScan) {
         /* Écran SCAN */
         sprintf(s2, "SCAN %uCH %s", g.nCh, g.filterOn ? "FIL" : "RAW");
-        //GUI_DisplaySmallestInverse(s2, 0, 0, true, true, 4u * (unsigned)strlen(s2));
         UI_PrintStringSmallBold(s2, 0, 0, 0xFF);
-        
 
-        /* Noms des canaux ou fréquences sur 3 colonnes (x = 0, 43, 86) */
+        /* Noms des canaux ou fréquences sur 2 colonnes (x = 0 et 127) */
         int8_t listIdx = pocsag_find_scanlist(POCSAG_LIST_NAME);
         if (listIdx >= 0) {
-            static const uint8_t colX[3] = { 0u, 43u, 86u };
-            const uint16_t maxCells = 24u; /* 3 colonnes × 8 lignes */
+            static const uint8_t colX[2] = { 0u, 127u };
+            const uint16_t maxCells = 14u; /* 2 colonnes × 7 lignes */
             uint16_t startIdx = 0;
 
             if (g.nCh > maxCells) {
@@ -1212,10 +1226,14 @@ static void draw(void)
                 uint32_t fr = pocsag_channel_freq_at(listIdx, idx);
                 if (!fr) continue;
                 pocsag_channel_label_at(listIdx, idx, label, sizeof(label));
-                uint8_t col = (uint8_t)(cell / 8u);
-                uint8_t row = (uint8_t)(cell % 8u);
-                uint8_t y   = (uint8_t)(2u + row * 7u);
-                GUI_DisplaySmallest(label, colX[col], y, false, true);
+                uint8_t col = (uint8_t)(cell / 7u);
+                uint8_t row = (uint8_t)(cell % 7u);
+                uint8_t y   = (uint8_t)(row);   /* ligne 0 réservée au bandeau SCAN */
+                if (col == 0) {
+                    UI_PrintStringSmallBold(label, colX[0], 0, y);
+                } else {
+                    UI_PrintStringSmallBoldRight(label, colX[1], y);
+                }
                 cell++;
             }
         }
@@ -1278,6 +1296,7 @@ static void handleKeys(void)
             /* Depuis l'affichage message : retour à l'écran SCAN */
             g.showScan = true;
             g.redraw |= REDRAW_ON;
+            g.hasUnread = false;
         } else {
             /* Depuis l'écran SCAN : quitter POCSAG */
             g.running = false;
@@ -1521,7 +1540,16 @@ void APP_RunPocsagScan(void)
     }
 
     pocsag_hdr_load();
-    g.nCh = pocsag_load_channels(listIdx);
+    bool truncated = false;
+    g.nCh = pocsag_load_channels(listIdx, &truncated);
+    if (truncated) {
+        UI_DisplayClear();
+        UI_PrintStringSmallBold("MAX 30 LOADED", 0, 0, 2);
+        ST7565_BlitFullScreen();
+        SYSTEM_DelayMs(1500);
+    
+    }
+
     if (!g.nCh) {
         UI_DisplayClear();
         UI_PrintStringSmallBold("NO CH IN LIST", 0, 0, 2);
@@ -1571,7 +1599,7 @@ void APP_RunPocsagScan(void)
     uint32_t tuned = first_freq;
     SYSTEM_DelayMs(POCSAG_SETTLE_MS);
     for (uint16_t i = 0; !g_pocsagScanStop; i = (uint16_t)((i + 1u) % g.nCh)) {
-        g.nCh = pocsag_load_channels(listIdx);
+        g.nCh = pocsag_load_channels(listIdx, NULL);
         if (!g.nCh) { i = 0; SYSTEM_DelayMs(50); continue; }
         if (i >= g.nCh) i = 0;
 
